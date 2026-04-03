@@ -156,24 +156,35 @@ Rules:
 - Category, Item, Supplier, Customer, ItemSupplier
 - MenuPlan, DayPlan, MealSlot, MealSlotItem
 
-### Frontend Client
-- Layout: MainLayout, NavMenu, 4 MudBlazor providers
-- HttpClient: configured via `appsettings.json`
-- **Category**: CategoryService + CRUD pages (Index, Create, Edit) ✅
-- **Item**: ItemService + CRUD pages (Index, Create, Edit) ✅
-  - FK dropdown: `MudSelect<int>` bound to `dto.CategoryId`
-  - Enum dropdown: `MudSelect<MeasurementUnit>` bound to `dto.Unit`
-  - Numeric field: `MudNumericField<decimal>` for `PackageSize` (min 0.001)
-- **Supplier**: SupplierService + CRUD pages (Index, Create, Edit) ✅
-- **Customer**: CustomerService + CRUD pages (Index, Create, Edit) ✅
-  - Party fields only — PasswordHash/PasswordSalt never exposed in forms
----
+## Completed Frontend Slices (Client)
+✅ Layout         — MainLayout, NavMenu, 4 MudBlazor providers
+✅ HttpClient     — BaseAddress via Client/wwwroot/appsettings.json ("http://localhost:5075")
+✅ Category       — CategoryService + CRUD pages (Index, Create, Edit) functional
+✅ Item           — ItemService + CRUD pages (Index, Create, Edit) functional
+                    MudSelect<int> for CategoryId (FK dropdown)
+                    MudSelect<MeasurementUnit> for Unit (enum)
+                    MudNumericField<decimal> for PackageSize (min=0.001)
+✅ Supplier       — SupplierService + CRUD pages functional
+✅ Customer       — CustomerService + CRUD pages functional (Party fields only)
+                    PasswordHash/PasswordSalt never exposed in forms
+✅ ItemSupplier   — ItemSupplierService + CRUD pages functional
+                    Double FK dropdown (Item + Supplier) on Create
+                    Composite route /itemsupplier/edit/{ItemId:int}/{SupplierId:int}
+                    Edit page: business fields only (UnitPrice, SupplierReference, IsAvailable)
 
-## Current task
+## Next Step
+- Inline edit pattern (MudDataGrid) — pedagogical brief in progress
+- Category/Index migrated to MudDataGrid inline edit (pilot slice)
+- Then all existing slices migrated to this pattern
 
-**ItemSupplier slice — frontend.**
-First slice with double FK (Item + Supplier).
-Brief with CW required before CC codes.
+## Inline Edit Pattern (being established)
+- MudDataGrid replaces MudTable on all Index pages
+- EditMode="DataGridEditMode.Cell"
+- CommittedItemChanges → callback calling service UpdateAsync
+- FK columns (display only): no EditTemplate
+- Editable business columns: EditTemplate with MudTextField / MudNumericField / MudCheckBox
+- Separate Edit page dropped — all edits done inline
+- Create page remains separate (dedicated form)
 
 ---
 

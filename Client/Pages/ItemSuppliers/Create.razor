@@ -1,0 +1,67 @@
+@page "/itemsupplier/create"
+@inject ItemSupplierService ItemSupplierSvc
+@inject ItemService ItemSvc
+@inject SupplierService SupplierSvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Nouvelle liaison Item-Supplier</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Nouvelle liaison Item-Supplier</MudText>
+
+<MudForm @ref="_form" @bind-IsValid="_isValid">
+    <MudSelect T="int" @bind-Value="_dto.ItemId" Label="Item" Class="mb-3">
+        @foreach (var item in _items)
+        {
+            <MudSelectItem T="int" Value="@item.Id">@item.Name</MudSelectItem>
+        }
+    </MudSelect>
+    <MudSelect T="int" @bind-Value="_dto.SupplierId" Label="Supplier" Class="mb-3">
+        @foreach (var supplier in _suppliers)
+        {
+            <MudSelectItem T="int" Value="@supplier.Id">@supplier.CompanyName</MudSelectItem>
+        }
+    </MudSelect>
+    <MudNumericField @bind-Value="_dto.UnitPrice" Label="Unit Price" Min="0m" Class="mb-3" />
+    <MudTextField @bind-Value="_dto.SupplierReference" Label="Supplier Reference" MaxLength="100" Class="mb-3" />
+    <MudCheckBox @bind-Value="_dto.IsAvailable" Label="Available" Class="mb-3" />
+</MudForm>
+
+<MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+           Disabled="!_isValid" Class="mt-4 mr-2">
+    Enregistrer
+</MudButton>
+<MudButton OnClick="@(() => Nav.NavigateTo("/itemsupplier"))" Class="mt-4">
+    Annuler
+</MudButton>
+
+@code {
+    private MudForm _form = null!;
+    private bool _isValid;
+    private CreateItemSupplierRequest _dto = new();
+    private List<ItemResponse> _items = [];
+    private List<SupplierResponse> _suppliers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _items = await ItemSvc.GetAllAsync();
+        _suppliers = await SupplierSvc.GetAllAsync();
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+
+        var result = await ItemSupplierSvc.CreateAsync(_dto);
+        if (result is not null)
+        {
+            Snackbar.Add("Liaison Item-Supplier creee.", Severity.Success);
+            Nav.NavigateTo("/itemsupplier");
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la creation.", Severity.Error);
+        }
+    }
+}

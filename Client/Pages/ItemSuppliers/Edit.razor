@@ -1,0 +1,74 @@
+@page "/itemsupplier/edit/{ItemId:int}/{SupplierId:int}"
+@inject ItemSupplierService ItemSupplierSvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Modifier la liaison Item-Supplier</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Modifier la liaison Item-Supplier</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudForm @ref="_form" @bind-IsValid="_isValid">
+        <MudNumericField @bind-Value="_dto.UnitPrice" Label="Unit Price" Min="0m" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.SupplierReference" Label="Supplier Reference" MaxLength="100" Class="mb-3" />
+        <MudCheckBox @bind-Value="_dto.IsAvailable" Label="Available" Class="mb-3" />
+    </MudForm>
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+               Disabled="!_isValid" Class="mt-4 mr-2">
+        Enregistrer
+    </MudButton>
+    <MudButton OnClick="@(() => Nav.NavigateTo("/itemsupplier"))" Class="mt-4">
+        Annuler
+    </MudButton>
+}
+
+@code {
+    [Parameter] public int ItemId { get; set; }
+    [Parameter] public int SupplierId { get; set; }
+
+    private MudForm _form = null!;
+    private bool _isValid;
+    private UpdateItemSupplierRequest _dto = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var itemSupplier = await ItemSupplierSvc.GetByIdsAsync(ItemId, SupplierId);
+
+        if (itemSupplier is null)
+        {
+            Snackbar.Add("Liaison Item-Supplier introuvable.", Severity.Error);
+            Nav.NavigateTo("/itemsupplier");
+            return;
+        }
+
+        _dto.UnitPrice = itemSupplier.UnitPrice;
+        _dto.SupplierReference = itemSupplier.SupplierReference;
+        _dto.IsAvailable = itemSupplier.IsAvailable;
+
+        _loading = false;
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+
+        var result = await ItemSupplierSvc.UpdateAsync(ItemId, SupplierId, _dto);
+        if (result is not null)
+        {
+            Snackbar.Add("Liaison Item-Supplier mise a jour.", Severity.Success);
+            Nav.NavigateTo("/itemsupplier");
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la mise a jour.", Severity.Error);
+        }
+    }
+}

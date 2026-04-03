@@ -101,7 +101,18 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 - Migration future vers les grammes : ajouter UnitWeightG nullable → zéro breaking change
 
 ## Prochaine étape
-- Slice ItemSupplier côté Client (double FK : Item + Supplier — à briefer avec CW avant CC)
+- Inline edit pattern (MudDataGrid) — brief pédagogique en cours
+- Category/Index migré en MudDataGrid inline edit (slice pilote)
+- Puis ItemSupplier construit directement avec ce pattern (pas de page Edit séparée)
+
+## Pattern inline edit (en cours d'établissement)
+- MudDataGrid à la place de MudTable sur toutes les pages Index
+- EditMode="DataGridEditMode.Cell"
+- CommittedItemChanges → callback qui appelle UpdateAsync du service
+- Colonnes FK (display only) : pas d'EditTemplate
+- Colonnes métier éditables : EditTemplate avec MudTextField / MudNumericField / MudCheckBox
+- La page Edit séparée est abandonnée — toute modification se fait inline
+- La page Create reste séparée (formulaire dédié)
 
 ## Règles d'architecture établies
 - Shared est une class library pure : aucune dépendance EF Core
