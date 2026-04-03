@@ -11,6 +11,7 @@ builder.RootComponents.Add<HeadOutlet>("head::after");
 var serverUrl = builder.Configuration["ServerUrl"] ?? "https://localhost:5075";
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(serverUrl) });
 builder.Services.AddScoped<CategoryService>();
+builder.Services.AddScoped<ItemService>();
 builder.Services.AddMudServices();
 
 await builder.Build().RunAsync();

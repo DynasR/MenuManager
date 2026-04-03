@@ -1,0 +1,86 @@
+@page "/items/edit/{Id:int}"
+@inject ItemService ItemSvc
+@inject CategoryService CategorySvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Modifier l'item</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Modifier l'item</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudForm @ref="_form" @bind-IsValid="_isValid">
+        <MudTextField @bind-Value="_dto.Name" Label="Nom" Required="true"
+                      RequiredError="Le nom est obligatoire." MaxLength="100" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Description" Label="Description" Lines="3" Class="mb-3" />
+        <MudNumericField @bind-Value="_dto.Quantity" Label="Quantite" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Unit" Label="Unite" MaxLength="50" Class="mb-3" />
+        <MudSelect T="int" @bind-Value="_dto.CategoryId" Label="Categorie" Class="mb-3">
+            @foreach (var cat in _categories)
+            {
+                <MudSelectItem T="int" Value="@cat.Id">@cat.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudForm>
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+               Disabled="!_isValid" Class="mt-4 mr-2">
+        Enregistrer
+    </MudButton>
+    <MudButton OnClick="@(() => Nav.NavigateTo("/items"))" Class="mt-4">
+        Annuler
+    </MudButton>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private MudForm _form = null!;
+    private bool _isValid;
+    private UpdateItemRequest _dto = new();
+    private List<CategoryResponse> _categories = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var item = await ItemSvc.GetByIdAsync(Id);
+        _categories = await CategorySvc.GetAllAsync();
+
+        if (item is null)
+        {
+            Snackbar.Add("Item introuvable.", Severity.Error);
+            Nav.NavigateTo("/items");
+            return;
+        }
+
+        _dto.Name = item.Name;
+        _dto.Description = item.Description;
+        _dto.Quantity = item.Quantity;
+        _dto.Unit = item.Unit;
+        _dto.CategoryId = item.CategoryId;
+
+        _loading = false;
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+
+        var result = await ItemSvc.UpdateAsync(Id, _dto);
+        if (result is not null)
+        {
+            Snackbar.Add("Item mis a jour.", Severity.Success);
+            Nav.NavigateTo("/items");
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la mise a jour.", Severity.Error);
+        }
+    }
+}
