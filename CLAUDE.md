@@ -15,7 +15,7 @@ Stack: Blazor WASM (PWA) + ASP.NET Core Web API (.NET 9) + EF Core 9 + PostgreSQ
 /MenuManager
   /Client   → Blazor WASM + MudBlazor
   /Server   → ASP.NET Core Web API
-  /Shared   → Entities, DTOs, Validators (pure class library — NO EF dependency)
+  /Shared   → Entities, DTOs, Validators, Enums (pure class library — NO EF dependency)
   /Tests    → xUnit + bUnit + FluentAssertions + Moq
   docker-compose.yml
 ```
@@ -24,12 +24,12 @@ Stack: Blazor WASM (PWA) + ASP.NET Core Web API (.NET 9) + EF Core 9 + PostgreSQ
 
 ## Network (dev)
 
-| Service    | URL / Port              |
-|------------|-------------------------|
-| API Server | http://localhost:5075   |
-| PostgreSQL | localhost:5432          |
-| DB name    | menumanager             |
-| DB user    | admin                   |
+| Service    | URL / Port            |
+|------------|-----------------------|
+| API Server | http://localhost:5075 |
+| PostgreSQL | localhost:5432        |
+| DB name    | menumanager           |
+| DB user    | admin                 |
 
 Client reads `ServerUrl` from `Client/wwwroot/appsettings.json`.
 
@@ -43,40 +43,49 @@ Party (abstract, TPT)
   └── Supplier   — CompanyName, Siret, ICollection<ItemSupplier>
 
 Category       — Id, Name, Description, ParentCategoryId (self-ref), SubCategories, Items
-Item           — Id, Name, Description, Quantity, Unit, CategoryId, CreatedAt, UpdatedAt
+Item           — Id, Name, Description, Unit(MeasurementUnit), PackageSize(decimal, default=1),
+                 CategoryId(int), CreatedAt, UpdatedAt, ItemSuppliers, MealSlotItems
 ItemSupplier   — PK composite (ItemId+SupplierId), UnitPrice(10,2), SupplierRef, IsAvailable, UpdatedAt
 MenuPlan       — Id, Name, Month, Year, CustomerId, CreatedAt, ICollection<DayPlan>
 DayPlan        — Id, Date(DateOnly), MenuPlanId, ICollection<MealSlot>
 MealSlot       — Id, MealType, DayPlanId, unique(DayPlanId+MealType), ICollection<MealSlotItem>
 MealSlotItem   — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 
-MealType (enum) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
+MealType        (enum, Shared/Enums/) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
+MeasurementUnit (enum, Shared/Enums/) — Piece, Gram, Kilogram, Milliliter, Liter
 ```
 
 All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in `AppDbContext.OnModelCreating()` Fluent API.
+
+### PackageSize business rule
+- `MealSlotItem.Quantity` = quantity consumed in the recipe (e.g. 1 ice cream)
+- `Item.PackageSize` = units per package (e.g. 6)
+- Purchase calculation: `ceil(total_needed / PackageSize)`
+- Future migration to weight: add nullable `UnitWeightG` — zero breaking change.
 
 ---
 
 ## Architecture rules (non-negotiable)
 
 - **Shared** = pure class library. Zero EF Core dependency.
+- **Enums** in `Shared/Enums/` — single source of truth for Client and Server.
 - **DTOs** in `Shared/DTOs/` — manual mapping only, no AutoMapper.
 - **FluentValidation** in `Shared/Validators/`.
 - **No repository pattern** — services use `AppDbContext` directly.
-- **No business logic** in Blazor components.
+- **No business logic** in Blazor components — all HTTP calls go through a service.
 - **Tests**: SQLite in-memory only. EF InMemory provider is **forbidden** (doesn't enforce constraints).
 
 ---
 
 ## Service method signatures
 
-| Case                                    | Return type         |
-|-----------------------------------------|---------------------|
-| Create, no FK to validate               | `Task<T>`           |
-| Create, FK(s) to validate               | `Task<T?>`          |
-| Create, ambiguous 404 vs 409            | `Task<ResultType>`  |
-| Update (entity may not exist)           | `Task<T?>`          |
-| Delete                                  | `Task<bool>`        |
+| Case                                 | Return type        |
+|--------------------------------------|--------------------|
+| Create, no FK to validate            | `Task<T>`          |
+| Create, FK(s) to validate            | `Task<T?>`         |
+| Create, ambiguous 404 vs 409         | `Task<ResultType>` |
+| Update (entity may not exist)        | `Task<T?>`         |
+| Delete                               | `Task<bool>`       |
 
 ### 404 vs 409 pattern (ItemSupplier model)
 
@@ -91,6 +100,56 @@ Controller switches on `Error` to return the correct HTTP status.
 
 ---
 
+## FK dropdown pattern (established on Item slice)
+
+When a Create/Edit form references a FK, apply this pattern exactly:
+
+```razor
+@code {
+    private List<CategoryResponse> _categories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await CategoryService.GetAllAsync();
+        // also load the entity here if Edit page
+    }
+}
+
+<MudSelect T="int" @bind-Value="dto.CategoryId" Label="Category">
+    @foreach (var cat in _categories)
+    {
+        <MudSelectItem Value="cat.Id">@cat.Name</MudSelectItem>
+    }
+</MudSelect>
+```
+
+Rules:
+- `MudSelect<T>` type must match the DTO field type exactly (check `Shared/DTOs/` first — `int` vs `int?`).
+- FK data loaded in `OnInitializedAsync()`, never in a button handler.
+- The component holds only the list — no business logic.
+- Both the entity and its FK dependencies are loaded in the **same** `OnInitializedAsync()` call (Edit page).
+
+---
+
+## Enum dropdown pattern (established on Item.Unit)
+
+When a form field is bound to an enum, apply this pattern exactly:
+
+```razor
+<MudSelect T="MeasurementUnit" @bind-Value="dto.Unit" Label="Unit">
+    @foreach (var u in Enum.GetValues<MeasurementUnit>())
+    {
+        <MudSelectItem Value="u">@u</MudSelectItem>
+    }
+</MudSelect>
+```
+
+Rules:
+- No hardcoded list — `Enum.GetValues<T>()` is the single source of truth.
+- The enum lives in `Shared/Enums/` — automatically available to both Client and Server.
+
+---
+
 ## Completed slices
 
 ### Backend (all complete: DTO / Validator / Service / Controller / Tests)
@@ -101,15 +160,18 @@ Controller switches on `Error` to return the correct HTTP status.
 - Layout: MainLayout, NavMenu, 4 MudBlazor providers
 - HttpClient: configured via `appsettings.json`
 - **Category**: CategoryService + CRUD pages (Index, Create, Edit) ✅
+- **Item**: ItemService + CRUD pages (Index, Create, Edit) ✅
+  - FK dropdown: `MudSelect<int>` bound to `dto.CategoryId`
+  - Enum dropdown: `MudSelect<MeasurementUnit>` bound to `dto.Unit`
+  - Numeric field: `MudNumericField<decimal>` for `PackageSize` (min 0.001)
 
 ---
 
 ## Current task
 
-**Item slice — frontend.**
-Pattern identical to Category.
-`Client/Services/ItemService.cs` + `Client/Pages/Items/` (Index, Create, Edit).
-⚠️ The Create/Edit form must include a **Category dropdown** populated from `GET /api/categories`.
+**Supplier slice — frontend.**
+Pattern identical to Category (no FK, no dropdown needed).
+`Client/Services/SupplierService.cs` + `Client/Pages/Suppliers/` (Index, Create, Edit).
 
 ---
 

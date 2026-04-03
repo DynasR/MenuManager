@@ -65,8 +65,8 @@ public class ItemService : IItemService
         {
             Name = request.Name,
             Description = request.Description,
-            Quantity = request.Quantity,
             Unit = request.Unit,
+            PackageSize = request.PackageSize,
             CategoryId = request.CategoryId,
             CreatedAt = now,
             UpdatedAt = now
@@ -93,8 +93,8 @@ public class ItemService : IItemService
 
         item.Name = request.Name;
         item.Description = request.Description;
-        item.Quantity = request.Quantity;
         item.Unit = request.Unit;
+        item.PackageSize = request.PackageSize;
         item.CategoryId = request.CategoryId;
         item.UpdatedAt = DateTime.UtcNow;
 
@@ -127,8 +127,8 @@ public class ItemService : IItemService
         Id = i.Id,
         Name = i.Name,
         Description = i.Description,
-        Quantity = i.Quantity,
         Unit = i.Unit,
+        PackageSize = i.PackageSize,
         CategoryId = i.CategoryId,
         CategoryName = i.Category.Name,
         CreatedAt = i.CreatedAt,

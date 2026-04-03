@@ -3,6 +3,7 @@ using MenuManager.Server.Data;
 using MenuManager.Server.Services;
 using MenuManager.Shared.DTOs;
 using MenuManager.Shared.Entities;
+using MenuManager.Shared.Enums;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
@@ -62,7 +63,8 @@ public class MenuPlanServiceTests : IDisposable
         var item = new Item
         {
             Name = name,
-            Unit = "kg",
+            Unit = MeasurementUnit.Piece,
+            PackageSize = 1,
             CategoryId = cat.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

@@ -3,6 +3,7 @@ using MenuManager.Server.Data;
 using MenuManager.Server.Services;
 using MenuManager.Shared.DTOs;
 using MenuManager.Shared.Entities;
+using MenuManager.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MenuManager.Tests;
@@ -92,7 +93,8 @@ public class CategoryServiceTests : IDisposable
         _db.Items.Add(new Item
         {
             Name = "Item",
-            Unit = "kg",
+            Unit = MeasurementUnit.Piece,
+            PackageSize = 1,
             CategoryId = category.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

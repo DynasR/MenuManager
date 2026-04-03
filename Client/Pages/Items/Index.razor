@@ -16,16 +16,16 @@
     <HeaderContent>
         <MudTh>Nom</MudTh>
         <MudTh>Description</MudTh>
-        <MudTh>Quantite</MudTh>
-        <MudTh>Unite</MudTh>
+        <MudTh>Unit</MudTh>
+        <MudTh>Package size</MudTh>
         <MudTh>Categorie</MudTh>
         <MudTh>Actions</MudTh>
     </HeaderContent>
     <RowTemplate>
         <MudTd DataLabel="Nom">@context.Name</MudTd>
         <MudTd DataLabel="Description">@context.Description</MudTd>
-        <MudTd DataLabel="Quantite">@context.Quantity</MudTd>
-        <MudTd DataLabel="Unite">@context.Unit</MudTd>
+        <MudTd DataLabel="Unit">@context.Unit</MudTd>
+        <MudTd DataLabel="Package size">@context.PackageSize</MudTd>
         <MudTd DataLabel="Categorie">@(string.IsNullOrEmpty(context.CategoryName) ? context.CategoryId.ToString() : context.CategoryName)</MudTd>
         <MudTd>
             <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"

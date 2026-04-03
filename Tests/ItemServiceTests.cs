@@ -3,6 +3,7 @@ using MenuManager.Server.Data;
 using MenuManager.Server.Services;
 using MenuManager.Shared.DTOs;
 using MenuManager.Shared.Entities;
+using MenuManager.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MenuManager.Tests;
@@ -37,7 +38,8 @@ public class ItemServiceTests : IDisposable
         var item = new Item
         {
             Name = name,
-            Unit = "kg",
+            Unit = MeasurementUnit.Piece,
+            PackageSize = 1,
             CategoryId = categoryId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -92,7 +94,8 @@ public class ItemServiceTests : IDisposable
         var result = await _service.CreateAsync(new CreateItemRequest
         {
             Name = "Sugar",
-            Unit = "kg",
+            Unit = MeasurementUnit.Piece,
+            PackageSize = 1,
             CategoryId = cat.Id
         });
 
@@ -107,7 +110,8 @@ public class ItemServiceTests : IDisposable
         var result = await _service.UpdateAsync(999, new UpdateItemRequest
         {
             Name = "X",
-            Unit = "kg",
+            Unit = MeasurementUnit.Piece,
+            PackageSize = 1,
             CategoryId = 1
         });
 

@@ -1,3 +1,5 @@
+using MenuManager.Shared.Enums;
+
 namespace MenuManager.Shared.Entities;
 
 public class Item
@@ -5,8 +7,8 @@ public class Item
     public int Id { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
-    public decimal Quantity { get; set; }
-    public required string Unit { get; set; }
+    public MeasurementUnit Unit { get; set; }
+    public decimal PackageSize { get; set; } = 1;
     public int CategoryId { get; set; }
     public Category Category { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
