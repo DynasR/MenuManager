@@ -1,0 +1,86 @@
+@page "/suppliers/edit/{Id:int}"
+@inject SupplierService SupplierSvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Modifier le fournisseur</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Modifier le fournisseur</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudForm @ref="_form" @bind-IsValid="_isValid">
+        <MudTextField @bind-Value="_dto.Name" Label="Nom" Required="true"
+                      RequiredError="Le nom est obligatoire." MaxLength="100" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.CompanyName" Label="Societe" MaxLength="100" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Siret" Label="Siret" MaxLength="14" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Phone" Label="Telephone" MaxLength="20" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Email" Label="Email" MaxLength="100" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Address" Label="Adresse" MaxLength="200" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.City" Label="Ville" MaxLength="100" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.PostalCode" Label="Code postal" MaxLength="10" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Country" Label="Pays" MaxLength="100" Class="mb-3" />
+    </MudForm>
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+               Disabled="!_isValid" Class="mt-4 mr-2">
+        Enregistrer
+    </MudButton>
+    <MudButton OnClick="@(() => Nav.NavigateTo("/suppliers"))" Class="mt-4">
+        Annuler
+    </MudButton>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private MudForm _form = null!;
+    private bool _isValid;
+    private UpdateSupplierRequest _dto = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var supplier = await SupplierSvc.GetByIdAsync(Id);
+
+        if (supplier is null)
+        {
+            Snackbar.Add("Fournisseur introuvable.", Severity.Error);
+            Nav.NavigateTo("/suppliers");
+            return;
+        }
+
+        _dto.Name = supplier.Name;
+        _dto.CompanyName = supplier.CompanyName;
+        _dto.Siret = supplier.Siret;
+        _dto.Phone = supplier.Phone;
+        _dto.Email = supplier.Email;
+        _dto.Address = supplier.Address;
+        _dto.City = supplier.City;
+        _dto.PostalCode = supplier.PostalCode;
+        _dto.Country = supplier.Country;
+
+        _loading = false;
+    }
+
+    private async Task Submit()
+    {
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+
+        var result = await SupplierSvc.UpdateAsync(Id, _dto);
+        if (result is not null)
+        {
+            Snackbar.Add("Fournisseur mis a jour.", Severity.Success);
+            Nav.NavigateTo("/suppliers");
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la mise a jour.", Severity.Error);
+        }
+    }
+}

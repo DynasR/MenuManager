@@ -12,6 +12,8 @@ var serverUrl = builder.Configuration["ServerUrl"] ?? "https://localhost:5075";
 builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(serverUrl) });
 builder.Services.AddScoped<CategoryService>();
 builder.Services.AddScoped<ItemService>();
+builder.Services.AddScoped<SupplierService>();
+builder.Services.AddScoped<CustomerService>();
 builder.Services.AddMudServices();
 
 await builder.Build().RunAsync();

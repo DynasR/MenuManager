@@ -164,14 +164,16 @@ Rules:
   - FK dropdown: `MudSelect<int>` bound to `dto.CategoryId`
   - Enum dropdown: `MudSelect<MeasurementUnit>` bound to `dto.Unit`
   - Numeric field: `MudNumericField<decimal>` for `PackageSize` (min 0.001)
-
+- **Supplier**: SupplierService + CRUD pages (Index, Create, Edit) ✅
+- **Customer**: CustomerService + CRUD pages (Index, Create, Edit) ✅
+  - Party fields only — PasswordHash/PasswordSalt never exposed in forms
 ---
 
 ## Current task
 
-**Supplier slice — frontend.**
-Pattern identical to Category (no FK, no dropdown needed).
-`Client/Services/SupplierService.cs` + `Client/Pages/Suppliers/` (Index, Create, Edit).
+**ItemSupplier slice — frontend.**
+First slice with double FK (Item + Supplier).
+Brief with CW required before CC codes.
 
 ---
 

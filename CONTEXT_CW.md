@@ -78,6 +78,8 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
                   MudSelect<int> pour CategoryId (dropdown FK)
                   MudSelect<MeasurementUnit> pour Unit (enum)
                   MudNumericField<decimal> pour PackageSize (min=0.001)
+✅ Supplier     — SupplierService + Pages CRUD fonctionnelles
+✅ Customer     — CustomerService + Pages CRUD fonctionnelles (champs Party uniquement)
 
 ## Pattern dropdown FK (établi sur la slice Item)
 - Les catégories sont chargées dans OnInitializedAsync() via CategoryService.GetAllAsync()
@@ -99,9 +101,7 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 - Migration future vers les grammes : ajouter UnitWeightG nullable → zéro breaking change
 
 ## Prochaine étape
-- Slice Supplier côté Client (pattern identique à Category — pas de FK)
-- Question architecture en suspens : différence Scoped vs Singleton dans Blazor WASM
-  (à traiter tête reposée en début de prochaine session)
+- Slice ItemSupplier côté Client (double FK : Item + Supplier — à briefer avec CW avant CC)
 
 ## Règles d'architecture établies
 - Shared est une class library pure : aucune dépendance EF Core
@@ -113,6 +113,8 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 - AppDbContext utilisé directement dans les services (pas de repository pattern)
 - Séparation stricte logique métier / rendu (testabilité maximale)
 - Tests : SQLite in-memory (EF Core InMemory interdit : n'applique pas les contraintes)
+- Brief CC pattern-based ("fais comme X") pour création multi-fichiers avec modèle existant
+- Brief CC diff explicite champ par champ pour modification chirurgicale sans modèle analogue
 
 ## Règles de signatures établies
 | Cas                          | Signature           |
@@ -137,7 +139,14 @@ Le controller switche sur Error pour retourner 404 ou 409.
 
 ## Flow obligatoire pour chaque nouvelle feature (IMPORTANT)
 Avant que CC code, CW doit :
-1. Expliquer le concept impliqué (5 min)
+1. Expliquer le concept impliqué (5 min), si nouveau
+
+
+
+
+
+
+
 2. Poser 1-2 questions de vérification QCM (widget interactif)
 3. Attendre la réponse — ne pas continuer sans
 4. Corriger et compléter avec la bonne explication
