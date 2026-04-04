@@ -20,6 +20,10 @@ builder.Services.AddScoped<DayPlanService>();
 builder.Services.AddScoped<MealSlotService>();
 builder.Services.AddScoped<MealSlotItemService>();
 builder.Services.AddScoped<RightPanelState>();
-builder.Services.AddMudServices();
+builder.Services.AddMudServices(config =>
+{
+    config.SnackbarConfiguration.PositionClass = MudBlazor.Defaults.Classes.Position.BottomCenter;
+    config.SnackbarConfiguration.NewestOnTop = false;
+});
 
 await builder.Build().RunAsync();

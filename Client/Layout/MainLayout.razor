@@ -2,7 +2,7 @@
 @inject RightPanelState RightPanel
 @implements IDisposable
 
-<MudThemeProvider />
+<MudThemeProvider Theme="_theme" />
 <MudPopoverProvider />
 <MudSnackbarProvider />
 <MudDialogProvider />
@@ -38,6 +38,14 @@
 </MudLayout>
 
 @code {
+    private static readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Success = "#1B5E20"
+        }
+    };
+
     private bool _drawerOpen = true;
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 

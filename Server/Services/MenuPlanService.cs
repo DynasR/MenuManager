@@ -151,6 +151,7 @@ public class MenuPlanService : IMenuPlanService
         CustomerId = mp.CustomerId,
         CustomerName = mp.Customer.Name,
         CreatedAt = mp.CreatedAt,
+        HasData = mp.DayPlans.Any(dp => dp.MealSlots.Any(ms => ms.MealSlotItems.Count > 0)),
         DayPlans = mp.DayPlans.Select(MapDayPlanToResponse).ToList()
     };
 

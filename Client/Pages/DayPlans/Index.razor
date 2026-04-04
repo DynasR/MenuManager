@@ -7,6 +7,7 @@
 @inject ItemService ItemSvc
 @inject ISnackbar Snackbar
 @inject RightPanelState RightPanel
+@inject NavigationManager Nav
 @implements IDisposable
 
 <PageTitle>Day Plans</PageTitle>
@@ -21,7 +22,23 @@
 }
 else if (_parent is not null)
 {
-    <MudText Typo="Typo.h6" Class="mb-4">@_parent.Name</MudText>
+    <div class="month-nav-bar mb-4">
+        @foreach (var m in _monthNav)
+        {
+            var isCurrent = m.Month == _parent!.Month && m.Year == _parent.Year;
+            var color = isCurrent ? Color.Default : m.HasData ? Color.Primary : Color.Default;
+            var variant = isCurrent ? Variant.Filled : m.HasData ? Variant.Filled : Variant.Outlined;
+            var chipClass = isCurrent ? "month-nav-chip month-current" : "month-nav-chip";
+            <MudTooltip Text="@m.Label" Placement="Placement.Bottom">
+                <MudButton Size="Size.Small" Variant="@variant" Color="@color"
+                           Class="@chipClass"
+                           Disabled="@(isCurrent || _navigating)"
+                           OnClick="@(() => NavigateToMonthAsync(m))">
+                    @m.Short
+                </MudButton>
+            </MudTooltip>
+        }
+    </div>
 
     <MudToolBar Dense="true" Class="mb-2">
         <MudSpacer />
@@ -120,6 +137,32 @@ else if (_parent is not null)
 </MudDrawer>
 
 <style>
+    .month-nav-bar {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        overflow-x: auto;
+        white-space: nowrap;
+        padding: 4px 0;
+    }
+
+    .month-nav-chip {
+        min-width: 44px !important;
+        width: 44px;
+        height: 44px !important;
+        border-radius: 50% !important;
+        padding: 0 !important;
+        font-size: 0.75rem !important;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .month-current {
+        background-color: #1B5E20 !important;
+        color: #fff !important;
+    }
+
     .dayplan-grid {
         display: grid;
         grid-template-columns: 120px repeat(5, 1fr);
@@ -186,6 +229,12 @@ else if (_parent is not null)
     private HashSet<DateOnly> _holidays = [];
     private Dictionary<DateOnly, string> _holidayNames = new();
 
+    // Month navigation bar
+    private List<MonthNavItem> _monthNav = [];
+    private List<MenuPlanResponse> _siblingPlans = [];
+    private bool _navigating;
+    private int _lastMenuPlanId;
+
     // Shopping cart
     private List<MealSlotItemResponse> _allMealSlotItems = [];
 
@@ -194,6 +243,7 @@ else if (_parent is not null)
     private List<PendingMove> _pendingMoves = [];
 
     private sealed record PendingMove(int ItemId, DateOnly TargetDate, MealType TargetMealType, int NewOrder);
+    private sealed record MonthNavItem(int Month, int Year, string Label, string Short, int? MenuPlanId, bool HasData);
 
     // Drawer state
     private bool _drawerOpen;
@@ -206,10 +256,13 @@ else if (_parent is not null)
             .Where(i => i.Name.Contains(_itemSearch, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnParametersSetAsync()
     {
-        if (MenuPlanId == 0)
+        if (MenuPlanId == 0 || MenuPlanId == _lastMenuPlanId)
             return;
+
+        _lastMenuPlanId = MenuPlanId;
+        _parentNotFound = false;
 
         _parent = await MenuPlanSvc.GetByIdAsync(MenuPlanId);
         if (_parent is null)
@@ -221,7 +274,12 @@ else if (_parent is not null)
         _holidayNames = FrenchHolidays.GetNamedHolidays(_parent.Year);
         _holidays = new HashSet<DateOnly>(_holidayNames.Keys);
 
-        _allItems = await ItemSvc.GetAllAsync();
+        _siblingPlans = await MenuPlanSvc.GetByCustomerAsync(_parent.CustomerId);
+        BuildMonthNav();
+
+        if (!_allItems.Any())
+            _allItems = await ItemSvc.GetAllAsync();
+
         await LoadAsync();
     }
 
@@ -431,6 +489,59 @@ else if (_parent is not null)
         }
 
         await LoadAsync();
+    }
+
+    private void BuildMonthNav()
+    {
+        _monthNav = [];
+        var current = new DateOnly(_parent!.Year, _parent.Month, 1);
+        for (int i = -6; i <= 6; i++)
+        {
+            var d = current.AddMonths(i);
+            var match = _siblingPlans.FirstOrDefault(p => p.Month == d.Month && p.Year == d.Year);
+            var label = d.ToString("MMMM yyyy", _frCulture);
+            var abbr = d.ToString("MMM", _frCulture).TrimEnd('.').ToUpper();
+            _monthNav.Add(new MonthNavItem(d.Month, d.Year, label, abbr, match?.Id, match?.HasData ?? false));
+        }
+    }
+
+    private async Task NavigateToMonthAsync(MonthNavItem month)
+    {
+        _navigating = true;
+        StateHasChanged();
+
+        try
+        {
+            int targetId;
+            if (month.MenuPlanId is not null)
+            {
+                targetId = month.MenuPlanId.Value;
+            }
+            else
+            {
+                var result = await MenuPlanSvc.CreateAsync(new MenuPlanRequest
+                {
+                    Name = $"Planning {month.Month:D2}/{month.Year}",
+                    Month = month.Month,
+                    Year = month.Year,
+                    CustomerId = _parent!.CustomerId
+                });
+
+                if (result is null)
+                {
+                    Snackbar.Add("Échec de la création du menu plan.", Severity.Error);
+                    return;
+                }
+                targetId = result.Id;
+            }
+
+            _lastMenuPlanId = 0; // Reset so OnParametersSetAsync re-triggers
+            Nav.NavigateTo($"dayplans?menuPlanId={targetId}");
+        }
+        finally
+        {
+            _navigating = false;
+        }
     }
 
     public void Dispose()

@@ -109,52 +109,14 @@ Reference: `ItemSupplierDtos.cs`.
 
 ---
 
-## Index page pattern (established and harmonized on all slices)
+## Index page pattern (established — reference: `Category/Index.razor`)
 
-All Index pages follow this exact pattern. Reference implementation: `Category/Index.razor`.
-
-### Toolbar
-- **"Add row" button** — always visible, no toggle, no "New" button, no Edition Mode switch.
-- **"Save All" button** — single button handling both pending rows and dirty rows (see below).
-- No navigation to a separate Create page — creation is exclusively via pending rows.
-
-### Pending rows (two-phase commit UI)
-- A **draft grid** (same columns and widths as the main grid) sits above the main grid.
-- Each "Add row" click appends a typed `XxxDraft` instance to `_pendingRows` (local state, no Id).
-- Each draft row has a **Validate** button (disabled when `Name` is empty or whitespace)
-  and a **Cancel** button in the Actions column.
-- `ValidateRow(draft)` → builds the request DTO → calls `Service.CreateAsync()`:
-  - On success: remove from `_pendingRows`, reload main grid.
-  - On failure (`null` or error): display a **snackbar error** — never fail silently.
-- Draft class is a private `sealed class` defined in `@code`, not in `Shared/`.
-
-### Main grid (inline edit)
-- `MudDataGrid` with `EditMode="DataGridEditMode.Cell"`.
-- Editable columns use `EditTemplate` with `ValueChanged` (not `@bind-Value`) to intercept
-  changes and mark the row dirty:
-  `ValueChanged="@((T val) => { context.Item.Field = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"`
-- `_dirtyRows` is a `HashSet<int>` declared in `@code`. Cleared in `LoadAsync()` after reload.
-- Each row has an inline **Save** button (disquette icon),
-  disabled when `!_dirtyRows.Contains(context.Item.Id)`.
-- Each row has an inline **Delete** button.
-- **No** `CommittedItemChanges` — saving is always explicit, never automatic.
-- FK columns: `MudSelect` with `EditTemplate` + `ValueChanged` — editable inline.
-- Enum columns: `MudSelect<TEnum>` with `EditTemplate` + `ValueChanged` — editable inline.
-- **Composite PK (ItemSupplier)**: `_dirtyRows` stores a `HashSet<(int, int)>` instead of `HashSet<int>`.
-
-### Save All (toolbar)
-- A single **Save All** button handles both pending rows and dirty rows.
-- Disabled when `_pendingRows.Count == 0 && _dirtyRows.Count == 0`.
-- Execution order is strict and non-negotiable:
-  1. Create all pending rows sequentially (insertion order).
-  2. Update all dirty rows.
-- Each operation is non-blocking: on failure → snackbar error + continue.
-- After the loop: if at least one success → reload full list + snackbar summary
-  ("X created, Y updated", zeros omitted).
-
-### Deleted artifacts
-- All `Create.razor` pages have been removed — creation is via pending rows only.
-- All separate `Edit.razor` pages have been removed — editing is inline.
+- **Pending rows**: draft grid above main grid, "Add row" appends `XxxDraft`, Validate → `CreateAsync`, Cancel to discard.
+- **Main grid**: `MudDataGrid` cell edit, `ValueChanged` + `_dirtyRows` tracking, explicit Save per row.
+- **Save All**: creates pending rows first (insertion order), then updates dirty rows. Snackbar summary.
+- **No** separate Create/Edit pages — all inline. Draft class is private `sealed class` in `@code`.
+- FK/Enum columns: `MudSelect` with `EditTemplate` + `ValueChanged`. Enums via `Enum.GetValues<T>()`.
+- Composite PK (ItemSupplier): `_dirtyRows` is `HashSet<(int, int)>`.
 
 ---
 
@@ -166,29 +128,9 @@ All Index pages follow this exact pattern. Reference implementation: `Category/I
 
 ---
 
-## Column width alignment rule
+## Grid alignment rule
 
-When two `MudDataGrid` instances are stacked (main grid + pending rows grid), their columns
-must be visually aligned. The only reliable approach:
-
-1. Add `Style="table-layout: fixed; width: 100%;"` on **both** `<MudDataGrid>` tags.
-2. Apply **strictly identical** `Style="width: X%"` on each `<PropertyColumn>` / `<TemplateColumn>`
-   in both grids.
-
-Percentage values must sum to 100%. Choose values proportional to expected content width.
-
----
-
-## FK & Enum dropdown rules
-
-Reference: `Item/Index.razor` (FK + enum in same page).
-
-- **Pending rows** (drafts): `@bind-Value` — no dirty tracking needed.
-- **Main grid** (EditTemplate): `Value` + `ValueChanged` to mark row dirty via `_dirtyRows.Add(...)`.
-- `MudSelect<T>` type must match DTO field type exactly (`int` vs `int?`).
-- Nullable FK (e.g. `ParentCategoryId`): add "— None —" option with `null` value at top.
-- FK data loaded in `OnInitializedAsync()`, never in a button handler.
-- Enums: `Enum.GetValues<T>()` — no hardcoded lists. Enums live in `Shared/Enums/`.
+Stacked grids (pending + main): `table-layout: fixed; width: 100%` on both, identical `width: X%` on columns.
 
 ---
 
@@ -201,14 +143,14 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 
 | Slice        | Service | Index           | Notes                                                              |
 |--------------|---------|-----------------|--------------------------------------------------------------------|
-| Layout       | —       | —               | MainLayout, NavMenu, RightPanelState, 4 MudBlazor providers         |
+| Layout       | —       | —               | MudTheme (Success=#1B5E20), Snackbar BottomCenter, RightPanelState  |
 | Category     | ✅      | ✅ patched      | Reference implementation — new Save pattern applied                |
 | Item         | ✅      | ✅ patched      | FK CategoryId, enum Unit, decimal PackageSize                      |
 | Supplier     | ✅      | ✅ patched      | Party fields + CompanyName, Siret                                  |
 | Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
-| MenuPlan     | ✅      | ✅ cards        | 12-month card grid, route `/menuplan/{CustomerId:int}` (see below) |
-| DayPlan      | ✅      | ✅ calendar     | FR dates, weekend/holiday coloring, drag & drop (see below)        |
+| MenuPlan     | ✅      | ✅ cards        | 12-month cards, HasData coloring, unified button (see below)       |
+| DayPlan      | ✅      | ✅ calendar     | Month nav bar, drag & drop, shopping cart (see below)              |
 | MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 | MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
@@ -219,117 +161,53 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 Route: `/menuplan/{CustomerId:int}` — always scoped to a customer.
 Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
-- No MudDataGrid, no pending rows, no dirty tracking.
-- 12 slots generated **client-side** from current month + 11 months ahead.
-- Each slot is a `MudCard` displaying month title (FR uppercase) + start/end dates (FR long format).
-- All date formatting uses `CultureInfo("fr-FR")`.
-- Matching with DB: `_menuPlans.FirstOrDefault(p => p.Month == month && p.Year == year && p.CustomerId == CustomerId)`.
-- Card without MenuPlan → "+ Créer" button → `CreateAsync` then navigate to `/dayplan/{id}`.
-- Card with MenuPlan → "Voir le planning" button → navigate to `/dayplan/{id}`.
-- Created plan name: `$"Planning {month:D2}/{year}"`.
+- 12 slots: current month + 11 months ahead, `MudCard` per slot, FR locale.
+- Unified "Voir le planning" button on all cards — creates MenuPlan on-the-fly if absent.
+- **HasData coloring**: current month = green (`#1B5E20`), has data = filled blue, empty = outlined.
+- `MenuPlanResponse.HasData` — computed server-side (`DayPlans.Any(dp => dp.MealSlots.Any(ms => ms.MealSlotItems.Count > 0))`).
 
 ---
 
 ## DayPlan/Index — monthly calendar view
 
 ### Layout
-- CSS grid: 7 columns — Date + 5 MealTypes (Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner).
-- One row per day of the month, generated client-side from MenuPlan.Month / MenuPlan.Year.
+- CSS grid: 7 columns — Date + 5 MealTypes.
+- One row per day of the month, FR locale, weekend/holiday coloring.
+- `FrenchHolidays.cs` helper for public holidays (fixed + Easter-based).
 
-### French dates
-- All day labels use `CultureInfo("fr-FR")` — short consistent format.
-
-### Day coloring (priority order: holiday > weekend > normal)
-- Helper `Client/Helpers/FrenchHolidays.cs` — static method `GetHolidays(int year)`
-  returning `HashSet<DateOnly>` of all French public holidays (fixed + mobile via Easter algorithm).
-- Colors use MudBlazor CSS variables (`--mud-palette-*`) — no hardcoded hex values.
-- Weekend (Saturday/Sunday): light distinct tint.
-- Public holiday: stronger tint + discrete visual indicator (tooltip or label).
+### Month navigation bar
+- Horizontal strip of ±6 circular chips above the calendar (13 months total).
+- Current month = green filled (`#1B5E20`), has data = blue filled, empty = outlined.
+- Click navigates to that month's DayPlan — creates MenuPlan on-the-fly if absent.
+- Uses `OnParametersSetAsync` (not `OnInitializedAsync`) for SPA re-navigation.
+- `_siblingPlans` loaded via `MenuPlanSvc.GetByCustomerAsync` to detect existing plans.
 
 ### MealCell component (`Client/Components/MealCell.razor`)
 - One cell per `(DateOnly date, MealType mealType)`.
-- Displays ordered list of `MealSlotItem` for that slot (`Order` field respected).
-- "+" button opens the MudDrawer (add item).
-- Delete button per item.
-- Each item element is draggable (SortableJS) — carries `data-item-id="{mealSlotItem.Id}"`, uses `@key="item.Id"`.
-- The list container carries `data-date` and `data-mealtype` attributes.
-- Parameters: `OnItemMoved` (cross-cell move), `OnItemRemoved` (delete), `OnAddRequested` (drawer), `OnOrderChanged` (same-slot reorder).
-- `[JSInvokable] OnReorder(int[] orderedIds)` — called by JS on same-list sort, raises `OnOrderChanged`.
+- Ordered list of items, "+" button (opens drawer), delete button, SortableJS drag & drop.
+- Parameters: `OnItemMoved`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`.
 
-### MudDrawer (right anchor)
-- Opens when user clicks "+" in any MealCell.
-- Context: selected date + selected MealType displayed in drawer header.
-- Real-time item search — client-side filter on `_allItems`.
-- Clicking an item triggers the on-demand AddItemAsync flow.
-- Width: 320px, Variant: Temporary.
-
-### AddItemAsync logic (sequential, on-demand)
-1. If no DayPlan exists for selected date → `CreateAsync` → store in `_dayPlanByDate`.
-2. If no MealSlot exists for `(DayPlanId, MealType)` → `CreateAsync`.
-3. `CreateAsync` MealSlotItem (Quantity default = 1, Order = current slot item count).
-4. Silent success + `LoadAsync()`.
+### AddItemAsync — on-demand creation
+- DayPlan → MealSlot → MealSlotItem created lazily when first item is added to a slot.
+- Silent success + `LoadAsync()`.
 
 ---
 
 ## Drag & drop (fully implemented)
 
-### Backend
-- `MealSlotItem.Order int default 0` — migration `AddMealSlotItemOrder` applied.
-- `CreateAsync` auto-assigns `Order = currentCount + 1` (sequential).
-- `MoveMealSlotItemRequest` in `Shared/DTOs/` — fields: `TargetDate`, `TargetMealType`, `NewOrder`.
-  Backend resolves the target MealSlot itself (on-demand pattern) — no `TargetMealSlotId` exposed.
-- `MealSlotItemService.MoveAsync(int id, MoveMealSlotItemRequest)`:
-  - Loads item + current slot → 404 if missing.
-  - Resolves target MealSlot by `(DayPlanId, TargetMealType)` — creates it if absent.
-  - Moves item to target slot, then **renumbers both source and target slots** (gap-free 1-based Order).
-  - Inserts at `NewOrder` position in target slot via `Math.Clamp`.
-- `PATCH /mealslotitem/{id}/move` — returns 200 or 404.
-- `ReorderMealSlotItemsRequest` in `Shared/DTOs/` — fields: `MealSlotId`, `OrderedItemIds` (List<int>).
-- `MealSlotItemService.ReorderAsync(ReorderMealSlotItemsRequest)`:
-  - Validates all IDs belong to the slot and list is complete (count match).
-  - Assigns 1-based Order per provided sequence.
-  - Returns `false` on empty slot, partial list, or unknown ID.
-- `PATCH /mealslotitems/reorder` — returns 204 or 404.
-- `MealSlotItemResponse` includes `Order`, `UnitPrice` (nullable decimal), `PackageSize`, `Unit` fields.
-- All services mapping `MealSlotItemResponse` include `Item.ItemSuppliers` to resolve `UnitPrice` (first available supplier, ordered by SupplierId).
-- Tests: reorder (correct, unknown ID, empty, partial), sequential Order on create, renumber source/target on move, insert position, UnitPrice resolution.
-
-### Frontend — deferred save pattern
-- Drag & drop operations are **not** sent to the backend immediately.
-- `_pendingMoves` (List<PendingMove>) — cross-cell moves buffered locally.
-- `_pendingReorders` (Dictionary<int, List<int>>) — same-slot reorders buffered by MealSlotId.
-- `HandleMoveItem` updates local `_dayPlanByDate` state (remove from source, insert in target) so Blazor stays in sync with SortableJS DOM — no `LoadAsync()` until Save.
-- `HandleOrderChanged` stores the new order in `_pendingReorders`.
-- **Save All toolbar button** — disabled when both buffers empty. Processes moves first, then reorders. Snackbar summary on completion ("X moved, Y reordered"). Then `LoadAsync()`.
-
-### JS interop (`sortable-interop.js`)
-- IIFE with `Map` registry (element → `{ sortable, moveHandler, dotNetRef }`).
-- `initSortable(element, group)` — creates SortableJS instance, fires `sortcomplete` custom event on `onEnd`.
-- `observeSortable(element, dotNetRef)` — listens to `sortcomplete`, distinguishes cross-cell (→ `OnDrop`) vs same-list (→ `OnReorder`).
-- `destroySortable(element)` — cleans up instance + listeners + ref.
-
-### Snackbar rule for drag & drop
-- **Error only during Save All** — snackbar per failed operation.
-- **Summary on success** — "X moved, Y reordered" (zeros omitted).
-- **No snackbar on individual drag** — visual DOM feedback is sufficient.
+- SortableJS via JS interop (`sortable-interop.js`).
+- **Deferred save**: moves and reorders buffered locally (`_pendingMoves`, `_pendingReorders`), sent on Save All.
+- Backend: `PATCH /mealslotitem/{id}/move` (cross-cell), `PATCH /mealslotitems/reorder` (same-slot).
+- `MealSlotItem.Order` — 1-based, gap-free, auto-renumbered on move.
+- `MealSlotItemResponse` includes `Order`, `UnitPrice`, `PackageSize`, `Unit`.
 
 ---
 
 ## Shopping Cart (right panel)
 
-### RightPanelState (`Client/Services/RightPanelState.cs`)
-- Scoped service managing a global right-side `MudDrawer` in `MainLayout`.
-- Properties: `Content` (RenderFragment?), `IsOpen` (bool).
-- Methods: `SetContent`, `Toggle`, `Open`, `Close`. Fires `OnChange` event.
-- Any page can inject `RightPanelState` to push content into the right panel.
-- `MainLayout` subscribes to `OnChange` to re-render. Cart icon in AppBar visible only when `Content is not null`.
-
-### ShoppingCart component (`Client/Components/ShoppingCart.razor`)
-- Parameter: `IEnumerable<MealSlotItemResponse> Items`.
-- Aggregates items by `ItemId` → computes `TotalQuantity`, `PackagesToBuy` (`ceil(qty / PackageSize)`), `LineTotal` (`packages * UnitPrice`).
-- Displays grand total in EUR (FR locale). Warning when some items have missing prices.
-- DayPlan/Index feeds all `MealSlotItems` from `_dayPlanByDate` into the cart via `RightPanel.SetContent`.
-- Cart content refreshed on every `LoadAsync()`. Disposed when leaving the page.
+- `RightPanelState` — scoped service, global `MudDrawer` in `MainLayout`. Any page can push content.
+- `ShoppingCart.razor` — aggregates items by `ItemId`, computes packages to buy (`ceil(qty / PackageSize)`), line totals, grand total (EUR, FR locale).
+- Fed by DayPlan/Index on every `LoadAsync()`. Disposed on page leave.
 
 ---
 

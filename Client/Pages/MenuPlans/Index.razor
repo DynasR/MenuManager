@@ -27,29 +27,33 @@ else
                             </MudText>
                         </CardHeaderContent>
                     </MudCardHeader>
+                    @{
+                        var isCurrentMonth = slot.Month == DateTime.Now.Month && slot.Year == DateTime.Now.Year;
+                        var hasData = slot.MenuPlan?.HasData ?? false;
+                        var btnColor = isCurrentMonth ? Color.Default : hasData ? Color.Primary : Color.Default;
+                        var btnVariant = isCurrentMonth || hasData ? Variant.Filled : Variant.Outlined;
+                        var btnClass = isCurrentMonth ? "btn-month-current" : "";
+                    }
                     <MudCardActions>
-                        @if (slot.MenuPlan is not null)
-                        {
-                            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
-                                       StartIcon="@Icons.Material.Filled.CalendarMonth"
-                                       OnClick="@(() => Nav.NavigateTo($"dayplans?menuPlanId={slot.MenuPlan.Id}"))">
-                                Voir le planning
-                            </MudButton>
-                        }
-                        else
-                        {
-                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-                                       StartIcon="@Icons.Material.Filled.Add"
-                                       OnClick="@(() => CreateAndNavigateAsync(slot))">
-                                Créer
-                            </MudButton>
-                        }
+                        <MudButton Variant="@btnVariant" Color="@btnColor" Size="Size.Small"
+                                   Class="@btnClass"
+                                   StartIcon="@Icons.Material.Filled.CalendarMonth"
+                                   OnClick="@(() => CreateAndNavigateAsync(slot))">
+                            Voir le planning
+                        </MudButton>
                     </MudCardActions>
                 </MudCard>
             </MudItem>
         }
     </MudGrid>
 }
+
+<style>
+    .btn-month-current {
+        background-color: #1B5E20 !important;
+        color: #fff !important;
+    }
+</style>
 
 @code {
     [Parameter] public int CustomerId { get; set; }
@@ -110,15 +114,20 @@ else
 
     private async Task CreateAndNavigateAsync(MonthSlot slot)
     {
-        var request = new MenuPlanRequest
+        if (slot.MenuPlan is not null)
         {
-            Name = $"{slot.Title}",
+            Nav.NavigateTo($"dayplans?menuPlanId={slot.MenuPlan.Id}");
+            return;
+        }
+
+        var result = await MenuPlanSvc.CreateAsync(new MenuPlanRequest
+        {
+            Name = $"Planning {slot.Month:D2}/{slot.Year}",
             Month = slot.Month,
             Year = slot.Year,
             CustomerId = CustomerId
-        };
+        });
 
-        var result = await MenuPlanSvc.CreateAsync(request);
         if (result is not null)
         {
             Nav.NavigateTo($"dayplans?menuPlanId={result.Id}");

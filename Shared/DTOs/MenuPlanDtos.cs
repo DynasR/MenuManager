@@ -44,6 +44,7 @@ public class MenuPlanResponse
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = "";
     public DateTime CreatedAt { get; set; }
+    public bool HasData { get; set; }
     public List<DayPlanResponse> DayPlans { get; set; } = [];
 }
 
