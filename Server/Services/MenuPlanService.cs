@@ -172,8 +172,8 @@ public class MenuPlanService : IMenuPlanService
     private static MealSlotItemResponse MapMealSlotItemToResponse(MealSlotItem msi) => new()
     {
         Id = msi.Id,
-        ItemId = msi.ItemId,
-        ItemName = msi.Item.Name,
+        ItemId = msi.ItemId ?? 0,
+        ItemName = msi.Item?.Name ?? "",
         Quantity = msi.Quantity,
         Notes = msi.Notes,
         MealSlotId = msi.MealSlotId

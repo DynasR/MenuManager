@@ -7,10 +7,13 @@ window.initSortable = function (element, dotNetRef, group) {
         group: group,
         animation: 150,
         onEnd: function (evt) {
-            var fromListId = evt.from.dataset.listId;
-            var toListId = evt.to.dataset.listId;
             var itemId = parseInt(evt.item.dataset.itemId);
-            dotNetRef.invokeMethodAsync("OnItemMoved", fromListId, toListId, itemId);
+            var fromDate = evt.from.dataset.date;
+            var fromMealType = evt.from.dataset.mealtype;
+            var toDate = evt.to.dataset.date;
+            var toMealType = evt.to.dataset.mealtype;
+            var newIndex = evt.newIndex;
+            dotNetRef.invokeMethodAsync("OnDrop", itemId, fromDate, fromMealType, toDate, toMealType, newIndex);
         }
     });
 };

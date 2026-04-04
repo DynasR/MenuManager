@@ -16,6 +16,8 @@ public class AppDbContext : DbContext
     public DbSet<DayPlan> DayPlans => Set<DayPlan>();
     public DbSet<MealSlot> MealSlots => Set<MealSlot>();
     public DbSet<MealSlotItem> MealSlotItems => Set<MealSlotItem>();
+    public DbSet<Recipe> Recipes => Set<Recipe>();
+    public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -65,6 +67,25 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<MealSlotItem>()
             .Property(msi => msi.Quantity)
+            .HasPrecision(10, 3);
+
+        // MealSlotItem — Servings precision
+        modelBuilder.Entity<MealSlotItem>()
+            .Property(msi => msi.Servings)
+            .HasPrecision(10, 3);
+
+        // RecipeIngredient — composite key
+        modelBuilder.Entity<RecipeIngredient>()
+            .HasKey(ri => new { ri.RecipeId, ri.ItemId });
+
+        // RecipeIngredient — Quantity precision
+        modelBuilder.Entity<RecipeIngredient>()
+            .Property(ri => ri.Quantity)
+            .HasPrecision(10, 3);
+
+        // Item — MonthlyEstimate precision
+        modelBuilder.Entity<Item>()
+            .Property(i => i.MonthlyEstimate)
             .HasPrecision(10, 3);
 
         // MealSlot — unique per type/day

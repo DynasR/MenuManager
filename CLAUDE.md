@@ -49,7 +49,7 @@ ItemSupplier   — PK composite (ItemId+SupplierId), UnitPrice(10,2), SupplierRe
 MenuPlan       — Id, Name, Month, Year, CustomerId, CreatedAt, ICollection<DayPlan>
 DayPlan        — Id, Date(DateOnly), MenuPlanId, ICollection<MealSlot>
 MealSlot       — Id, MealType, DayPlanId, unique(DayPlanId+MealType), ICollection<MealSlotItem>
-MealSlotItem   — Id, Quantity(10,3), Notes, MealSlotId, ItemId
+MealSlotItem   — Id, Quantity(10,3), Notes, Order(int, default=0), MealSlotId, ItemId
 
 MealType        (enum, Shared/Enums/) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
 MeasurementUnit (enum, Shared/Enums/) — Piece, Gram, Kilogram, Milliliter, Liter
@@ -63,6 +63,16 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 - `Item.PackageSize` = units per package (e.g. 6)
 - Purchase calculation: `ceil(total_needed / PackageSize)`
 - Future migration to weight: add nullable `UnitWeightG` — zero breaking change.
+
+---
+
+## Migrations applied
+
+| Migration name                   | Description                                      |
+|----------------------------------|--------------------------------------------------|
+| InitialCreate                    | Full initial schema                              |
+| RefactorItemUnitAndPackageSize   | Unit → enum MeasurementUnit, PackageSize added   |
+| AddMealSlotItemOrder             | Order int default 0 added on MealSlotItem        |
 
 ---
 
@@ -249,58 +259,101 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 
 ### Frontend (Client)
 
-| Slice        | Service | Index        | Notes                                                        |
-|--------------|---------|--------------|--------------------------------------------------------------|
-| Layout       | —       | —            | MainLayout, NavMenu, 4 MudBlazor providers                   |
-| Category     | ✅      | ✅ patched   | Reference implementation — new Save pattern applied          |
-| Item         | ✅      | ✅ patched   | FK CategoryId, enum Unit, decimal PackageSize                |
-| Supplier     | ✅      | ✅ patched   | Party fields + CompanyName, Siret                            |
-| Customer     | ✅      | ✅ patched   | Party fields only, no password exposure                      |
-| ItemSupplier | ✅      | ✅ patched   | Double FK dropdown, composite PK, snackbar 404/409           |
-| MenuPlan     | ✅      | ✅           | FK CustomerId, Month/Year — no auto DayPlan generation       |
-| DayPlan      | ✅      | ✅ read-only | Calendar generated client-side, no Index pattern, see above  |
-| MealSlot     | ✅      | ❌ deleted   | Logic embedded in DayPlan/Index                              |
-| MealSlotItem | ✅      | ❌ deleted   | Logic embedded in DayPlan/Index                              |
+| Slice        | Service | Index           | Notes                                                              |
+|--------------|---------|-----------------|--------------------------------------------------------------------|
+| Layout       | —       | —               | MainLayout, NavMenu, 4 MudBlazor providers                         |
+| Category     | ✅      | ✅ patched      | Reference implementation — new Save pattern applied                |
+| Item         | ✅      | ✅ patched      | FK CategoryId, enum Unit, decimal PackageSize                      |
+| Supplier     | ✅      | ✅ patched      | Party fields + CompanyName, Siret                                  |
+| Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
+| ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
+| MenuPlan     | ✅      | ✅ cards        | 12-month card grid, route `/menuplan/{CustomerId:int}` (see below) |
+| DayPlan      | ✅      | ✅ calendar     | FR dates, weekend/holiday coloring, drag & drop (see below)        |
+| MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
+| MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
 ---
 
-## Next steps
+## MenuPlan/Index — 12-month card grid
 
-### DayPlan/Index — monthly planning view (in progress)
+Route: `/menuplan/{CustomerId:int}` — always scoped to a customer.
+Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
-UI approach: single page, monthly calendar view.
-- CSS grid: 7 columns — Date + 5 MealTypes (Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner)
-- One row per day of the month, generated client-side from MenuPlan.Month / MenuPlan.Year
-- DayPlan records are created on-demand in DB only when a first item is added to a day
-- MealSlot records are created on-demand when a first item is added to a slot
-- MealSlotItem records are created immediately on item selection
+- No MudDataGrid, no pending rows, no dirty tracking.
+- 12 slots generated **client-side** from current month + 11 months ahead.
+- Each slot is a `MudCard` displaying month title (FR uppercase) + start/end dates (FR long format).
+- All date formatting uses `CultureInfo("fr-FR")`.
+- Matching with DB: `_menuPlans.FirstOrDefault(p => p.Month == month && p.Year == year && p.CustomerId == CustomerId)`.
+- Card without MenuPlan → "+ Créer" button → `CreateAsync` then navigate to `/dayplan/{id}`.
+- Card with MenuPlan → "Voir le planning" button → navigate to `/dayplan/{id}`.
+- Created plan name: `$"Planning {month:D2}/{year}"`.
 
-Pages MealSlot/Index and MealSlotItem/Index have been deleted — their logic is embedded in DayPlan/Index.
+---
 
-### Components
-- `Client/Components/MealCell.razor` — one cell per (date, MealType)
-  - Displays list of MealSlotItems for that slot
-  - "+" button opens the MudDrawer (add item)
-  - Delete button per item (MealSlotItemId)
-  - SortableJS hook ready for Phase 4 (drag & drop)
+## DayPlan/Index — monthly calendar view
+
+### Layout
+- CSS grid: 7 columns — Date + 5 MealTypes (Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner).
+- One row per day of the month, generated client-side from MenuPlan.Month / MenuPlan.Year.
+
+### French dates
+- All day labels use `CultureInfo("fr-FR")` — short consistent format.
+
+### Day coloring (priority order: holiday > weekend > normal)
+- Helper `Client/Helpers/FrenchHolidays.cs` — static method `GetHolidays(int year)`
+  returning `HashSet<DateOnly>` of all French public holidays (fixed + mobile via Easter algorithm).
+- Colors use MudBlazor CSS variables (`--mud-palette-*`) — no hardcoded hex values.
+- Weekend (Saturday/Sunday): light distinct tint.
+- Public holiday: stronger tint + discrete visual indicator (tooltip or label).
+
+### MealCell component (`Client/Components/MealCell.razor`)
+- One cell per `(DateOnly date, MealType mealType)`.
+- Displays ordered list of `MealSlotItem` for that slot (`Order` field respected).
+- "+" button opens the MudDrawer (add item).
+- Delete button per item.
+- Each item element is draggable (SortableJS) — carries `data-id="{mealSlotItem.Id}"`.
+- The list container carries `data-date` and `data-mealtype` attributes.
 
 ### MudDrawer (right anchor)
-- Opens when user clicks "+" in any MealCell
-- Context: selected date + selected MealType displayed in drawer header
-- MudTextField for real-time item search (client-side filter on _allItems)
-- MudListItem per filtered item — clicking adds it to the slot
-- Width: 320px, Variant: Temporary
+- Opens when user clicks "+" in any MealCell.
+- Context: selected date + selected MealType displayed in drawer header.
+- Real-time item search — client-side filter on `_allItems`.
+- Clicking an item triggers the on-demand AddItemAsync flow.
+- Width: 320px, Variant: Temporary.
 
 ### AddItemAsync logic (sequential, on-demand)
-1. If no DayPlan exists for selected date → CreateAsync → store in _dayPlanByDate
-2. If no MealSlot exists for (DayPlanId, MealType) → CreateAsync
-3. CreateAsync MealSlotItem (Quantity default = 1)
-4. Snackbar success + LoadAsync()
+1. If no DayPlan exists for selected date → `CreateAsync` → store in `_dayPlanByDate`.
+2. If no MealSlot exists for `(DayPlanId, MealType)` → `CreateAsync`.
+3. `CreateAsync` MealSlotItem (Quantity default = 1, Order = current slot item count).
+4. Silent success + `LoadAsync()`.
 
-### Drag & drop (Phase 4 — not yet implemented)
-- SortableJS infrastructure in place (wwwroot/js/sortable-interop.js)
-- MealCell exposes OnItemMoved EventCallback
-- Phase 4 will wire OnItemMoved in DayPlan/Index → call MealSlotItem update endpoint
+---
+
+## Drag & drop (fully implemented)
+
+### Backend
+- `MealSlotItem.Order int default 0` — migration `AddMealSlotItemOrder` applied.
+- `MoveMealSlotItemRequest` in `Shared/DTOs/` — fields: `TargetDate`, `TargetMealType`, `NewOrder`.
+  Backend resolves the target MealSlot itself (on-demand pattern) — no `TargetMealSlotId` exposed.
+- `MealSlotItemService.MoveAsync(int id, MoveMealSlotItemRequest)`:
+  - Loads item + current slot → 404 if missing.
+  - Resolves target MealSlot by `(DayPlanId, TargetMealType)` — creates it if absent.
+  - Updates `MealSlotId` + `Order`.
+- `PATCH /mealslotitem/{id}/move` — returns 200 or 404.
+- Tests: reorder within same slot, move to different slot, move to non-existent slot (on-demand), 404.
+
+### Frontend
+- `MealSlotItemService` client — `MoveAsync(int id, MoveMealSlotItemRequest)`.
+- `sortable-interop.js` — SortableJS configured with `group: "mealslots"` on all lists (enables cross-cell drag).
+- `onEnd` handler distinguishes two cases by comparing `from` and `to` list references:
+  - Same list → reorder (Scenario A).
+  - Different lists → move (Scenario B).
+- Calls `dotnetHelper.invokeMethodAsync('OnDrop', itemId, fromDate, fromMealType, toDate, toMealType, newIndex)`.
+- `[JSInvokable] OnDrop(...)` in `DayPlan/Index` builds `MoveMealSlotItemRequest` → calls `MoveAsync`.
+
+### Snackbar rule for drag & drop
+- **Error only** — snackbar displayed when `MoveAsync` returns null.
+- **No success snackbar** — the visual result of the drop is the feedback. Silent `LoadAsync()` on success.
 
 ---
 

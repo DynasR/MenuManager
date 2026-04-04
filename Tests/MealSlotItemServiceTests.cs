@@ -277,6 +277,112 @@ public class MealSlotItemServiceTests : IDisposable
         result.Notes.Should().Be("updated");
     }
 
+    // ── MoveAsync ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task MoveAsync_ReturnsNull_ForUnknownId()
+    {
+        var result = await _service.MoveAsync(999, new MoveMealSlotItemRequest
+        {
+            TargetDate = new DateOnly(2026, 1, 16),
+            TargetMealType = MealType.Lunch,
+            NewOrder = 0
+        });
+
+        result.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task MoveAsync_MovesToSameSlot_UpdatesOrder()
+    {
+        var mealSlot = await SeedMealSlotAsync();
+        var item = await SeedItemAsync();
+        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+
+        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        {
+            TargetDate = new DateOnly(2026, 1, 15), // same date as seeded
+            TargetMealType = MealType.Breakfast,      // same meal type as seeded
+            NewOrder = 2
+        });
+
+        result.Should().NotBeNull();
+        result!.MealSlotId.Should().Be(mealSlot.Id);
+        var entity = await _db.MealSlotItems.FindAsync(msi.Id);
+        entity!.Order.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task MoveAsync_MovesToDifferentSlot_ExistingSlot()
+    {
+        var mealSlot = await SeedMealSlotAsync(); // Breakfast on 2026-01-15
+        var item = await SeedItemAsync();
+        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+
+        // Create a Lunch slot on the same day
+        var dayPlan = await _db.DayPlans.FirstAsync();
+        var lunchSlot = new MealSlot { MealType = MealType.Lunch, DayPlanId = dayPlan.Id };
+        _db.MealSlots.Add(lunchSlot);
+        await _db.SaveChangesAsync();
+
+        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        {
+            TargetDate = new DateOnly(2026, 1, 15),
+            TargetMealType = MealType.Lunch,
+            NewOrder = 0
+        });
+
+        result.Should().NotBeNull();
+        result!.MealSlotId.Should().Be(lunchSlot.Id);
+    }
+
+    [Fact]
+    public async Task MoveAsync_CreatesSlotOnDemand_WhenTargetSlotMissing()
+    {
+        var mealSlot = await SeedMealSlotAsync(); // Breakfast on 2026-01-15
+        var item = await SeedItemAsync();
+        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+
+        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        {
+            TargetDate = new DateOnly(2026, 1, 15),
+            TargetMealType = MealType.Dinner, // no Dinner slot exists
+            NewOrder = 0
+        });
+
+        result.Should().NotBeNull();
+        var newSlot = await _db.MealSlots
+            .FirstOrDefaultAsync(ms => ms.MealType == MealType.Dinner);
+        newSlot.Should().NotBeNull();
+        result!.MealSlotId.Should().Be(newSlot!.Id);
+    }
+
+    [Fact]
+    public async Task MoveAsync_CreatesDayPlanAndSlotOnDemand_WhenTargetDateMissing()
+    {
+        var mealSlot = await SeedMealSlotAsync(); // Breakfast on 2026-01-15
+        var item = await SeedItemAsync();
+        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+
+        var targetDate = new DateOnly(2026, 1, 20); // no DayPlan for this date
+
+        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        {
+            TargetDate = targetDate,
+            TargetMealType = MealType.Lunch,
+            NewOrder = 1
+        });
+
+        result.Should().NotBeNull();
+        var newDayPlan = await _db.DayPlans
+            .FirstOrDefaultAsync(dp => dp.Date == targetDate);
+        newDayPlan.Should().NotBeNull();
+        var newSlot = await _db.MealSlots
+            .FirstOrDefaultAsync(ms => ms.DayPlanId == newDayPlan!.Id && ms.MealType == MealType.Lunch);
+        newSlot.Should().NotBeNull();
+        result!.MealSlotId.Should().Be(newSlot!.Id);
+    }
+
     // ── DeleteAsync ──────────────────────────────────────────────────────────
 
     [Fact]

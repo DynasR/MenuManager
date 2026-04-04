@@ -2,7 +2,7 @@
 @inject IJSRuntime JS
 
 <div class="meal-cell">
-    <ul @ref="_listRef" data-list-id="@MealType.ToString()" class="meal-cell-list">
+    <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list">
         @foreach (var item in Items)
         {
             <li data-item-id="@item.Id" class="meal-cell-item">
@@ -23,7 +23,7 @@
     [Parameter, EditorRequired] public MealType MealType { get; set; }
     [Parameter] public int? MealSlotId { get; set; }
     [Parameter] public List<MealSlotItemResponse> Items { get; set; } = [];
-    [Parameter] public EventCallback<(int itemId, MealType from, MealType to)> OnItemMoved { get; set; }
+    [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex)> OnItemMoved { get; set; }
     [Parameter] public EventCallback<int> OnItemRemoved { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnAddRequested { get; set; }
 
@@ -35,17 +35,19 @@
         if (firstRender)
         {
             _dotNetRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("initSortable", _listRef, _dotNetRef, "meal-slots");
+            await JS.InvokeVoidAsync("initSortable", _listRef, _dotNetRef, "mealslots");
         }
     }
 
-    [JSInvokable("OnItemMoved")]
-    public async Task HandleItemMoved(string fromListId, string toListId, int itemId)
+    [JSInvokable("OnDrop")]
+    public async Task HandleDrop(int itemId, string fromDate, string fromMealType, string toDate, string toMealType, int newIndex)
     {
-        if (Enum.TryParse<MealType>(fromListId, out var from) &&
-            Enum.TryParse<MealType>(toListId, out var to))
+        if (DateOnly.TryParse(fromDate, out var fd) &&
+            DateOnly.TryParse(toDate, out var td) &&
+            Enum.TryParse<MealType>(fromMealType, out var fmt) &&
+            Enum.TryParse<MealType>(toMealType, out var tmt))
         {
-            await OnItemMoved.InvokeAsync((itemId, from, to));
+            await OnItemMoved.InvokeAsync((itemId, fd, fmt, td, tmt, newIndex));
         }
     }
 

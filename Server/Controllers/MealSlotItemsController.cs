@@ -43,6 +43,13 @@ public class MealSlotItemsController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpPatch("{id:int}/move")]
+    public async Task<ActionResult<MealSlotItemResponse>> Move(int id, MoveMealSlotItemRequest request)
+    {
+        var result = await _service.MoveAsync(id, request);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {

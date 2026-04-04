@@ -17,6 +17,8 @@ builder.Services.AddScoped<IMenuPlanService, MenuPlanService>();
 builder.Services.AddScoped<IDayPlanService, DayPlanService>();
 builder.Services.AddScoped<IMealSlotService, MealSlotService>();
 builder.Services.AddScoped<IMealSlotItemService, MealSlotItemService>();
+builder.Services.AddScoped<IRecipeService, RecipeService>();
+builder.Services.AddScoped<IRecipeIngredientService, RecipeIngredientService>();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
@@ -31,6 +33,14 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Apply migrations + seed data
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+    SeedData.Initialize(db);
+}
 
 // Pipeline
 if (app.Environment.IsDevelopment())

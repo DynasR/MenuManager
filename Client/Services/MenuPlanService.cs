@@ -12,6 +12,9 @@ public class MenuPlanService
     public async Task<List<MenuPlanResponse>> GetAllAsync() =>
         await _http.GetFromJsonAsync<List<MenuPlanResponse>>("api/menuplans") ?? [];
 
+    public async Task<List<MenuPlanResponse>> GetByCustomerAsync(int customerId) =>
+        await _http.GetFromJsonAsync<List<MenuPlanResponse>>($"api/menuplans?customerId={customerId}") ?? [];
+
     public async Task<MenuPlanResponse?> GetByIdAsync(int id) =>
         await _http.GetFromJsonAsync<MenuPlanResponse>($"api/menuplans/{id}");
 

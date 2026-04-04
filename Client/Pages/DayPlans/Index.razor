@@ -1,4 +1,5 @@
 @page "/dayplans"
+@using MenuManager.Client.Helpers
 @inject DayPlanService DayPlanSvc
 @inject MenuPlanService MenuPlanSvc
 @inject MealSlotService MealSlotSvc
@@ -36,21 +37,42 @@ else if (_parent is not null)
         @foreach (var date in _dates)
         {
             var dp = _dayPlanByDate.GetValueOrDefault(date);
+            var isHoliday = _holidays.Contains(date);
+            var isWeekend = date.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
+            var dateCssClass = isHoliday ? "dayplan-holiday" : isWeekend ? "dayplan-weekend" : "";
+            var cellCssClass = isHoliday ? "dayplan-grid-cell dayplan-holiday" : isWeekend ? "dayplan-grid-cell dayplan-weekend" : "dayplan-grid-cell";
+            var holidayName = isHoliday ? GetHolidayName(date) : null;
 
-            <div class="dayplan-grid-date">
-                <MudText Typo="Typo.body2">@date.ToString("dd MMM")</MudText>
+            <div class="dayplan-grid-date @dateCssClass">
+                @if (isHoliday)
+                {
+                    <MudTooltip Text="@holidayName" Placement="Placement.Right">
+                        <MudText Typo="Typo.body2" Style="font-weight: 600;">
+                            @date.ToString("ddd dd MMM", _frCulture)
+                            <MudIcon Icon="@Icons.Material.Filled.Star" Size="Size.Small"
+                                     Style="vertical-align: text-bottom; color: var(--mud-palette-warning);" />
+                        </MudText>
+                    </MudTooltip>
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Style="@(isWeekend ? "font-weight: 500;" : "")">
+                        @date.ToString("ddd dd MMM", _frCulture)
+                    </MudText>
+                }
             </div>
 
             @foreach (var mt in _mealTypes)
             {
                 var slot = dp?.MealSlots.FirstOrDefault(ms => ms.MealType == mt);
-                <div class="dayplan-grid-cell">
+                <div class="@cellCssClass">
                     <MealCell Date="date"
                               MealType="mt"
                               MealSlotId="slot?.Id"
                               Items="@(slot?.MealSlotItems ?? [])"
                               OnAddRequested="OpenDrawer"
-                              OnItemRemoved="RemoveItemAsync" />
+                              OnItemRemoved="RemoveItemAsync"
+                              OnItemMoved="MoveItemAsync" />
                 </div>
             }
         }
@@ -60,12 +82,12 @@ else if (_parent is not null)
 <MudDrawer Anchor="Anchor.Right" Width="320px" Variant="@DrawerVariant.Temporary"
            @bind-Open="_drawerOpen" Elevation="2">
     <MudDrawerHeader>
-        <MudText Typo="Typo.h6">Add item — @_selectedMealType — @_selectedDate.ToString("dd MMM")</MudText>
+        <MudText Typo="Typo.h6">Add item — @_selectedMealType — @_selectedDate.ToString("dd MMM", _frCulture)</MudText>
         <MudSpacer />
         <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _drawerOpen = false)" />
     </MudDrawerHeader>
     <div class="pa-4">
-        <MudTextField @bind-Value="_itemSearch" Placeholder="Search item…"
+        <MudTextField @bind-Value="_itemSearch" Placeholder="Rechercher…"
                       Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
                       Immediate="true" Class="mb-4" />
         <MudList T="ItemResponse" Dense="true">
@@ -88,7 +110,7 @@ else if (_parent is not null)
 <style>
     .dayplan-grid {
         display: grid;
-        grid-template-columns: 80px repeat(5, 1fr);
+        grid-template-columns: 120px repeat(5, 1fr);
         gap: 1px;
         background: var(--mud-palette-table-lines);
         border: 1px solid var(--mud-palette-table-lines);
@@ -114,6 +136,14 @@ else if (_parent is not null)
         min-height: 60px;
     }
 
+    .dayplan-weekend {
+        background: var(--mud-palette-background-grey);
+    }
+
+    .dayplan-holiday {
+        background: color-mix(in srgb, var(--mud-palette-warning) 15%, var(--mud-palette-surface));
+    }
+
     .meal-cell-list {
         list-style: none;
         padding: 0;
@@ -134,12 +164,15 @@ else if (_parent is not null)
     public int MenuPlanId { get; set; }
 
     private static readonly MealType[] _mealTypes = Enum.GetValues<MealType>();
+    private static readonly System.Globalization.CultureInfo _frCulture = new("fr-FR");
 
     private MenuPlanResponse? _parent;
     private bool _parentNotFound;
     private List<DateOnly> _dates = [];
     private Dictionary<DateOnly, DayPlanResponse> _dayPlanByDate = new();
     private List<ItemResponse> _allItems = [];
+    private HashSet<DateOnly> _holidays = [];
+    private Dictionary<DateOnly, string> _holidayNames = new();
 
     // Drawer state
     private bool _drawerOpen;
@@ -164,9 +197,15 @@ else if (_parent is not null)
             return;
         }
 
+        _holidayNames = FrenchHolidays.GetNamedHolidays(_parent.Year);
+        _holidays = new HashSet<DateOnly>(_holidayNames.Keys);
+
         _allItems = await ItemSvc.GetAllAsync();
         await LoadAsync();
     }
+
+    private string? GetHolidayName(DateOnly date) =>
+        _holidayNames.GetValueOrDefault(date);
 
     private async Task LoadAsync()
     {
@@ -244,6 +283,23 @@ else if (_parent is not null)
         }
 
         Snackbar.Add($"{item.Name} added.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task MoveItemAsync((int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex) args)
+    {
+        var result = await MealSlotItemSvc.MoveAsync(args.itemId, new MoveMealSlotItemRequest
+        {
+            TargetDate = args.toDate,
+            TargetMealType = args.toMealType,
+            NewOrder = args.newIndex
+        });
+
+        if (result is null)
+        {
+            Snackbar.Add("Failed to move item.", Severity.Error);
+        }
+
         await LoadAsync();
     }
 

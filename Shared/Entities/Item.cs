@@ -13,6 +13,9 @@ public class Item
     public Category Category { get; set; } = null!;
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public bool IsStaple { get; set; }
+    public decimal? MonthlyEstimate { get; set; }
     public ICollection<ItemSupplier> ItemSuppliers { get; set; } = [];
     public ICollection<MealSlotItem> MealSlotItems { get; set; } = [];
+    public ICollection<RecipeIngredient> RecipeIngredients { get; set; } = [];
 }

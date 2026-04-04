@@ -1,5 +1,6 @@
 @page "/customers"
 @inject CustomerService CustomerSvc
+@inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
 <PageTitle>Customers</PageTitle>
@@ -140,6 +141,10 @@
                                Disabled="@(!_dirtyRows.Contains(context.Item.Id))"
                                OnClick="@(() => SaveRow(context.Item))"
                                />
+                <MudTooltip Text="Menu Plans">
+                    <MudIconButton Icon="@Icons.Material.Filled.CalendarMonth" Color="Color.Default" Size="Size.Small"
+                                   OnClick="@(() => Nav.NavigateTo($"menuplan/{context.Item.Id}"))" />
+                </MudTooltip>
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => DeleteAsync(context.Item))" />
             </CellTemplate>

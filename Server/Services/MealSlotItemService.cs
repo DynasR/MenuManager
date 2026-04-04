@@ -12,6 +12,7 @@ public interface IMealSlotItemService
     Task<MealSlotItemResponse?> CreateAsync(CreateMealSlotItemRequest request);
     Task<MealSlotItemResponse?> UpdateAsync(int id, UpdateMealSlotItemRequest request);
     Task<bool> DeleteAsync(int id);
+    Task<MealSlotItemResponse?> MoveAsync(int id, MoveMealSlotItemRequest request);
 }
 
 public class MealSlotItemService : IMealSlotItemService
@@ -97,13 +98,53 @@ public class MealSlotItemService : IMealSlotItemService
         return true;
     }
 
+    public async Task<MealSlotItemResponse?> MoveAsync(int id, MoveMealSlotItemRequest request)
+    {
+        var mealSlotItem = await _db.MealSlotItems
+            .Include(msi => msi.MealSlot)
+                .ThenInclude(ms => ms.DayPlan)
+            .FirstOrDefaultAsync(msi => msi.Id == id);
+
+        if (mealSlotItem is null) return null;
+
+        var menuPlanId = mealSlotItem.MealSlot.DayPlan.MenuPlanId;
+
+        // Resolve target DayPlan (on-demand)
+        var targetDayPlan = await _db.DayPlans
+            .FirstOrDefaultAsync(dp => dp.MenuPlanId == menuPlanId && dp.Date == request.TargetDate);
+
+        if (targetDayPlan is null)
+        {
+            targetDayPlan = new DayPlan { Date = request.TargetDate, MenuPlanId = menuPlanId };
+            _db.DayPlans.Add(targetDayPlan);
+            await _db.SaveChangesAsync();
+        }
+
+        // Resolve target MealSlot (on-demand)
+        var targetSlot = await _db.MealSlots
+            .FirstOrDefaultAsync(ms => ms.DayPlanId == targetDayPlan.Id && ms.MealType == request.TargetMealType);
+
+        if (targetSlot is null)
+        {
+            targetSlot = new MealSlot { DayPlanId = targetDayPlan.Id, MealType = request.TargetMealType };
+            _db.MealSlots.Add(targetSlot);
+            await _db.SaveChangesAsync();
+        }
+
+        mealSlotItem.MealSlotId = targetSlot.Id;
+        mealSlotItem.Order = request.NewOrder;
+        await _db.SaveChangesAsync();
+
+        return await GetByIdAsync(id);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static MealSlotItemResponse MapToResponse(MealSlotItem msi) => new()
     {
         Id = msi.Id,
-        ItemId = msi.ItemId,
-        ItemName = msi.Item.Name,
+        ItemId = msi.ItemId ?? 0,
+        ItemName = msi.Item?.Name ?? "",
         Quantity = msi.Quantity,
         Notes = msi.Notes,
         MealSlotId = msi.MealSlotId
