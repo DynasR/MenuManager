@@ -152,8 +152,36 @@ public class MenuPlanService : IMenuPlanService
         CustomerName = mp.Customer.Name,
         CreatedAt = mp.CreatedAt,
         HasData = mp.DayPlans.Any(dp => dp.MealSlots.Any(ms => ms.MealSlotItems.Count > 0)),
+        MonthlyCost = ComputeMonthlyCost(mp),
         DayPlans = mp.DayPlans.Select(MapDayPlanToResponse).ToList()
     };
+
+    private static decimal ComputeMonthlyCost(MenuPlan mp)
+    {
+        var allItems = mp.DayPlans
+            .SelectMany(dp => dp.MealSlots)
+            .SelectMany(ms => ms.MealSlotItems)
+            .Where(msi => msi.Item is not null);
+
+        return allItems
+            .GroupBy(msi => msi.ItemId)
+            .Sum(g =>
+            {
+                var first = g.First();
+                var totalQty = g.Sum(msi => msi.Quantity);
+                var packageSize = first.Item!.PackageSize;
+                var unitPrice = first.Item.ItemSuppliers
+                    .Where(s => s.IsAvailable)
+                    .OrderBy(s => s.SupplierId)
+                    .Select(s => (decimal?)s.UnitPrice)
+                    .FirstOrDefault();
+
+                if (unitPrice is null) return 0m;
+
+                var packages = (int)Math.Ceiling(totalQty / packageSize);
+                return packages * unitPrice.Value;
+            });
+    }
 
     private static DayPlanResponse MapDayPlanToResponse(DayPlan dp) => new()
     {

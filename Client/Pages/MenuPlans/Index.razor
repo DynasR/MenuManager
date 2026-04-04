@@ -14,44 +14,60 @@
 }
 else
 {
-    <MudGrid Spacing="3">
-        @foreach (var slot in _slots)
-        {
-            <MudItem xs="12" sm="6" md="4" lg="3">
-                <MudCard Elevation="2" Style="height: 100%;">
-                    <MudCardHeader>
-                        <CardHeaderContent>
-                            <MudText Typo="Typo.h6">@slot.Title</MudText>
-                            <MudText Typo="Typo.caption" Color="Color.Dark">
-                                @slot.StartDate — @slot.EndDate
+    @foreach (var yearGroup in _slotsByYear)
+    {
+        <MudText Typo="Typo.h5" Class="mt-6 mb-3">@yearGroup.Key</MudText>
+        <MudDivider Class="mb-3" />
+        <MudGrid Spacing="3" Class="mb-6">
+            @foreach (var slot in yearGroup.Value)
+            {
+                <MudItem xs="12" sm="6" md="4" lg="3">
+                    <MudCard Elevation="2" Style="height: 100%;">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@slot.Title</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Dark">
+                                    @slot.StartDate — @slot.EndDate
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        @{
+                            var isCurrentMonth = slot.Month == DateTime.Now.Month && slot.Year == DateTime.Now.Year;
+                            var hasData = slot.MenuPlan?.HasData ?? false;
+                            var btnColor = isCurrentMonth ? Color.Default : hasData ? Color.Primary : Color.Default;
+                            var btnVariant = isCurrentMonth || hasData ? Variant.Filled : Variant.Outlined;
+                            var btnClass = isCurrentMonth ? "btn-month-current" : "";
+                        }
+                        <MudCardActions Style="display: flex; justify-content: space-between; align-items: center;">
+                            <MudButton Variant="@btnVariant" Color="@btnColor" Size="Size.Small"
+                                       Class="@btnClass"
+                                       StartIcon="@Icons.Material.Filled.CalendarMonth"
+                                       OnClick="@(() => CreateAndNavigateAsync(slot))">
+                                Voir le planning
+                            </MudButton>
+                            @{
+                                var cost = slot.MenuPlan?.MonthlyCost ?? 0;
+                            }
+                            <MudText Typo="Typo.body2" Class="monthly-cost">
+                                @(cost > 0 ? cost.ToString("N2", FrCulture) + " €" : "—")
                             </MudText>
-                        </CardHeaderContent>
-                    </MudCardHeader>
-                    @{
-                        var isCurrentMonth = slot.Month == DateTime.Now.Month && slot.Year == DateTime.Now.Year;
-                        var hasData = slot.MenuPlan?.HasData ?? false;
-                        var btnColor = isCurrentMonth ? Color.Default : hasData ? Color.Primary : Color.Default;
-                        var btnVariant = isCurrentMonth || hasData ? Variant.Filled : Variant.Outlined;
-                        var btnClass = isCurrentMonth ? "btn-month-current" : "";
-                    }
-                    <MudCardActions>
-                        <MudButton Variant="@btnVariant" Color="@btnColor" Size="Size.Small"
-                                   Class="@btnClass"
-                                   StartIcon="@Icons.Material.Filled.CalendarMonth"
-                                   OnClick="@(() => CreateAndNavigateAsync(slot))">
-                            Voir le planning
-                        </MudButton>
-                    </MudCardActions>
-                </MudCard>
-            </MudItem>
-        }
-    </MudGrid>
+                        </MudCardActions>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
 }
 
 <style>
     .btn-month-current {
         background-color: #1B5E20 !important;
         color: #fff !important;
+    }
+    .monthly-cost {
+        font-family: monospace;
+        color: rgba(0, 0, 0, 0.6);
+        font-size: 0.85rem;
     }
 </style>
 
@@ -60,7 +76,7 @@ else
 
     private static readonly System.Globalization.CultureInfo FrCulture = new("fr-FR");
 
-    private List<MonthSlot> _slots = [];
+    private SortedDictionary<int, List<MonthSlot>> _slotsByYear = [];
     private string _customerName = "";
     private bool _loading = true;
 
@@ -81,22 +97,35 @@ else
         _customerName = customer?.Name ?? $"Client #{CustomerId}";
 
         var plans = plansTask.Result;
-        _slots = BuildSlots(plans);
+        _slotsByYear = BuildSlotsByYear(plans);
 
         _loading = false;
     }
 
-    private static List<MonthSlot> BuildSlots(List<MenuPlanResponse> plans)
+    private static SortedDictionary<int, List<MonthSlot>> BuildSlotsByYear(List<MenuPlanResponse> plans)
     {
         var now = DateTime.Now;
-        var slots = new List<MonthSlot>(12);
+        var currentYear = now.Year;
+        var result = new SortedDictionary<int, List<MonthSlot>>();
 
-        for (int i = 0; i < 12; i++)
+        // Current year: from current month to December
+        result[currentYear] = BuildSlotsForRange(plans, currentYear, now.Month, 12);
+
+        // N+1: January to December
+        result[currentYear + 1] = BuildSlotsForRange(plans, currentYear + 1, 1, 12);
+
+        // N+2: January to December
+        result[currentYear + 2] = BuildSlotsForRange(plans, currentYear + 2, 1, 12);
+
+        return result;
+    }
+
+    private static List<MonthSlot> BuildSlotsForRange(List<MenuPlanResponse> plans, int year, int startMonth, int endMonth)
+    {
+        var slots = new List<MonthSlot>();
+
+        for (int month = startMonth; month <= endMonth; month++)
         {
-            var date = now.AddMonths(i);
-            var month = date.Month;
-            var year = date.Year;
-
             var first = new DateOnly(year, month, 1);
             var last = first.AddMonths(1).AddDays(-1);
 

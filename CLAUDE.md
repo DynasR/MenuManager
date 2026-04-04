@@ -149,22 +149,23 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 | Supplier     | ✅      | ✅ patched      | Party fields + CompanyName, Siret                                  |
 | Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
-| MenuPlan     | ✅      | ✅ cards        | 12-month cards, HasData coloring, unified button (see below)       |
+| MenuPlan     | ✅      | ✅ cards        | 3-year cards, HasData coloring, MonthlyCost, unified button        |
 | DayPlan      | ✅      | ✅ calendar     | Month nav bar, drag & drop, shopping cart (see below)              |
 | MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 | MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
 ---
 
-## MenuPlan/Index — 12-month card grid
+## MenuPlan/Index — 3-year card grid
 
 Route: `/menuplan/{CustomerId:int}` — always scoped to a customer.
 Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
-- 12 slots: current month + 11 months ahead, `MudCard` per slot, FR locale.
-- Unified "Voir le planning" button on all cards — creates MenuPlan on-the-fly if absent.
+- 3 years of cards grouped by year: current month → Dec, then full N+1 and N+2.
+- Unified "Voir le planning" button — creates MenuPlan on-the-fly if absent.
 - **HasData coloring**: current month = green (`#1B5E20`), has data = filled blue, empty = outlined.
-- `MenuPlanResponse.HasData` — computed server-side (`DayPlans.Any(dp => dp.MealSlots.Any(ms => ms.MealSlotItems.Count > 0))`).
+- **MonthlyCost**: computed server-side (`ceil(qty / PackageSize) * cheapest available UnitPrice`), displayed on each card (EUR, FR locale).
+- `MenuPlanResponse.HasData` / `MonthlyCost` — computed in `MenuPlanService.MapToResponse`.
 
 ---
 

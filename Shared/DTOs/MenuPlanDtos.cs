@@ -45,6 +45,7 @@ public class MenuPlanResponse
     public string CustomerName { get; set; } = "";
     public DateTime CreatedAt { get; set; }
     public bool HasData { get; set; }
+    public decimal MonthlyCost { get; set; }
     public List<DayPlanResponse> DayPlans { get; set; } = [];
 }
 

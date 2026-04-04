@@ -34,34 +34,18 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Supplier     | Party + CompanyName, Siret                                        |
 | Customer     | Bouton CalendarMonth → MenuPlan                                   |
 | ItemSupplier | PK composite, pattern 404/409                                     |
-| MenuPlan     | 12 cards, HasData coloring, bouton unifié, création à la volée    |
+| MenuPlan     | 3 ans de cards groupées par année, HasData, MonthlyCost, bouton unifié |
 | DayPlan      | Calendrier, barre nav mois (±6), drag & drop, panier             |
-
-### Ajouts récents (non committés)
-- **Barre navigation mois** sur DayPlan — chips circulaires, création auto du MenuPlan.
-- **HasData** sur `MenuPlanResponse` — coloring cards (vert = mois courant, bleu = a des données).
-- **MudTheme** personnalisé (`Success = #1B5E20`).
-- **Snackbar** repositionné en BottomCenter.
-- **Bouton unifié** sur MenuPlan/Index — plus de distinction Créer/Voir.
 
 ---
 
 ## Décisions d'architecture clés
 
-- **Shared** = class library pure, zéro EF Core.
-- **Pas de repository** — services → AppDbContext direct.
-- **On-demand** — DayPlan/MealSlot créés au premier item, jamais pré-générés.
-- **Deferred drag & drop** — buffers locaux, save explicite.
-- **Shopping Cart** — panneau droit global, agrégation par item, `ceil(qty / PackageSize)`.
-- **Tests** — SQLite in-memory uniquement (EF InMemory interdit).
-
----
-
-## Logique métier
-
-- `MealSlotItem.Quantity` = quantité consommée.
-- `Item.PackageSize` = unités par conditionnement.
-- Calcul achat : `ceil(total / PackageSize)`.
+Voir `CLAUDE.md` pour les détails. Résumé :
+- **Shared** pur (zéro EF), pas de repository, on-demand DayPlan/MealSlot.
+- **Deferred drag & drop**, **Shopping Cart** (panneau droit global).
+- **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan.
+- **Tests** — SQLite in-memory uniquement.
 
 ---
 
