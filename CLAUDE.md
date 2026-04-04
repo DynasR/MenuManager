@@ -98,12 +98,44 @@ public record CreateItemSupplierResult(ItemSupplierResponse? Response, CreateIte
 ```
 
 Controller switches on `Error` to return the correct HTTP status.
+Frontend switches on `Error` to display the correct snackbar message.
 
 ---
 
-## FK dropdown pattern (established on Item slice)
+## Index page pattern (established and harmonized on all slices)
 
-When a Create form references a FK, apply this pattern exactly:
+All Index pages follow this exact pattern. Reference implementation: `Category/Index.razor`.
+
+### Toolbar
+- **"Add row" button** — always visible, no toggle, no "New" button, no Edition Mode switch.
+- No navigation to a separate Create page — creation is exclusively via pending rows.
+
+### Pending rows (two-phase commit UI)
+- A **draft grid** (same columns and widths as the main grid) sits above the main grid.
+- Each "Add row" click appends a typed `XxxDraft` instance to `_pendingRows` (local state, no Id).
+- Each draft row has a **Validate** button and a **Cancel** button in the Actions column.
+- `ValidateRow(draft)` → builds the request DTO → calls `Service.CreateAsync()`:
+  - On success: remove from `_pendingRows`, reload main grid.
+  - On failure (`null` or error): display a **snackbar error** — never fail silently.
+- Draft class is a private `sealed class` defined in `@code`, not in `Shared/`.
+
+### Main grid (inline edit)
+- `MudDataGrid` with `EditMode="DataGridEditMode.Cell"`.
+- `CommittedItemChanges` → calls `Service.UpdateAsync()` with the modified item.
+- FK display columns: `MudSelect` with `EditTemplate` — **editable inline**.
+- Enum columns: `MudSelect<TEnum>` with `EditTemplate` — **editable inline**.
+- Business field columns: `EditTemplate` with `MudTextField`, `MudNumericField`, or `MudCheckBox`.
+- Each row has an inline **Delete** button (`TemplateColumn` with `MudIconButton`).
+- **Composite PK (ItemSupplier)**: extract `ItemId` + `SupplierId` from committed item
+  to call `UpdateAsync(item.ItemId, item.SupplierId, dto)`.
+
+### Deleted artifacts
+- All `Create.razor` pages have been removed — creation is via pending rows only.
+- All separate `Edit.razor` pages have been removed — editing is inline.
+
+---
+
+## FK dropdown pattern
 
 ```razor
 @code {
@@ -115,7 +147,7 @@ When a Create form references a FK, apply this pattern exactly:
     }
 }
 
-<MudSelect T="int" @bind-Value="dto.CategoryId" Label="Category">
+<MudSelect T="int" @bind-Value="draft.CategoryId" Label="Category">
     @foreach (var cat in _categories)
     {
         <MudSelectItem Value="cat.Id">@cat.Name</MudSelectItem>
@@ -124,19 +156,17 @@ When a Create form references a FK, apply this pattern exactly:
 ```
 
 Rules:
-- `MudSelect<T>` type must match the DTO field type exactly (check `Shared/DTOs/` first — `int` vs `int?`).
+- `MudSelect<T>` type must match the DTO field type exactly (`int` vs `int?`).
+- For nullable FK (e.g. `ParentCategoryId`): add a "— None —" option with `null` value at the top.
 - FK data loaded in `OnInitializedAsync()`, never in a button handler.
-- The component holds only the list — no business logic.
-- Both the entity and its FK dependencies are loaded in the **same** `OnInitializedAsync()` call (Edit page).
+- No business logic in the component.
 
 ---
 
-## Enum dropdown pattern (established on Item.Unit)
-
-When a form field is bound to an enum, apply this pattern exactly:
+## Enum dropdown pattern
 
 ```razor
-<MudSelect T="MeasurementUnit" @bind-Value="dto.Unit" Label="Unit">
+<MudSelect T="MeasurementUnit" @bind-Value="draft.Unit" Label="Unit">
     @foreach (var u in Enum.GetValues<MeasurementUnit>())
     {
         <MudSelectItem Value="u">@u</MudSelectItem>
@@ -150,44 +180,6 @@ Rules:
 
 ---
 
-## Inline edit pattern (established on Category/Index)
-
-All Index pages use `MudDataGrid` with inline cell editing. Reference implementation: `Category/Index.razor`.
-
-```razor
-<MudDataGrid T="CategoryResponse" Items="_items"
-             EditMode="DataGridEditMode.Cell"
-             CommittedItemChanges="OnCommit">
-    <Columns>
-        <PropertyColumn Property="x => x.Name">
-            <EditTemplate>
-                <MudTextField @bind-Value="context.Item.Name" />
-            </EditTemplate>
-        </PropertyColumn>
-        <TemplateColumn>
-            <CellTemplate>
-                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                               OnClick="() => OnDelete(context.Item)" />
-            </CellTemplate>
-        </TemplateColumn>
-    </Columns>
-</MudDataGrid>
-```
-
-Rules:
-- FK display columns (e.g. item name, category name): **no EditTemplate** — read-only.
-- Enum columns: **no EditTemplate** — display as text only.
-- Business field columns: EditTemplate with `MudTextField`, `MudNumericField`, or `MudCheckBox`.
-- `CommittedItemChanges` receives the object **after modification** — call `Service.UpdateAsync()` here.
-- The grid manages local state only — persistence is entirely the callback's responsibility.
-- Each row has an inline Delete button (`TemplateColumn` with `MudIconButton`).
-- "New" button at top navigates to `/slice/create` — Create page stays a separate form.
-- **Composite PK (ItemSupplier)**: extract `ItemId` + `SupplierId` from the committed item
-  to call `UpdateAsync(item.ItemId, item.SupplierId, dto)`.
-- Separate Edit page is **dropped** for all slices using this pattern.
-
----
-
 ## Completed slices
 
 ### Backend (all complete: DTO / Validator / Service / Controller / Tests)
@@ -195,22 +187,21 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 
 ### Frontend (Client)
 
-| Slice        | Service | Create | Index (inline edit) | Notes                                         |
-|--------------|---------|--------|----------------------|-----------------------------------------------|
-| Layout       | —       | —      | —                    | MainLayout, NavMenu, 4 MudBlazor providers    |
-| Category     | ✅      | ✅     | ✅ MudDataGrid       | Pilot slice for inline edit pattern           |
-| Item         | ✅      | ✅     | ✅ MudDataGrid       | FK dropdown CategoryId, enum Unit, PackageSize|
-| Supplier     | ✅      | ✅     | 🔄 in progress       |                                               |
-| Customer     | ✅      | ✅     | 🔄 in progress       | Party fields only, no password exposure       |
-| ItemSupplier | ✅      | ✅     | ⬜ to do             | Double FK dropdown, composite PK route        |
+| Slice        | Service | Index (inline edit + pending rows) | Notes                                              |
+|--------------|---------|-------------------------------------|----------------------------------------------------|
+| Layout       | —       | —                                   | MainLayout, NavMenu, 4 MudBlazor providers         |
+| Category     | ✅      | ✅                                  | ParentCategoryId editable inline (nullable select) |
+| Item         | ✅      | ✅                                  | FK CategoryId, enum Unit, decimal PackageSize      |
+| Supplier     | ✅      | ✅                                  | Party fields + CompanyName, Siret                  |
+| Customer     | ✅      | ✅                                  | Party fields only, no password exposure            |
+| ItemSupplier | ✅      | ✅                                  | Double FK dropdown, composite PK, snackbar 404/409 |
 
 ---
 
 ## Next steps
 
-1. Migrate Supplier/Index → MudDataGrid inline edit
-2. Migrate Customer/Index → MudDataGrid inline edit
-3. Build ItemSupplier/Index directly with MudDataGrid inline edit (composite PK pattern)
+Frontend slices to build: **MenuPlan → DayPlan → MealSlot → MealSlotItem**
+Apply the established Index pattern (pending rows + inline edit) on each.
 
 ---
 
@@ -219,6 +210,7 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 - All code in **English** (variables, functions, files, comments).
 - One file per class/record/enum.
 - Follow existing slice structure exactly — do not introduce new patterns without explicit approval from Lead Dev.
+- CC briefs from CW: **intention + constraints only** — no code in briefs.
 
 ---
 

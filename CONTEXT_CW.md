@@ -38,13 +38,18 @@ et défendre chaque décision technique.
 ✅ Toutes les slices verticales backend complètes (DTO / Validator / Service / Controller / Tests)
 ✅ 49 tests passants — SQLite in-memory, contraintes appliquées
 ✅ Frontend Blazor WASM initialisé — layout MudBlazor, NavMenu, HttpClient configuré
-✅ Slice Category complète côté Client (Service + Pages CRUD fonctionnelles)
-✅ Slice Item complète côté Client (Service + Pages CRUD + dropdown FK CategoryId fonctionnel)
+✅ Toutes les slices frontend complètes (Category, Item, Supplier, Customer, ItemSupplier)
 ✅ Item refactorisé : Quantity supprimé, Unit → enum MeasurementUnit, PackageSize ajouté
 ✅ Migration RefactorItemUnitAndPackageSize appliquée en base
+✅ Toutes les pages Index migrées en MudDataGrid inline edit (pattern établi et harmonisé)
+✅ Pattern pending rows établi sur toutes les Index (Category, Item, Supplier, Customer, ItemSupplier)
+✅ Pages Create.razor supprimées — création via pending rows uniquement
+✅ Bouton New supprimé — bouton Add row permanent en toolbar
+✅ Switch Edition Mode supprimé — Add row toujours visible
+✅ Alignement colonnes : pending rows dans une MudDataGrid identique à la grille principale
+✅ ColonneParentCategory éditable inline sur Category/Index (MudSelect<int?> avec option None)
+✅ Snackbar erreur dans ValidateRow quand created == null
 ✅ Commit propre posé sur le repo
-✅ Category/Index migré en MudDataGrid inline edit (pattern pilote établi)
-🔄 Migration inline edit en cours — Item, Supplier, Customer
 
 ## Entités (Shared/Entities/)
 Party (abstract, TPT) — Id, Name, Phone, Email, Address, City, PostalCode, Country, CreatedAt, UpdatedAt
@@ -73,61 +78,50 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 ✅ MealSlotItem — DTO / Validator / Service / Controller / Tests
 
 ## Slices frontend terminées (Client complet)
-✅ Layout       — MainLayout, NavMenu, 4 providers MudBlazor
-✅ HttpClient   — BaseAddress via Client/wwwroot/appsettings.json ("http://localhost:5075")
-✅ Category     — Service + Pages CRUD + Index migré MudDataGrid inline edit
-✅ Item         — ItemService + Pages CRUD (Index, Create, Edit) fonctionnelles
-                  MudSelect<int> pour CategoryId (dropdown FK)
-                  MudSelect<MeasurementUnit> pour Unit (enum)
-                  MudNumericField<decimal> pour PackageSize (min=0.001)
-✅ Supplier     — SupplierService + Pages CRUD fonctionnelles
-✅ Customer     — CustomerService + Pages CRUD fonctionnelles (champs Party uniquement)
+✅ Layout        — MainLayout, NavMenu, 4 providers MudBlazor
+✅ HttpClient    — BaseAddress via Client/wwwroot/appsettings.json ("http://localhost:5075")
+✅ Category      — Service + Index (inline edit + pending rows + ParentCategory éditable)
+✅ Item          — Service + Index (inline edit + pending rows, enum Unit, decimal PackageSize)
+✅ Supplier      — Service + Index (inline edit + pending rows, champs Party + CompanyName/Siret)
+✅ Customer      — Service + Index (inline edit + pending rows, champs Party uniquement)
+✅ ItemSupplier  — Service + Index (inline edit + pending rows, PK composite, snackbar 404/409)
 
-## Pattern dropdown FK (établi sur la slice Item)
-- Les catégories sont chargées dans OnInitializedAsync() via CategoryService.GetAllAsync()
-- MudSelect<int> avec @bind-Value="dto.CategoryId"
-- MudSelectItem itère sur List<CategoryResponse> : affiche cat.Name, valeur cat.Id
-- Le type du MudSelect doit correspondre au type du DTO (ici int, pas int?)
-- Zéro logique métier dans le composant — tout appel HTTP passe par un service
-
-## Pattern enum dans le frontend (établi sur Item.Unit)
-- MudSelect<MeasurementUnit> avec @bind-Value="dto.Unit"
-- Itère via Enum.GetValues<MeasurementUnit>()
-- Aucune liste manuelle à maintenir — l'enum est la source de vérité (Shared)
-- L'enum est dans Shared/Enums/ → partagé Client et Server sans duplication
-
-## Pattern inline edit (établi sur Category/Index)
+## Pattern Index (établi et harmonisé sur toutes les slices)
 - MudDataGrid avec EditMode="DataGridEditMode.Cell"
-- Colonnes FK (affichage nom) : pas d'EditTemplate — non éditables
-- Colonnes enum : pas d'EditTemplate — affichage texte uniquement
-- Colonnes métier : EditTemplate avec MudTextField / MudNumericField
-- CommittedItemChanges → appelle Service.UpdateAsync() directement
-- Le grid modifie l'objet local — la persistance est à la charge du callback
-- Bouton Delete inline sur chaque ligne
-- Bouton "New" en haut → navigate vers /slice/create (Create reste page séparée)
-- Pour PK composite : CommittedItemChanges reçoit l'objet courant,
-  on extrait ItemId+SupplierId pour appeler UpdateAsync(itemId, supplierId, dto)
+- Toolbar : bouton "Add row" permanent (pas de switch, pas de bouton New)
+- Pending rows dans une MudDataGrid séparée, colonnes identiques à la grille principale
+- ValidateRow → Service.CreateAsync → snackbar erreur si null/erreur, retire du brouillon + recharge si succès
+- CommittedItemChanges → Service.UpdateAsync (inline edit des lignes existantes)
+- Bouton Delete inline sur chaque ligne de la grille principale
+- Pages Create.razor supprimées — la création se fait exclusivement via pending rows
+- Colonnes FK : MudSelect dans EditTemplate (éditable inline)
+- Colonnes enum : MudSelect dans EditTemplate
+- Pour PK composite (ItemSupplier) : ValidateRow extrait ItemId+SupplierId pour appeler CreateAsync
+
+## Pattern dropdown FK
+- Listes FK chargées dans OnInitializedAsync() via le service correspondant
+- MudSelect<int> (ou int?) avec @bind-Value sur le champ du draft/DTO
+- MudSelectItem itère sur la liste : affiche Name, valeur Id
+- Pour nullable (ParentCategoryId) : option "— None —" avec valeur null en tête de liste
+
+## Pattern enum dans le frontend
+- MudSelect<TEnum> avec @bind-Value
+- Itère via Enum.GetValues<TEnum>()
+- L'enum Shared est la source de vérité unique Client + Server
+
+## Pattern 404 vs 409 (ItemSupplier)
+Quand CreateAsync peut échouer pour plusieurs raisons distinctes,
+on utilise un result type dans Shared/DTOs/ :
+  public enum CreateItemSupplierError { ItemNotFound, SupplierNotFound, AlreadyExists }
+  public record CreateItemSupplierResult(ItemSupplierResponse? Response, CreateItemSupplierError? Error);
+Le controller switche sur Error pour retourner 404 ou 409.
+Le frontend switche sur Error pour afficher le bon message snackbar.
 
 ## Logique métier clé : calcul de conditionnement
 - MealSlotItem.Quantity = quantité consommée (ex: 1 glace)
 - Item.PackageSize = unités par conditionnement (ex: 6)
 - Calcul achat = ceil(total_needed / PackageSize)
 - Migration future vers les grammes : ajouter UnitWeightG nullable → zéro breaking change
-
-## Prochaine étape
-
-
-## MISSION DU SPRINT
-- Migration inline edit : Item → Supplier → Customer → puis slice ItemSupplier (nouvelle)
-
-## Pattern inline edit (en cours d'établissement)
-- MudDataGrid à la place de MudTable sur toutes les pages Index
-- EditMode="DataGridEditMode.Cell"
-- CommittedItemChanges → callback qui appelle UpdateAsync du service
-- Colonnes FK (display only) : pas d'EditTemplate
-- Colonnes métier éditables : EditTemplate avec MudTextField / MudNumericField / MudCheckBox
-- La page Edit séparée est abandonnée — toute modification se fait inline
-- La page Create reste séparée (formulaire dédié)
 
 ## Règles d'architecture établies
 - Shared est une class library pure : aucune dépendance EF Core
@@ -141,6 +135,7 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 - Tests : SQLite in-memory (EF Core InMemory interdit : n'applique pas les contraintes)
 - Brief CC pattern-based ("fais comme X") pour création multi-fichiers avec modèle existant
 - Brief CC diff explicite champ par champ pour modification chirurgicale sans modèle analogue
+- CW = intention + contraintes uniquement, pas de code dans les briefs
 
 ## Règles de signatures établies
 | Cas                          | Signature           |
@@ -151,13 +146,6 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 | Update (id peut manquer)     | Task<T?>            |
 | Delete                       | Task<bool>          |
 
-## Pattern 404 vs 409 (ItemSupplier)
-Quand CreateAsync peut échouer pour plusieurs raisons distinctes,
-on utilise un result type dans Shared/DTOs/ :
-  public enum CreateItemSupplierError { ItemNotFound, SupplierNotFound, AlreadyExists }
-  public record CreateItemSupplierResult(ItemSupplierResponse? Response, CreateItemSupplierError? Error);
-Le controller switche sur Error pour retourner 404 ou 409.
-
 ## Config réseau dev
 - Server  : http://localhost:5075 (profil http de launchSettings.json)
 - Client  : lit ServerUrl depuis Client/wwwroot/appsettings.json
@@ -166,37 +154,7 @@ Le controller switche sur Error pour retourner 404 ou 409.
 ## Flow obligatoire pour chaque nouvelle feature (IMPORTANT)
 Avant que CC code, CW doit :
 1. Expliquer le concept impliqué (5 min), si nouveau
+2. Rédiger un brief CC court : intention + contraintes (pas de code)
 
-
-
-
-
-
-
-2. Poser 1-2 questions de vérification QCM (widget interactif)
-3. Attendre la réponse — ne pas continuer sans
-4. Corriger et compléter avec la bonne explication
-5. Seulement ensuite → je donne l'ordre à CC
-
-Après que CC ait codé, CW doit :
-- Demander : "Qu'est-ce que tu aurais fait différemment ?"
-- Pointer l'écart entre mon esquisse mentale et la sortie CC
-- Poser une question de justification d'architecture
-
-## Format des questions pédagogiques
-Format actuel : QCM avec options A/B/C/D (widget interactif checkbox).
-Format futur : questions ouvertes style certification (à activer quand le
-niveau le justifie ou si les certifs cibles privilégient ce format).
-CW adapte le format sur demande explicite.
-
-## Règles pédagogiques
-- Si je valide CC sans comprendre → CW m'interpelle
-- Chaque pattern nouveau → comparaison C++ si pertinent
-- Commit messages : CW suggère un message qui explique le WHY pas le WHAT
-- Régulièrement : mini quiz sur ce qu'on a déjà construit (récupération active)
-- Les questions s'appuient sur le projet réel (pas de questions génériques)
-- Capitaliser sur les décisions prises (ex: SQLite vs InMemory, http vs https dev,
-  Scoped vs Singleton Blazor WASM, enum vs string pour Unit) pour construire
-  des questions de certification sur-mesure
-- Note : le joueur ne voit pas les clics sur les widgets interactifs —
-  si aucune réponse n'apparaît dans le chat, demander confirmation orale avant de bloquer
+## Prochaine étape
+À définir — slices MenuPlan / DayPlan / MealSlot / MealSlotItem frontend restent à faire
