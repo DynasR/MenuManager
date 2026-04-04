@@ -35,7 +35,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Bouton CalendarMonth → MenuPlan                                                  |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan     | 3 ans de cards groupées par année, HasData, MonthlyCost, bouton unifié           |
-| DayPlan      | Calendrier, barre nav mois (±6), drag & drop, panier, copy/move item+cellule     |
+| DayPlan      | Calendrier, barre nav mois (±6), drag & drop, panier, copy/move item+cellule, hover glow cell+item — **voir `context_dayplan.md`** pour analyse détaillée (couleurs debug, bugs CSS hover, quirks UX) |
 | Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
 
 ---

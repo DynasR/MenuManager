@@ -150,7 +150,7 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 | Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
 | MenuPlan     | ✅      | ✅ cards        | 3-year cards, HasData coloring, MonthlyCost, unified button        |
-| DayPlan      | ✅      | ✅ calendar     | Month nav bar, drag & drop, shopping cart, copy/move cell+item     |
+| DayPlan      | ✅      | ✅ calendar     | Month nav bar, drag & drop, shopping cart, copy/move cell+item, hover polish |
 | MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 | MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
@@ -185,8 +185,11 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
 ### MealCell component (`Client/Components/MealCell.razor`)
 - One cell per `(DateOnly date, MealType mealType)`.
-- Ordered list of items, "+" button (opens drawer), delete button, SortableJS drag & drop.
+- Ordered list of items, SortableJS drag & drop, delete button per item.
+- `meal-cell-empty` class applied when no items.
 - Displays price per item + slot total (EUR, FR locale, `ceil(qty/PackageSize)*UnitPrice`).
+- **Footer**: fully clickable (`HandleFooterClick`); copy/move cell buttons + slot total span with floating Add icon (`.meal-cell-add-icon`) centered, fades in on cell hover. Empty cell click also opens add drawer.
+- **Hover states**: `.meal-cell:hover` green glow (inset box-shadow, excludes source/target classes); `.meal-cell-item:hover` green wash; `.meal-cell-item:hover .meal-cell-item-name` text-shadow glow.
 - **Copy/move parameters**: `HasPendingAction`, `IsSource`, `IsCopyMode`, `PendingSourceItemId`.
 - **CSS visual states**: `meal-cell-source-copy/move`, `meal-cell-target-copy/move` applied on cell; `meal-cell-item-source` on source item.
 - **Callbacks**: `OnItemMoved`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCopyCellRequested`, `OnMoveCellRequested`, `OnCopyItemRequested`, `OnMoveItemRequested`, `OnTargetSelected`.
