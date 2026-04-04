@@ -12,6 +12,9 @@ public class DayPlanService
     public async Task<List<DayPlanResponse>> GetAllAsync() =>
         await _http.GetFromJsonAsync<List<DayPlanResponse>>("api/dayplans") ?? [];
 
+    public async Task<List<DayPlanResponse>> GetByMenuPlanAsync(int menuPlanId) =>
+        await _http.GetFromJsonAsync<List<DayPlanResponse>>($"api/dayplans/by-menuplan/{menuPlanId}") ?? [];
+
     public async Task<DayPlanResponse?> CreateAsync(CreateDayPlanRequest request)
     {
         var response = await _http.PostAsJsonAsync("api/dayplans", request);

@@ -21,6 +21,12 @@ public class DayPlansController : ControllerBase
         return Ok(await _service.GetAllAsync());
     }
 
+    [HttpGet("by-menuplan/{menuPlanId:int}")]
+    public async Task<ActionResult<List<DayPlanResponse>>> GetByMenuPlan(int menuPlanId)
+    {
+        return Ok(await _service.GetByMenuPlanAsync(menuPlanId));
+    }
+
     [HttpGet("{id:int}")]
     public async Task<ActionResult<DayPlanResponse>> GetById(int id)
     {

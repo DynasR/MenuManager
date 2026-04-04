@@ -50,7 +50,19 @@ et défendre chaque décision technique.
 ✅ Colonne ParentCategory éditable inline sur Category/Index (MudSelect<int?> avec option None)
 ✅ Snackbar erreur dans ValidateRow quand created == null
 ✅ Category/Index patché : nouveau pattern Save (référence pour toutes les autres pages)
-✅ Commit propre posé sur le repo
+✅ Item/Index patché : nouveau pattern Save appliqué
+✅ Supplier/Index patché : nouveau pattern Save appliqué
+✅ Customer/Index patché : nouveau pattern Save appliqué
+✅ ItemSupplier/Index patché : nouveau pattern Save appliqué (PK composite)
+✅ MenuPlan/Index créé — pattern Index complet, FK Customer, navigation vers DayPlan/Index
+✅ DayPlan/Index recodé — vue calendrier mensuelle CSS grid, lecture seule, généré côté client
+✅ MealSlot/Index supprimé — logique embarquée dans DayPlan/Index
+✅ MealSlotItem/Index supprimé — logique embarquée dans DayPlan/Index
+✅ MealCell.razor créé — composant réutilisable par (date, MealType)
+✅ SortableJS infrastructure en place — interop JS prêt pour drag & drop (Phase 4)
+✅ MudDrawer droit — sélection d'item par recherche temps réel, s'ouvre depuis MealCell
+✅ Création on-demand — DayPlan et MealSlot créés en base uniquement au premier item ajouté
+✅ MenuPlanService.CreateAsync — ne génère plus de DayPlans automatiquement
 
 ## Entités (Shared/Entities/)
 Party (abstract, TPT) — Id, Name, Phone, Email, Address, City, PostalCode, Country, CreatedAt, UpdatedAt
@@ -81,11 +93,17 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 ## Slices frontend terminées (Client complet)
 ✅ Layout        — MainLayout, NavMenu, 4 providers MudBlazor
 ✅ HttpClient    — BaseAddress via Client/wwwroot/appsettings.json ("http://localhost:5075")
-✅ Category      — Service + Index patché (référence du nouveau pattern Save)
-⚠️ Item          — Service + Index (à patcher : nouveau pattern Save)
-⚠️ Supplier      — Service + Index (à patcher : nouveau pattern Save)
-⚠️ Customer      — Service + Index (à patcher : nouveau pattern Save)
-⚠️ ItemSupplier  — Service + Index (à patcher : nouveau pattern Save, PK composite)
+✅ Category      — Service + Index (référence du pattern Save)
+✅ Item          — Service + Index (patché : nouveau pattern Save)
+✅ Supplier      — Service + Index (patché : nouveau pattern Save)
+✅ Customer      — Service + Index (patché : nouveau pattern Save)
+✅ ItemSupplier  — Service + Index (patché : nouveau pattern Save, PK composite)
+✅ MenuPlan      — Service + Index (FK CustomerId, Month/Year)
+✅ DayPlan       — Service + vue calendrier mensuelle (lecture seule, pas de pattern Index)
+✅ MealSlot      — Service client uniquement — pas de page Index (logique embarquée dans DayPlan/Index)
+✅ MealSlotItem  — Service client uniquement — pas de page Index (logique embarquée dans DayPlan/Index)
+✅ MealCell.razor — composant Client/Components/ (une cellule par MealType par jour)
+✅ SortableJS    — infrastructure JS interop en place (wwwroot/js/sortable-interop.js)
 
 ## Pattern Index (établi, harmonisé, référence : Category/Index.razor)
 
@@ -119,6 +137,16 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 ### Artefacts supprimés
 - Toutes les pages Create.razor supprimées
 - Toutes les pages Edit.razor supprimées
+
+## Règles MudBlazor établies
+- MudIconButton n'accepte PAS les attributs Title ni Tooltip → warning MUD0002
+- Si tooltip nécessaire : envelopper dans <MudTooltip Text="..."><MudIconButton .../></MudTooltip>
+- Ne jamais utiliser Title ou Tooltip directement sur MudIconButton
+
+## Règle alignement colonnes (deux MudDataGrid empilées)
+- Ajouter Style="table-layout: fixed; width: 100%;" sur les deux balises MudDataGrid
+- Appliquer des pourcentages strictement identiques sur chaque colonne des deux grilles
+- C'est la seule garantie d'alignement visuel entre grille principale et grille pending rows
 
 ## Pattern dropdown FK
 - Listes FK chargées dans OnInitializedAsync() via le service correspondant
@@ -159,6 +187,8 @@ Le frontend switche sur Error pour afficher le bon message snackbar.
 - Brief CC pattern-based ("fais comme Category/Index") pour patcher les autres slices
 - Brief CC diff explicite champ par champ pour modification chirurgicale sans modèle analogue
 - CW = intention + contraintes uniquement, pas de code dans les briefs
+- DayPlan et MealSlot ne sont jamais pré-générés : création on-demand au premier MealSlotItem
+- Les pages MealSlot/Index et MealSlotItem/Index n'existent pas : leur logique vit dans DayPlan/Index
 
 ## Règles de signatures établies
 | Cas                          | Signature           |
@@ -173,29 +203,3 @@ Le frontend switche sur Error pour afficher le bon message snackbar.
 - Server  : http://localhost:5075 (profil http de launchSettings.json)
 - Client  : lit ServerUrl depuis Client/wwwroot/appsettings.json
 - Docker  : PostgreSQL sur port 5432
-
-## Prochaines étapes
-
-### 1. Harmonisation des IHMs existantes (priorité immédiate)
-Appliquer le nouveau pattern Save (établi sur Category/Index.razor) aux 4 autres pages :
-  Item → Supplier → Customer → ItemSupplier
-
-Pour chaque page, le diff est identique :
-- Remplacer CommittedItemChanges par _dirtyRows + ValueChanged sur chaque colonne éditable
-- Ajouter le bouton Save individuel par ligne (disabled si non dirty)
-- Remplacer ou créer le Save All unifié (pending + dirty, ordre strict)
-- Désactiver la coche verte si Name vide ou whitespace
-
-Référence : Category/Index.razor — brief CC "fais comme Category/Index"
-
-Cas particulier ItemSupplier : _dirtyRows est un HashSet<(int ItemId, int SupplierId)>
-car la PK est composite.
-
-### 2. Nouvelles slices frontend
-MenuPlan → DayPlan → MealSlot → MealSlotItem
-Appliquer le pattern Index complet sur chacune.
-
-## Flow obligatoire pour chaque nouvelle feature (IMPORTANT)
-Avant que CC code, CW doit :
-1. Expliquer le concept impliqué (5 min), si nouveau
-2. Rédiger un brief CC court : intention + contraintes (pas de code)

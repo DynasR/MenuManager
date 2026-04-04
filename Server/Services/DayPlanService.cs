@@ -8,6 +8,7 @@ namespace MenuManager.Server.Services;
 public interface IDayPlanService
 {
     Task<List<DayPlanResponse>> GetAllAsync();
+    Task<List<DayPlanResponse>> GetByMenuPlanAsync(int menuPlanId);
     Task<DayPlanResponse?> GetByIdAsync(int id);
     Task<DayPlanResponse?> CreateAsync(CreateDayPlanRequest request);
     Task<DayPlanResponse?> UpdateAsync(int id, UpdateDayPlanRequest request);
@@ -26,6 +27,19 @@ public class DayPlanService : IDayPlanService
     public async Task<List<DayPlanResponse>> GetAllAsync()
     {
         var dayPlans = await _db.DayPlans
+            .Include(dp => dp.MealSlots)
+                .ThenInclude(ms => ms.MealSlotItems)
+                    .ThenInclude(msi => msi.Item)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return dayPlans.Select(MapToResponse).ToList();
+    }
+
+    public async Task<List<DayPlanResponse>> GetByMenuPlanAsync(int menuPlanId)
+    {
+        var dayPlans = await _db.DayPlans
+            .Where(dp => dp.MenuPlanId == menuPlanId)
             .Include(dp => dp.MealSlots)
                 .ThenInclude(ms => ms.MealSlotItems)
                     .ThenInclude(msi => msi.Item)

@@ -63,8 +63,7 @@ public class MenuPlanService : IMenuPlanService
             Month = request.Month,
             Year = request.Year,
             CustomerId = request.CustomerId,
-            CreatedAt = DateTime.UtcNow,
-            DayPlans = request.DayPlans.Select(MapRequestToDayPlan).ToList()
+            CreatedAt = DateTime.UtcNow
         };
 
         _db.MenuPlans.Add(plan);

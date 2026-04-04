@@ -1,6 +1,7 @@
 @page "/menuplans"
 @inject MenuPlanService MenuPlanSvc
 @inject CustomerService CustomerSvc
+@inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
 <PageTitle>Menu Plans</PageTitle>
@@ -11,6 +12,13 @@
            OnClick="AddRow" Class="mb-4">
     Add row
 </MudButton>
+<MudButton Variant="Variant.Filled" Color="Color.Primary"
+           Disabled="@(_pendingRows.Count == 0 && _dirtyRows.Count == 0)"
+           OnClick="SaveAllAsync"
+           StartIcon="@Icons.Material.Filled.SaveAlt"
+           Class="mb-4 ml-2">
+    Save All
+</MudButton>
 
 @if (_pendingRows.Count > 0)
 {
@@ -18,13 +26,13 @@
                  EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
                  Class="mb-0">
         <Columns>
-            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 25%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
                                   RequiredError="Name is required." Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Month" Title="Month" Editable="true">
+            <PropertyColumn Property="x => x.Month" Title="Month" Editable="true" Style="width: 20%">
                 <CellTemplate>
                     @MonthName(context.Item.Month)
                 </CellTemplate>
@@ -39,12 +47,12 @@
                     </MudSelect>
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Year" Title="Year" Editable="true">
+            <PropertyColumn Property="x => x.Year" Title="Year" Editable="true" Style="width: 15%">
                 <EditTemplate>
                     <MudNumericField T="int" @bind-Value="context.Item.Year" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.CustomerId" Title="Customer" Editable="true">
+            <PropertyColumn Property="x => x.CustomerId" Title="Customer" Editable="true" Style="width: 25%">
                 <CellTemplate>
                     @CustomerName(context.Item.CustomerId)
                 </CellTemplate>
@@ -58,9 +66,10 @@
                     </MudSelect>
                 </EditTemplate>
             </PropertyColumn>
-            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 15%">
                 <CellTemplate>
                     <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   Disabled="@(string.IsNullOrWhiteSpace(context.Item.Name))"
                                    OnClick="@(() => ValidateRow(context.Item))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
                                    OnClick="@(() => RemoveRow(context.Item))" />
@@ -71,22 +80,26 @@
 }
 
 <MudDataGrid T="MenuPlanResponse" Items="_menuPlans" ReadOnly="false"
-             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
+             EditMode="DataGridEditMode.Cell"
              Loading="_loading" Hover="true" Striped="true" Dense="true">
     <Columns>
-        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 25%">
             <EditTemplate>
-                <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
-                              RequiredError="Name is required." Immediate="true" />
+                <MudTextField
+                    Value="@context.Item.Name"
+                    ValueChanged="@((string val) => { context.Item.Name = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Month" Title="Month" Editable="true">
+        <PropertyColumn Property="x => x.Month" Title="Month" Editable="true" Style="width: 20%">
             <CellTemplate>
                 @MonthName(context.Item.Month)
             </CellTemplate>
             <EditTemplate>
-                <MudSelect T="int" @bind-Value="context.Item.Month"
-                           Immediate="true" Margin="Margin.Dense">
+                <MudSelect
+                    Value="@context.Item.Month"
+                    ValueChanged="@((int val) => { context.Item.Month = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    T="int">
                     @for (var m = 1; m <= 12; m++)
                     {
                         var month = m;
@@ -95,18 +108,24 @@
                 </MudSelect>
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Year" Title="Year" Editable="true">
+        <PropertyColumn Property="x => x.Year" Title="Year" Editable="true" Style="width: 15%">
             <EditTemplate>
-                <MudNumericField T="int" @bind-Value="context.Item.Year" Immediate="true" />
+                <MudNumericField
+                    Value="@context.Item.Year"
+                    ValueChanged="@((int val) => { context.Item.Year = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true"
+                    T="int" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.CustomerId" Title="Customer" Editable="true">
+        <PropertyColumn Property="x => x.CustomerId" Title="Customer" Editable="true" Style="width: 25%">
             <CellTemplate>
                 @context.Item.CustomerName
             </CellTemplate>
             <EditTemplate>
-                <MudSelect T="int" @bind-Value="context.Item.CustomerId"
-                           Immediate="true" Margin="Margin.Dense">
+                <MudSelect
+                    Value="@context.Item.CustomerId"
+                    ValueChanged="@((int val) => { context.Item.CustomerId = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    T="int">
                     @foreach (var c in _customers)
                     {
                         <MudSelectItem T="int" Value="c.Id">@c.Name</MudSelectItem>
@@ -114,8 +133,15 @@
                 </MudSelect>
             </EditTemplate>
         </PropertyColumn>
-        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 15%">
             <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" Size="Size.Small"
+                               Disabled="@(!_dirtyRows.Contains(context.Item.Id))"
+                               OnClick="@(() => SaveRow(context.Item))" />
+                <MudTooltip Text="View days">
+                    <MudIconButton Icon="@Icons.Material.Filled.ChevronRight" Color="Color.Default" Size="Size.Small"
+                                   OnClick="@(() => Nav.NavigateTo($"dayplans?menuPlanId={context.Item.Id}"))" />
+                </MudTooltip>
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => DeleteAsync(context.Item))" />
             </CellTemplate>
@@ -126,6 +152,7 @@
 @code {
     private List<MenuPlanResponse> _menuPlans = [];
     private List<CustomerResponse> _customers = [];
+    private HashSet<int> _dirtyRows = new();
     private bool _loading = true;
     private List<MenuPlanDraft> _pendingRows = [];
 
@@ -141,7 +168,7 @@
 
     private void RemoveRow(MenuPlanDraft draft) => _pendingRows.Remove(draft);
 
-    private async Task ValidateRow(MenuPlanDraft draft)
+    private async Task<bool> ValidateRow(MenuPlanDraft draft)
     {
         var result = await MenuPlanSvc.CreateAsync(new MenuPlanRequest
         {
@@ -153,14 +180,12 @@
 
         if (result is not null)
         {
-            Snackbar.Add($"Menu plan \"{draft.Name}\" created.", Severity.Success);
             _pendingRows.Remove(draft);
-            await LoadAsync();
+            return true;
         }
-        else
-        {
-            Snackbar.Add("Customer not found.", Severity.Error);
-        }
+
+        Snackbar.Add("Customer not found.", Severity.Error);
+        return false;
     }
 
     protected override async Task OnInitializedAsync()
@@ -179,30 +204,74 @@
         _loading = true;
         _menuPlans = await MenuPlanSvc.GetAllAsync();
         _customers = await CustomerSvc.GetAllAsync();
+        _dirtyRows.Clear();
         _loading = false;
     }
 
-    private async Task<DataGridEditFormAction> OnCommittedItemChanges(MenuPlanResponse item)
+    private async Task SaveRow(MenuPlanResponse item)
     {
-        var result = await MenuPlanSvc.UpdateAsync(item.Id, new MenuPlanRequest
+        var request = new MenuPlanRequest
         {
             Name = item.Name,
             Month = item.Month,
             Year = item.Year,
             CustomerId = item.CustomerId
-        });
-
-        if (result is not null)
-        {
-            Snackbar.Add($"Menu plan \"{item.Name}\" updated.", Severity.Success);
-        }
+        };
+        var updated = await MenuPlanSvc.UpdateAsync(item.Id, request);
+        if (updated == null)
+            Snackbar.Add($"Failed to save \"{item.Name}\"", Severity.Error);
         else
         {
-            Snackbar.Add("Failed to update menu plan.", Severity.Error);
-            await LoadAsync();
+            _dirtyRows.Remove(item.Id);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAllAsync()
+    {
+        int created = 0, updated = 0, errors = 0;
+
+        foreach (var draft in _pendingRows.ToList())
+        {
+            if (await ValidateRow(draft))
+                created++;
+            else
+                errors++;
         }
 
-        return DataGridEditFormAction.Close;
+        foreach (var id in _dirtyRows.ToList())
+        {
+            var item = _menuPlans.FirstOrDefault(m => m.Id == id);
+            if (item == null) continue;
+
+            var request = new MenuPlanRequest
+            {
+                Name = item.Name,
+                Month = item.Month,
+                Year = item.Year,
+                CustomerId = item.CustomerId
+            };
+            var result = await MenuPlanSvc.UpdateAsync(item.Id, request);
+            if (result != null)
+            {
+                _dirtyRows.Remove(id);
+                updated++;
+            }
+            else
+            {
+                Snackbar.Add($"Failed to save \"{item.Name}\"", Severity.Error);
+                errors++;
+            }
+        }
+
+        if (created + updated > 0)
+        {
+            var parts = new List<string>();
+            if (created > 0) parts.Add($"{created} created");
+            if (updated > 0) parts.Add($"{updated} updated");
+            Snackbar.Add(string.Join(", ", parts), Severity.Success);
+            await LoadAsync();
+        }
     }
 
     private async Task DeleteAsync(MenuPlanResponse menuPlan)

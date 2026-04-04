@@ -75,6 +75,9 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 - **No repository pattern** — services use `AppDbContext` directly.
 - **No business logic** in Blazor components — all HTTP calls go through a service.
 - **Tests**: SQLite in-memory only. EF InMemory provider is **forbidden** (doesn't enforce constraints).
+- **On-demand DB records**: DayPlan and MealSlot records are never pre-generated.
+  They are created lazily when the first MealSlotItem is added to a day/slot.
+  MenuPlan.CreateAsync persists only the MenuPlan — no child generation.
 
 ---
 
@@ -108,12 +111,14 @@ All Index pages follow this exact pattern. Reference implementation: `Category/I
 
 ### Toolbar
 - **"Add row" button** — always visible, no toggle, no "New" button, no Edition Mode switch.
+- **"Save All" button** — single button handling both pending rows and dirty rows (see below).
 - No navigation to a separate Create page — creation is exclusively via pending rows.
 
 ### Pending rows (two-phase commit UI)
 - A **draft grid** (same columns and widths as the main grid) sits above the main grid.
 - Each "Add row" click appends a typed `XxxDraft` instance to `_pendingRows` (local state, no Id).
-- Each draft row has a **Validate** button and a **Cancel** button in the Actions column.
+- Each draft row has a **Validate** button (disabled when `Name` is empty or whitespace)
+  and a **Cancel** button in the Actions column.
 - `ValidateRow(draft)` → builds the request DTO → calls `Service.CreateAsync()`:
   - On success: remove from `_pendingRows`, reload main grid.
   - On failure (`null` or error): display a **snackbar error** — never fail silently.
@@ -121,17 +126,52 @@ All Index pages follow this exact pattern. Reference implementation: `Category/I
 
 ### Main grid (inline edit)
 - `MudDataGrid` with `EditMode="DataGridEditMode.Cell"`.
-- `CommittedItemChanges` → calls `Service.UpdateAsync()` with the modified item.
-- FK display columns: `MudSelect` with `EditTemplate` — **editable inline**.
-- Enum columns: `MudSelect<TEnum>` with `EditTemplate` — **editable inline**.
-- Business field columns: `EditTemplate` with `MudTextField`, `MudNumericField`, or `MudCheckBox`.
-- Each row has an inline **Delete** button (`TemplateColumn` with `MudIconButton`).
-- **Composite PK (ItemSupplier)**: extract `ItemId` + `SupplierId` from committed item
-  to call `UpdateAsync(item.ItemId, item.SupplierId, dto)`.
+- Editable columns use `EditTemplate` with `ValueChanged` (not `@bind-Value`) to intercept
+  changes and mark the row dirty:
+  `ValueChanged="@((T val) => { context.Item.Field = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"`
+- `_dirtyRows` is a `HashSet<int>` declared in `@code`. Cleared in `LoadAsync()` after reload.
+- Each row has an inline **Save** button (disquette icon),
+  disabled when `!_dirtyRows.Contains(context.Item.Id)`.
+- Each row has an inline **Delete** button.
+- **No** `CommittedItemChanges` — saving is always explicit, never automatic.
+- FK columns: `MudSelect` with `EditTemplate` + `ValueChanged` — editable inline.
+- Enum columns: `MudSelect<TEnum>` with `EditTemplate` + `ValueChanged` — editable inline.
+- **Composite PK (ItemSupplier)**: `_dirtyRows` stores a `HashSet<(int, int)>` instead of `HashSet<int>`.
+
+### Save All (toolbar)
+- A single **Save All** button handles both pending rows and dirty rows.
+- Disabled when `_pendingRows.Count == 0 && _dirtyRows.Count == 0`.
+- Execution order is strict and non-negotiable:
+  1. Create all pending rows sequentially (insertion order).
+  2. Update all dirty rows.
+- Each operation is non-blocking: on failure → snackbar error + continue.
+- After the loop: if at least one success → reload full list + snackbar summary
+  ("X created, Y updated", zeros omitted).
 
 ### Deleted artifacts
 - All `Create.razor` pages have been removed — creation is via pending rows only.
 - All separate `Edit.razor` pages have been removed — editing is inline.
+
+---
+
+## MudBlazor component rules
+
+- `MudIconButton` does **not** accept `Title` or `Tooltip` attributes — compiler warning MUD0002.
+- To show a tooltip on an icon button, wrap it: `<MudTooltip Text="..."><MudIconButton .../></MudTooltip>`.
+- Never use `Title` or `Tooltip` directly on `MudIconButton`.
+
+---
+
+## Column width alignment rule
+
+When two `MudDataGrid` instances are stacked (main grid + pending rows grid), their columns
+must be visually aligned. The only reliable approach:
+
+1. Add `Style="table-layout: fixed; width: 100%;"` on **both** `<MudDataGrid>` tags.
+2. Apply **strictly identical** `Style="width: X%"` on each `<PropertyColumn>` / `<TemplateColumn>`
+   in both grids.
+
+Percentage values must sum to 100%. Choose values proportional to expected content width.
 
 ---
 
@@ -147,7 +187,18 @@ All Index pages follow this exact pattern. Reference implementation: `Category/I
     }
 }
 
+// In pending rows (draft): @bind-Value is fine — no dirty tracking needed
 <MudSelect T="int" @bind-Value="draft.CategoryId" Label="Category">
+    @foreach (var cat in _categories)
+    {
+        <MudSelectItem Value="cat.Id">@cat.Name</MudSelectItem>
+    }
+</MudSelect>
+
+// In main grid (EditTemplate): use ValueChanged to mark row dirty
+<MudSelect T="int"
+           Value="context.Item.CategoryId"
+           ValueChanged="@((int val) => { context.Item.CategoryId = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })">
     @foreach (var cat in _categories)
     {
         <MudSelectItem Value="cat.Id">@cat.Name</MudSelectItem>
@@ -166,7 +217,18 @@ Rules:
 ## Enum dropdown pattern
 
 ```razor
+// In pending rows (draft): @bind-Value
 <MudSelect T="MeasurementUnit" @bind-Value="draft.Unit" Label="Unit">
+    @foreach (var u in Enum.GetValues<MeasurementUnit>())
+    {
+        <MudSelectItem Value="u">@u</MudSelectItem>
+    }
+</MudSelect>
+
+// In main grid (EditTemplate): ValueChanged to mark row dirty
+<MudSelect T="MeasurementUnit"
+           Value="context.Item.Unit"
+           ValueChanged="@((MeasurementUnit val) => { context.Item.Unit = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })">
     @foreach (var u in Enum.GetValues<MeasurementUnit>())
     {
         <MudSelectItem Value="u">@u</MudSelectItem>
@@ -187,21 +249,58 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 
 ### Frontend (Client)
 
-| Slice        | Service | Index (inline edit + pending rows) | Notes                                              |
-|--------------|---------|-------------------------------------|----------------------------------------------------|
-| Layout       | —       | —                                   | MainLayout, NavMenu, 4 MudBlazor providers         |
-| Category     | ✅      | ✅                                  | ParentCategoryId editable inline (nullable select) |
-| Item         | ✅      | ✅                                  | FK CategoryId, enum Unit, decimal PackageSize      |
-| Supplier     | ✅      | ✅                                  | Party fields + CompanyName, Siret                  |
-| Customer     | ✅      | ✅                                  | Party fields only, no password exposure            |
-| ItemSupplier | ✅      | ✅                                  | Double FK dropdown, composite PK, snackbar 404/409 |
+| Slice        | Service | Index        | Notes                                                        |
+|--------------|---------|--------------|--------------------------------------------------------------|
+| Layout       | —       | —            | MainLayout, NavMenu, 4 MudBlazor providers                   |
+| Category     | ✅      | ✅ patched   | Reference implementation — new Save pattern applied          |
+| Item         | ✅      | ✅ patched   | FK CategoryId, enum Unit, decimal PackageSize                |
+| Supplier     | ✅      | ✅ patched   | Party fields + CompanyName, Siret                            |
+| Customer     | ✅      | ✅ patched   | Party fields only, no password exposure                      |
+| ItemSupplier | ✅      | ✅ patched   | Double FK dropdown, composite PK, snackbar 404/409           |
+| MenuPlan     | ✅      | ✅           | FK CustomerId, Month/Year — no auto DayPlan generation       |
+| DayPlan      | ✅      | ✅ read-only | Calendar generated client-side, no Index pattern, see above  |
+| MealSlot     | ✅      | ❌ deleted   | Logic embedded in DayPlan/Index                              |
+| MealSlotItem | ✅      | ❌ deleted   | Logic embedded in DayPlan/Index                              |
 
 ---
 
 ## Next steps
 
-Frontend slices to build: **MenuPlan → DayPlan → MealSlot → MealSlotItem**
-Apply the established Index pattern (pending rows + inline edit) on each.
+### DayPlan/Index — monthly planning view (in progress)
+
+UI approach: single page, monthly calendar view.
+- CSS grid: 7 columns — Date + 5 MealTypes (Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner)
+- One row per day of the month, generated client-side from MenuPlan.Month / MenuPlan.Year
+- DayPlan records are created on-demand in DB only when a first item is added to a day
+- MealSlot records are created on-demand when a first item is added to a slot
+- MealSlotItem records are created immediately on item selection
+
+Pages MealSlot/Index and MealSlotItem/Index have been deleted — their logic is embedded in DayPlan/Index.
+
+### Components
+- `Client/Components/MealCell.razor` — one cell per (date, MealType)
+  - Displays list of MealSlotItems for that slot
+  - "+" button opens the MudDrawer (add item)
+  - Delete button per item (MealSlotItemId)
+  - SortableJS hook ready for Phase 4 (drag & drop)
+
+### MudDrawer (right anchor)
+- Opens when user clicks "+" in any MealCell
+- Context: selected date + selected MealType displayed in drawer header
+- MudTextField for real-time item search (client-side filter on _allItems)
+- MudListItem per filtered item — clicking adds it to the slot
+- Width: 320px, Variant: Temporary
+
+### AddItemAsync logic (sequential, on-demand)
+1. If no DayPlan exists for selected date → CreateAsync → store in _dayPlanByDate
+2. If no MealSlot exists for (DayPlanId, MealType) → CreateAsync
+3. CreateAsync MealSlotItem (Quantity default = 1)
+4. Snackbar success + LoadAsync()
+
+### Drag & drop (Phase 4 — not yet implemented)
+- SortableJS infrastructure in place (wwwroot/js/sortable-interop.js)
+- MealCell exposes OnItemMoved EventCallback
+- Phase 4 will wire OnItemMoved in DayPlan/Index → call MealSlotItem update endpoint
 
 ---
 

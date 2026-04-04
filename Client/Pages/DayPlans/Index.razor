@@ -1,185 +1,263 @@
 @page "/dayplans"
 @inject DayPlanService DayPlanSvc
 @inject MenuPlanService MenuPlanSvc
+@inject MealSlotService MealSlotSvc
+@inject MealSlotItemService MealSlotItemSvc
+@inject ItemService ItemSvc
 @inject ISnackbar Snackbar
 
 <PageTitle>Day Plans</PageTitle>
 
 <MudText Typo="Typo.h4" Class="mb-4">Day Plans</MudText>
 
-<MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PlaylistAdd"
-           OnClick="AddRow" Class="mb-4">
-    Add row
-</MudButton>
-
-@if (_pendingRows.Count > 0)
+@if (MenuPlanId == 0 || _parentNotFound)
 {
-    <MudDataGrid T="DayPlanDraft" Items="_pendingRows" ReadOnly="false"
-                 EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
-                 Class="mb-0">
-        <Columns>
-            <PropertyColumn Property="x => x.Date" Title="Date" Editable="true">
-                <CellTemplate>
-                    @context.Item.Date?.ToString("d")
-                </CellTemplate>
-                <EditTemplate>
-                    <MudDatePicker @bind-Date="context.Item.Date"
-                                   Margin="Margin.Dense" />
-                </EditTemplate>
-            </PropertyColumn>
-            <PropertyColumn Property="x => x.MenuPlanId" Title="Menu Plan" Editable="true">
-                <CellTemplate>
-                    @MenuPlanName(context.Item.MenuPlanId)
-                </CellTemplate>
-                <EditTemplate>
-                    <MudSelect T="int" @bind-Value="context.Item.MenuPlanId"
-                               Immediate="true" Margin="Margin.Dense">
-                        @foreach (var mp in _menuPlans)
-                        {
-                            <MudSelectItem T="int" Value="mp.Id">@mp.Name</MudSelectItem>
-                        }
-                    </MudSelect>
-                </EditTemplate>
-            </PropertyColumn>
-            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
-                <CellTemplate>
-                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
-                                   OnClick="@(() => ValidateRow(context.Item))" />
-                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
-                                   OnClick="@(() => RemoveRow(context.Item))" />
-                </CellTemplate>
-            </TemplateColumn>
-        </Columns>
-    </MudDataGrid>
+    <MudAlert Severity="Severity.Error">
+        @(MenuPlanId == 0 ? "No menu plan specified." : $"Menu plan {MenuPlanId} not found.")
+    </MudAlert>
+}
+else if (_parent is not null)
+{
+    <MudText Typo="Typo.h6" Class="mb-4">@_parent.Name</MudText>
+
+    <div class="dayplan-grid">
+        @* Header row *@
+        <div class="dayplan-grid-header">
+            <MudText Typo="Typo.subtitle2">Date</MudText>
+        </div>
+        @foreach (var mt in _mealTypes)
+        {
+            <div class="dayplan-grid-header">
+                <MudText Typo="Typo.subtitle2">@mt</MudText>
+            </div>
+        }
+
+        @* Day rows *@
+        @foreach (var date in _dates)
+        {
+            var dp = _dayPlanByDate.GetValueOrDefault(date);
+
+            <div class="dayplan-grid-date">
+                <MudText Typo="Typo.body2">@date.ToString("dd MMM")</MudText>
+            </div>
+
+            @foreach (var mt in _mealTypes)
+            {
+                var slot = dp?.MealSlots.FirstOrDefault(ms => ms.MealType == mt);
+                <div class="dayplan-grid-cell">
+                    <MealCell Date="date"
+                              MealType="mt"
+                              MealSlotId="slot?.Id"
+                              Items="@(slot?.MealSlotItems ?? [])"
+                              OnAddRequested="OpenDrawer"
+                              OnItemRemoved="RemoveItemAsync" />
+                </div>
+            }
+        }
+    </div>
 }
 
-<MudDataGrid T="DayPlanResponse" Items="_dayPlans" ReadOnly="false"
-             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
-             Loading="_loading" Hover="true" Striped="true" Dense="true">
-    <Columns>
-        <PropertyColumn Property="x => x.Date" Title="Date" Editable="true">
-            <CellTemplate>
-                @context.Item.Date.ToString("d")
-            </CellTemplate>
-            <EditTemplate>
-                <MudDatePicker Date="@(context.Item.Date.ToDateTime(TimeOnly.MinValue))"
-                               DateChanged="@(v => { if (v.HasValue) context.Item.Date = DateOnly.FromDateTime(v.Value); })"
-                               Margin="Margin.Dense" />
-            </EditTemplate>
-        </PropertyColumn>
-        <PropertyColumn Property="x => x.MenuPlanId" Title="Menu Plan" Editable="true">
-            <CellTemplate>
-                @MenuPlanName(context.Item.MenuPlanId)
-            </CellTemplate>
-            <EditTemplate>
-                <MudSelect T="int" @bind-Value="context.Item.MenuPlanId"
-                           Immediate="true" Margin="Margin.Dense">
-                    @foreach (var mp in _menuPlans)
-                    {
-                        <MudSelectItem T="int" Value="mp.Id">@mp.Name</MudSelectItem>
-                    }
-                </MudSelect>
-            </EditTemplate>
-        </PropertyColumn>
-        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
-            <CellTemplate>
-                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                               OnClick="@(() => DeleteAsync(context.Item))" />
-            </CellTemplate>
-        </TemplateColumn>
-    </Columns>
-</MudDataGrid>
+<MudDrawer Anchor="Anchor.Right" Width="320px" Variant="@DrawerVariant.Temporary"
+           @bind-Open="_drawerOpen" Elevation="2">
+    <MudDrawerHeader>
+        <MudText Typo="Typo.h6">Add item — @_selectedMealType — @_selectedDate.ToString("dd MMM")</MudText>
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _drawerOpen = false)" />
+    </MudDrawerHeader>
+    <div class="pa-4">
+        <MudTextField @bind-Value="_itemSearch" Placeholder="Search item…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" Class="mb-4" />
+        <MudList T="ItemResponse" Dense="true">
+            @foreach (var item in FilteredItems)
+            {
+                <MudListItem T="ItemResponse">
+                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                        <MudText>@item.Name</MudText>
+                        <MudTooltip Text="Add to meal">
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                           OnClick="@(() => AddItemAsync(item))" />
+                        </MudTooltip>
+                    </div>
+                </MudListItem>
+            }
+        </MudList>
+    </div>
+</MudDrawer>
+
+<style>
+    .dayplan-grid {
+        display: grid;
+        grid-template-columns: 80px repeat(5, 1fr);
+        gap: 1px;
+        background: var(--mud-palette-table-lines);
+        border: 1px solid var(--mud-palette-table-lines);
+    }
+
+    .dayplan-grid-header {
+        background: var(--mud-palette-surface);
+        padding: 8px;
+        text-align: center;
+        font-weight: 600;
+    }
+
+    .dayplan-grid-date {
+        background: var(--mud-palette-surface);
+        padding: 8px;
+        display: flex;
+        align-items: flex-start;
+    }
+
+    .dayplan-grid-cell {
+        background: var(--mud-palette-surface);
+        padding: 4px;
+        min-height: 60px;
+    }
+
+    .meal-cell-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .meal-cell-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 2px 4px;
+        font-size: 0.8rem;
+    }
+</style>
 
 @code {
-    private List<DayPlanResponse> _dayPlans = [];
-    private List<MenuPlanResponse> _menuPlans = [];
-    private bool _loading = true;
-    private List<DayPlanDraft> _pendingRows = [];
+    [SupplyParameterFromQuery]
+    public int MenuPlanId { get; set; }
 
-    private sealed class DayPlanDraft
-    {
-        public DateTime? Date { get; set; } = DateTime.Today;
-        public int MenuPlanId { get; set; }
-    }
+    private static readonly MealType[] _mealTypes = Enum.GetValues<MealType>();
 
-    private void AddRow() => _pendingRows.Add(new DayPlanDraft());
+    private MenuPlanResponse? _parent;
+    private bool _parentNotFound;
+    private List<DateOnly> _dates = [];
+    private Dictionary<DateOnly, DayPlanResponse> _dayPlanByDate = new();
+    private List<ItemResponse> _allItems = [];
 
-    private void RemoveRow(DayPlanDraft draft) => _pendingRows.Remove(draft);
+    // Drawer state
+    private bool _drawerOpen;
+    private DateOnly _selectedDate;
+    private MealType _selectedMealType;
+    private string _itemSearch = "";
 
-    private async Task ValidateRow(DayPlanDraft draft)
-    {
-        if (draft.Date is null)
-        {
-            Snackbar.Add("Date is required.", Severity.Error);
-            return;
-        }
-
-        var result = await DayPlanSvc.CreateAsync(new CreateDayPlanRequest
-        {
-            Date = DateOnly.FromDateTime(draft.Date.Value),
-            MenuPlanId = draft.MenuPlanId
-        });
-
-        if (result is not null)
-        {
-            Snackbar.Add($"Day plan created.", Severity.Success);
-            _pendingRows.Remove(draft);
-            await LoadAsync();
-        }
-        else
-        {
-            Snackbar.Add("Menu plan not found.", Severity.Error);
-        }
-    }
+    private List<ItemResponse> FilteredItems =>
+        _allItems
+            .Where(i => i.Name.Contains(_itemSearch, StringComparison.OrdinalIgnoreCase))
+            .ToList();
 
     protected override async Task OnInitializedAsync()
     {
+        if (MenuPlanId == 0)
+            return;
+
+        _parent = await MenuPlanSvc.GetByIdAsync(MenuPlanId);
+        if (_parent is null)
+        {
+            _parentNotFound = true;
+            return;
+        }
+
+        _allItems = await ItemSvc.GetAllAsync();
         await LoadAsync();
     }
 
-    private string MenuPlanName(int menuPlanId) =>
-        _menuPlans.FirstOrDefault(mp => mp.Id == menuPlanId)?.Name ?? "";
-
     private async Task LoadAsync()
     {
-        _loading = true;
-        _dayPlans = await DayPlanSvc.GetAllAsync();
-        _menuPlans = await MenuPlanSvc.GetAllAsync();
-        _loading = false;
+        var daysInMonth = DateTime.DaysInMonth(_parent!.Year, _parent.Month);
+        _dates = Enumerable.Range(1, daysInMonth)
+            .Select(day => new DateOnly(_parent.Year, _parent.Month, day))
+            .ToList();
+
+        var existing = await DayPlanSvc.GetByMenuPlanAsync(MenuPlanId);
+        _dayPlanByDate = existing.ToDictionary(dp => dp.Date);
     }
 
-    private async Task<DataGridEditFormAction> OnCommittedItemChanges(DayPlanResponse item)
+    private void OpenDrawer((DateOnly date, MealType mealType) args)
     {
-        var result = await DayPlanSvc.UpdateAsync(item.Id, new UpdateDayPlanRequest
+        _selectedDate = args.date;
+        _selectedMealType = args.mealType;
+        _itemSearch = "";
+        _drawerOpen = true;
+    }
+
+    private async Task AddItemAsync(ItemResponse item)
+    {
+        // 1. Ensure DayPlan exists
+        if (!_dayPlanByDate.TryGetValue(_selectedDate, out var dayPlan))
         {
-            Date = item.Date,
-            MenuPlanId = item.MenuPlanId
+            var created = await DayPlanSvc.CreateAsync(new CreateDayPlanRequest
+            {
+                Date = _selectedDate,
+                MenuPlanId = MenuPlanId
+            });
+            if (created is null)
+            {
+                Snackbar.Add("Failed to create day plan.", Severity.Error);
+                return;
+            }
+            dayPlan = created;
+            _dayPlanByDate[_selectedDate] = dayPlan;
+        }
+
+        // 2. Ensure MealSlot exists
+        var slot = dayPlan.MealSlots.FirstOrDefault(ms => ms.MealType == _selectedMealType);
+        if (slot is null)
+        {
+            var createdSlot = await MealSlotSvc.CreateAsync(new CreateMealSlotRequest
+            {
+                DayPlanId = dayPlan.Id,
+                MealType = _selectedMealType
+            });
+            if (createdSlot is null)
+            {
+                Snackbar.Add("Failed to create meal slot.", Severity.Error);
+                return;
+            }
+            slot = new MealSlotResponse
+            {
+                Id = createdSlot.Id,
+                MealType = createdSlot.MealType,
+                DayPlanId = createdSlot.DayPlanId
+            };
+            dayPlan.MealSlots.Add(slot);
+        }
+
+        // 3. Create MealSlotItem
+        var result = await MealSlotItemSvc.CreateAsync(new CreateMealSlotItemRequest
+        {
+            MealSlotId = slot.Id,
+            ItemId = item.Id,
+            Quantity = 1
         });
 
-        if (result is not null)
+        if (result is null)
         {
-            Snackbar.Add("Day plan updated.", Severity.Success);
-        }
-        else
-        {
-            Snackbar.Add("Failed to update day plan.", Severity.Error);
-            await LoadAsync();
+            Snackbar.Add("Failed to add item.", Severity.Error);
+            return;
         }
 
-        return DataGridEditFormAction.Close;
+        Snackbar.Add($"{item.Name} added.", Severity.Success);
+        await LoadAsync();
     }
 
-    private async Task DeleteAsync(DayPlanResponse dayPlan)
+    private async Task RemoveItemAsync(int mealSlotItemId)
     {
-        var deleted = await DayPlanSvc.DeleteAsync(dayPlan.Id);
+        var deleted = await MealSlotItemSvc.DeleteAsync(mealSlotItemId);
         if (deleted)
         {
-            Snackbar.Add("Day plan deleted.", Severity.Success);
+            Snackbar.Add("Item removed.", Severity.Success);
             await LoadAsync();
         }
         else
         {
-            Snackbar.Add("Failed to delete day plan.", Severity.Error);
+            Snackbar.Add("Failed to remove item.", Severity.Error);
         }
     }
 }
