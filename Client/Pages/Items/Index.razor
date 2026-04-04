@@ -1,7 +1,9 @@
 @page "/items"
 @inject ItemService ItemSvc
-@inject NavigationManager Nav
+@inject CategoryService CategorySvc
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
+@using MenuManager.Shared.Enums
 
 <PageTitle>Items</PageTitle>
 
@@ -9,35 +11,67 @@
 
 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
            OnClick="@(() => Nav.NavigateTo("/items/create"))" Class="mb-4">
-    Nouveau
+    New
 </MudButton>
 
-<MudTable Items="_items" Hover="true" Striped="true" Loading="_loading">
-    <HeaderContent>
-        <MudTh>Nom</MudTh>
-        <MudTh>Description</MudTh>
-        <MudTh>Unit</MudTh>
-        <MudTh>Package size</MudTh>
-        <MudTh>Categorie</MudTh>
-        <MudTh>Actions</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="Nom">@context.Name</MudTd>
-        <MudTd DataLabel="Description">@context.Description</MudTd>
-        <MudTd DataLabel="Unit">@context.Unit</MudTd>
-        <MudTd DataLabel="Package size">@context.PackageSize</MudTd>
-        <MudTd DataLabel="Categorie">@(string.IsNullOrEmpty(context.CategoryName) ? context.CategoryId.ToString() : context.CategoryName)</MudTd>
-        <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                           OnClick="@(() => Nav.NavigateTo($"/items/edit/{context.Id}"))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => DeleteAsync(context))" />
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+<MudDataGrid T="ItemResponse" Items="_items" ReadOnly="false"
+             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
+             Loading="_loading" Hover="true" Striped="true" Dense="true">
+    <Columns>
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                              RequiredError="Name is required." Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Description" Title="Description" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Description" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Unit" Title="Unit" Editable="true">
+            <EditTemplate>
+                <MudSelect T="MeasurementUnit" @bind-Value="context.Item.Unit" Immediate="true">
+                    @foreach (var u in Enum.GetValues<MeasurementUnit>())
+                    {
+                        <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
+                    }
+                </MudSelect>
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.PackageSize" Title="Package Size" Editable="true">
+            <EditTemplate>
+                <MudNumericField T="decimal" @bind-Value="context.Item.PackageSize"
+                                 Min="0.001m" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.CategoryId" Title="Category" Editable="true">
+            <CellTemplate>
+                @CategoryName(context.Item.CategoryId)
+            </CellTemplate>
+            <EditTemplate>
+                <MudSelect T="int" @bind-Value="context.Item.CategoryId" Immediate="true">
+                    @foreach (var cat in _categories)
+                    {
+                        <MudSelectItem T="int" Value="cat.Id">@cat.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </EditTemplate>
+        </PropertyColumn>
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo($"/items/edit/{context.Item.Id}"))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context.Item))" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
 
 @code {
     private List<ItemResponse> _items = [];
+    private List<CategoryResponse> _categories = [];
     private bool _loading = true;
 
     protected override async Task OnInitializedAsync()
@@ -45,11 +79,39 @@
         await LoadAsync();
     }
 
+    private string CategoryName(int categoryId) =>
+        _categories.FirstOrDefault(c => c.Id == categoryId)?.Name ?? "";
+
     private async Task LoadAsync()
     {
         _loading = true;
         _items = await ItemSvc.GetAllAsync();
+        _categories = await CategorySvc.GetAllAsync();
         _loading = false;
+    }
+
+    private async Task<DataGridEditFormAction> OnCommittedItemChanges(ItemResponse item)
+    {
+        var result = await ItemSvc.UpdateAsync(item.Id, new UpdateItemRequest
+        {
+            Name = item.Name,
+            Description = item.Description,
+            Unit = item.Unit,
+            PackageSize = item.PackageSize,
+            CategoryId = item.CategoryId
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Item \"{item.Name}\" updated.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update item.", Severity.Error);
+            await LoadAsync();
+        }
+
+        return DataGridEditFormAction.Close;
     }
 
     private async Task DeleteAsync(ItemResponse item)
@@ -57,12 +119,12 @@
         var deleted = await ItemSvc.DeleteAsync(item.Id);
         if (deleted)
         {
-            Snackbar.Add($"Item \"{item.Name}\" supprime.", Severity.Success);
+            Snackbar.Add($"Item \"{item.Name}\" deleted.", Severity.Success);
             await LoadAsync();
         }
         else
         {
-            Snackbar.Add("Impossible de supprimer cet item.", Severity.Error);
+            Snackbar.Add("Failed to delete item.", Severity.Error);
         }
     }
 }

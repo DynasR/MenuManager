@@ -43,6 +43,8 @@ et défendre chaque décision technique.
 ✅ Item refactorisé : Quantity supprimé, Unit → enum MeasurementUnit, PackageSize ajouté
 ✅ Migration RefactorItemUnitAndPackageSize appliquée en base
 ✅ Commit propre posé sur le repo
+✅ Category/Index migré en MudDataGrid inline edit (pattern pilote établi)
+🔄 Migration inline edit en cours — Item, Supplier, Customer
 
 ## Entités (Shared/Entities/)
 Party (abstract, TPT) — Id, Name, Phone, Email, Address, City, PostalCode, Country, CreatedAt, UpdatedAt
@@ -73,7 +75,7 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 ## Slices frontend terminées (Client complet)
 ✅ Layout       — MainLayout, NavMenu, 4 providers MudBlazor
 ✅ HttpClient   — BaseAddress via Client/wwwroot/appsettings.json ("http://localhost:5075")
-✅ Category     — CategoryService + Pages CRUD (Index, Create, Edit) fonctionnelles
+✅ Category     — Service + Pages CRUD + Index migré MudDataGrid inline edit
 ✅ Item         — ItemService + Pages CRUD (Index, Create, Edit) fonctionnelles
                   MudSelect<int> pour CategoryId (dropdown FK)
                   MudSelect<MeasurementUnit> pour Unit (enum)
@@ -94,6 +96,18 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 - Aucune liste manuelle à maintenir — l'enum est la source de vérité (Shared)
 - L'enum est dans Shared/Enums/ → partagé Client et Server sans duplication
 
+## Pattern inline edit (établi sur Category/Index)
+- MudDataGrid avec EditMode="DataGridEditMode.Cell"
+- Colonnes FK (affichage nom) : pas d'EditTemplate — non éditables
+- Colonnes enum : pas d'EditTemplate — affichage texte uniquement
+- Colonnes métier : EditTemplate avec MudTextField / MudNumericField
+- CommittedItemChanges → appelle Service.UpdateAsync() directement
+- Le grid modifie l'objet local — la persistance est à la charge du callback
+- Bouton Delete inline sur chaque ligne
+- Bouton "New" en haut → navigate vers /slice/create (Create reste page séparée)
+- Pour PK composite : CommittedItemChanges reçoit l'objet courant,
+  on extrait ItemId+SupplierId pour appeler UpdateAsync(itemId, supplierId, dto)
+
 ## Logique métier clé : calcul de conditionnement
 - MealSlotItem.Quantity = quantité consommée (ex: 1 glace)
 - Item.PackageSize = unités par conditionnement (ex: 6)
@@ -101,9 +115,10 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 - Migration future vers les grammes : ajouter UnitWeightG nullable → zéro breaking change
 
 ## Prochaine étape
-- Inline edit pattern (MudDataGrid) — brief pédagogique en cours
-- Category/Index migré en MudDataGrid inline edit (slice pilote)
-- Puis ItemSupplier construit directement avec ce pattern (pas de page Edit séparée)
+
+
+## MISSION DU SPRINT
+- Migration inline edit : Item → Supplier → Customer → puis slice ItemSupplier (nouvelle)
 
 ## Pattern inline edit (en cours d'établissement)
 - MudDataGrid à la place de MudTable sur toutes les pages Index

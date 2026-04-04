@@ -1,0 +1,82 @@
+@page "/category/edit/{Id:int}"
+@inject CategoryService CategorySvc
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Edit Category</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Edit Category</MudText>
+
+@if (_loading)
+{
+    <MudProgressCircular Indeterminate="true" />
+}
+else
+{
+    <MudForm @ref="_form" @bind-IsValid="_isValid">
+        <MudTextField @bind-Value="_dto.Name" Label="Name" Required="true"
+                      RequiredError="Name is required." MaxLength="100" Class="mb-3" />
+        <MudTextField @bind-Value="_dto.Description" Label="Description" Lines="3" Class="mb-3" />
+        <MudSelect T="int?" @bind-Value="_dto.ParentCategoryId" Label="Parent Category"
+                   Clearable="true" Class="mb-3">
+            @foreach (var cat in _categories.Where(c => c.Id != Id))
+            {
+                <MudSelectItem T="int?" Value="@((int?)cat.Id)">@cat.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </MudForm>
+
+    <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="SubmitAsync"
+               Disabled="!_isValid" Class="mt-4 mr-2">
+        Save
+    </MudButton>
+    <MudButton Variant="Variant.Text" OnClick="@(() => Nav.NavigateTo("/categories"))">
+        Cancel
+    </MudButton>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private MudForm _form = null!;
+    private bool _isValid;
+    private UpdateCategoryRequest _dto = new();
+    private List<CategoryResponse> _categories = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var category = await CategorySvc.GetByIdAsync(Id);
+        _categories = await CategorySvc.GetAllAsync();
+
+        if (category is null)
+        {
+            Snackbar.Add("Category not found.", Severity.Error);
+            Nav.NavigateTo("/categories");
+            return;
+        }
+
+        _dto.Name = category.Name;
+        _dto.Description = category.Description;
+        _dto.ParentCategoryId = category.ParentCategoryId;
+
+        _loading = false;
+    }
+
+    private async Task SubmitAsync()
+    {
+        await _form.ValidateAsync();
+        if (!_isValid) return;
+
+        var result = await CategorySvc.UpdateAsync(Id, _dto);
+        if (result is not null)
+        {
+            Snackbar.Add("Category updated.", Severity.Success);
+            Nav.NavigateTo("/categories");
+        }
+        else
+        {
+            Snackbar.Add("Failed to update category.", Severity.Error);
+        }
+    }
+}

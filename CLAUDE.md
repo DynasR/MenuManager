@@ -55,7 +55,8 @@ MealType        (enum, Shared/Enums/) — Breakfast, MorningSnack, Lunch, Aftern
 MeasurementUnit (enum, Shared/Enums/) — Piece, Gram, Kilogram, Milliliter, Liter
 ```
 
-All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in `AppDbContext.OnModelCreating()` Fluent API.
+All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
+`AppDbContext.OnModelCreating()` Fluent API.
 
 ### PackageSize business rule
 - `MealSlotItem.Quantity` = quantity consumed in the recipe (e.g. 1 ice cream)
@@ -102,7 +103,7 @@ Controller switches on `Error` to return the correct HTTP status.
 
 ## FK dropdown pattern (established on Item slice)
 
-When a Create/Edit form references a FK, apply this pattern exactly:
+When a Create form references a FK, apply this pattern exactly:
 
 ```razor
 @code {
@@ -111,7 +112,6 @@ When a Create/Edit form references a FK, apply this pattern exactly:
     protected override async Task OnInitializedAsync()
     {
         _categories = await CategoryService.GetAllAsync();
-        // also load the entity here if Edit page
     }
 }
 
@@ -150,41 +150,67 @@ Rules:
 
 ---
 
+## Inline edit pattern (established on Category/Index)
+
+All Index pages use `MudDataGrid` with inline cell editing. Reference implementation: `Category/Index.razor`.
+
+```razor
+<MudDataGrid T="CategoryResponse" Items="_items"
+             EditMode="DataGridEditMode.Cell"
+             CommittedItemChanges="OnCommit">
+    <Columns>
+        <PropertyColumn Property="x => x.Name">
+            <EditTemplate>
+                <MudTextField @bind-Value="context.Item.Name" />
+            </EditTemplate>
+        </PropertyColumn>
+        <TemplateColumn>
+            <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                               OnClick="() => OnDelete(context.Item)" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
+```
+
+Rules:
+- FK display columns (e.g. item name, category name): **no EditTemplate** — read-only.
+- Enum columns: **no EditTemplate** — display as text only.
+- Business field columns: EditTemplate with `MudTextField`, `MudNumericField`, or `MudCheckBox`.
+- `CommittedItemChanges` receives the object **after modification** — call `Service.UpdateAsync()` here.
+- The grid manages local state only — persistence is entirely the callback's responsibility.
+- Each row has an inline Delete button (`TemplateColumn` with `MudIconButton`).
+- "New" button at top navigates to `/slice/create` — Create page stays a separate form.
+- **Composite PK (ItemSupplier)**: extract `ItemId` + `SupplierId` from the committed item
+  to call `UpdateAsync(item.ItemId, item.SupplierId, dto)`.
+- Separate Edit page is **dropped** for all slices using this pattern.
+
+---
+
 ## Completed slices
 
 ### Backend (all complete: DTO / Validator / Service / Controller / Tests)
-- Category, Item, Supplier, Customer, ItemSupplier
-- MenuPlan, DayPlan, MealSlot, MealSlotItem
+Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, MealSlotItem
 
-## Completed Frontend Slices (Client)
-✅ Layout         — MainLayout, NavMenu, 4 MudBlazor providers
-✅ HttpClient     — BaseAddress via Client/wwwroot/appsettings.json ("http://localhost:5075")
-✅ Category       — CategoryService + CRUD pages (Index, Create, Edit) functional
-✅ Item           — ItemService + CRUD pages (Index, Create, Edit) functional
-                    MudSelect<int> for CategoryId (FK dropdown)
-                    MudSelect<MeasurementUnit> for Unit (enum)
-                    MudNumericField<decimal> for PackageSize (min=0.001)
-✅ Supplier       — SupplierService + CRUD pages functional
-✅ Customer       — CustomerService + CRUD pages functional (Party fields only)
-                    PasswordHash/PasswordSalt never exposed in forms
-✅ ItemSupplier   — ItemSupplierService + CRUD pages functional
-                    Double FK dropdown (Item + Supplier) on Create
-                    Composite route /itemsupplier/edit/{ItemId:int}/{SupplierId:int}
-                    Edit page: business fields only (UnitPrice, SupplierReference, IsAvailable)
+### Frontend (Client)
 
-## Next Step
-- Inline edit pattern (MudDataGrid) — pedagogical brief in progress
-- Category/Index migrated to MudDataGrid inline edit (pilot slice)
-- Then all existing slices migrated to this pattern
+| Slice        | Service | Create | Index (inline edit) | Notes                                         |
+|--------------|---------|--------|----------------------|-----------------------------------------------|
+| Layout       | —       | —      | —                    | MainLayout, NavMenu, 4 MudBlazor providers    |
+| Category     | ✅      | ✅     | ✅ MudDataGrid       | Pilot slice for inline edit pattern           |
+| Item         | ✅      | ✅     | ✅ MudDataGrid       | FK dropdown CategoryId, enum Unit, PackageSize|
+| Supplier     | ✅      | ✅     | 🔄 in progress       |                                               |
+| Customer     | ✅      | ✅     | 🔄 in progress       | Party fields only, no password exposure       |
+| ItemSupplier | ✅      | ✅     | ⬜ to do             | Double FK dropdown, composite PK route        |
 
-## Inline Edit Pattern (being established)
-- MudDataGrid replaces MudTable on all Index pages
-- EditMode="DataGridEditMode.Cell"
-- CommittedItemChanges → callback calling service UpdateAsync
-- FK columns (display only): no EditTemplate
-- Editable business columns: EditTemplate with MudTextField / MudNumericField / MudCheckBox
-- Separate Edit page dropped — all edits done inline
-- Create page remains separate (dedicated form)
+---
+
+## Next steps
+
+1. Migrate Supplier/Index → MudDataGrid inline edit
+2. Migrate Customer/Index → MudDataGrid inline edit
+3. Build ItemSupplier/Index directly with MudDataGrid inline edit (composite PK pattern)
 
 ---
 

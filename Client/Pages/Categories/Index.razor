@@ -1,36 +1,47 @@
 @page "/categories"
 @inject CategoryService CategorySvc
-@inject IDialogService DialogService
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>Categories</PageTitle>
 
 <MudText Typo="Typo.h4" Class="mb-4">Categories</MudText>
 
 <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="OpenCreateDialog" Class="mb-4">
-    Nouveau
+           OnClick="@(() => Nav.NavigateTo("/category/create"))" Class="mb-4">
+    New
 </MudButton>
 
-<MudTable Items="_categories" Hover="true" Striped="true" Loading="_loading">
-    <HeaderContent>
-        <MudTh>Nom</MudTh>
-        <MudTh>Description</MudTh>
-        <MudTh>Parent</MudTh>
-        <MudTh>Actions</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="Nom">@context.Name</MudTd>
-        <MudTd DataLabel="Description">@context.Description</MudTd>
-        <MudTd DataLabel="Parent">@ParentName(context.ParentCategoryId)</MudTd>
-        <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                           OnClick="@(() => OpenEditDialog(context))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => DeleteAsync(context))" />
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+<MudDataGrid T="CategoryResponse" Items="_categories" ReadOnly="false"
+             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
+             Loading="_loading" Hover="true" Striped="true" Dense="true">
+    <Columns>
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                              RequiredError="Name is required." Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Description" Title="Description" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Description" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.ParentCategoryId" Title="Parent" Editable="false">
+            <CellTemplate>
+                @ParentName(context.Item.ParentCategoryId)
+            </CellTemplate>
+        </PropertyColumn>
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
+                               OnClick="@(() => Nav.NavigateTo($"/category/edit/{context.Item.Id}"))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context.Item))" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
 
 @code {
     private List<CategoryResponse> _categories = [];
@@ -41,6 +52,11 @@
         await LoadAsync();
     }
 
+    private string ParentName(int? parentId) =>
+        parentId is null
+            ? ""
+            : _categories.FirstOrDefault(c => c.Id == parentId)?.Name ?? "";
+
     private async Task LoadAsync()
     {
         _loading = true;
@@ -48,36 +64,26 @@
         _loading = false;
     }
 
-    private string ParentName(int? parentId) =>
-        parentId is null
-            ? ""
-            : _categories.FirstOrDefault(c => c.Id == parentId)?.Name ?? "";
-
-    private async Task OpenCreateDialog()
+    private async Task<DataGridEditFormAction> OnCommittedItemChanges(CategoryResponse item)
     {
-        var parameters = new DialogParameters<CategoryDialog>
+        var result = await CategorySvc.UpdateAsync(item.Id, new UpdateCategoryRequest
         {
-            { x => x.Categories, _categories }
-        };
-        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogService.ShowAsync<CategoryDialog>("Nouvelle categorie", parameters, options);
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled)
-            await LoadAsync();
-    }
+            Name = item.Name,
+            Description = item.Description,
+            ParentCategoryId = item.ParentCategoryId
+        });
 
-    private async Task OpenEditDialog(CategoryResponse category)
-    {
-        var parameters = new DialogParameters<CategoryDialog>
+        if (result is not null)
         {
-            { x => x.Category, category },
-            { x => x.Categories, _categories }
-        };
-        var options = new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true };
-        var dialog = await DialogService.ShowAsync<CategoryDialog>("Modifier la categorie", parameters, options);
-        var result = await dialog.Result;
-        if (result is not null && !result.Canceled)
+            Snackbar.Add($"Category \"{item.Name}\" updated.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update category.", Severity.Error);
             await LoadAsync();
+        }
+
+        return DataGridEditFormAction.Close;
     }
 
     private async Task DeleteAsync(CategoryResponse category)
@@ -85,12 +91,12 @@
         var deleted = await CategorySvc.DeleteAsync(category.Id);
         if (deleted)
         {
-            Snackbar.Add($"Categorie \"{category.Name}\" supprimee.", Severity.Success);
+            Snackbar.Add($"Category \"{category.Name}\" deleted.", Severity.Success);
             await LoadAsync();
         }
         else
         {
-            Snackbar.Add("Impossible de supprimer cette categorie.", Severity.Error);
+            Snackbar.Add("Failed to delete category.", Severity.Error);
         }
     }
 }

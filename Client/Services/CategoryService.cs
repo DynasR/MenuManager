@@ -12,6 +12,9 @@ public class CategoryService
     public async Task<List<CategoryResponse>> GetAllAsync() =>
         await _http.GetFromJsonAsync<List<CategoryResponse>>("api/categories") ?? [];
 
+    public async Task<CategoryResponse?> GetByIdAsync(int id) =>
+        await _http.GetFromJsonAsync<CategoryResponse>($"api/categories/{id}");
+
     public async Task<CategoryResponse?> CreateAsync(CreateCategoryRequest request)
     {
         var response = await _http.PostAsJsonAsync("api/categories", request);
