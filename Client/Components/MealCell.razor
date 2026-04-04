@@ -5,8 +5,8 @@
     <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list">
         @foreach (var item in Items)
         {
-            <li data-item-id="@item.Id" class="meal-cell-item">
-                <span>@item.ItemName</span>
+            <li @key="item.Id" data-item-id="@item.Id" class="meal-cell-item">
+                <span>@item.Order — @item.ItemName</span>
                 <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => OnItemRemoved.InvokeAsync(item.Id))" />
             </li>
@@ -26,6 +26,7 @@
     [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex)> OnItemMoved { get; set; }
     [Parameter] public EventCallback<int> OnItemRemoved { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnAddRequested { get; set; }
+    [Parameter] public EventCallback<(int? mealSlotId, List<int> orderedIds)> OnOrderChanged { get; set; }
 
     private ElementReference _listRef;
     private DotNetObjectReference<MealCell>? _dotNetRef;
@@ -34,8 +35,9 @@
     {
         if (firstRender)
         {
+            await JS.InvokeVoidAsync("initSortable", _listRef, "mealslots");
             _dotNetRef = DotNetObjectReference.Create(this);
-            await JS.InvokeVoidAsync("initSortable", _listRef, _dotNetRef, "mealslots");
+            await JS.InvokeVoidAsync("observeSortable", _listRef, _dotNetRef);
         }
     }
 
@@ -49,6 +51,12 @@
         {
             await OnItemMoved.InvokeAsync((itemId, fd, fmt, td, tmt, newIndex));
         }
+    }
+
+    [JSInvokable("OnReorder")]
+    public async Task HandleReorder(int[] orderedIds)
+    {
+        await OnOrderChanged.InvokeAsync((MealSlotId, orderedIds.ToList()));
     }
 
     public async ValueTask DisposeAsync()

@@ -69,5 +69,6 @@ public class MealSlotItemResponse
     public string ItemName { get; set; } = "";
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }
+    public int Order { get; set; }
     public int MealSlotId { get; set; }
 }

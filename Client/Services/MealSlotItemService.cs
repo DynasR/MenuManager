@@ -25,6 +25,12 @@ public class MealSlotItemService
             : null;
     }
 
+    public async Task<bool> ReorderAsync(ReorderMealSlotItemsRequest request)
+    {
+        var response = await _http.PatchAsJsonAsync("api/mealslotitems/reorder", request);
+        return response.IsSuccessStatusCode;
+    }
+
     public async Task<bool> DeleteAsync(int id)
     {
         var response = await _http.DeleteAsync($"api/mealslotitems/{id}");

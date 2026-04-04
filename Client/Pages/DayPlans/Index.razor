@@ -21,6 +21,15 @@ else if (_parent is not null)
 {
     <MudText Typo="Typo.h6" Class="mb-4">@_parent.Name</MudText>
 
+    <MudToolBar Dense="true" Class="mb-2">
+        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   Disabled="@(_pendingMoves.Count == 0 && _pendingReorders.Count == 0)"
+                   OnClick="SaveAllAsync">
+            Save All
+        </MudButton>
+    </MudToolBar>
+
     <div class="dayplan-grid">
         @* Header row *@
         <div class="dayplan-grid-header">
@@ -72,7 +81,8 @@ else if (_parent is not null)
                               Items="@(slot?.MealSlotItems ?? [])"
                               OnAddRequested="OpenDrawer"
                               OnItemRemoved="RemoveItemAsync"
-                              OnItemMoved="MoveItemAsync" />
+                              OnItemMoved="HandleMoveItem"
+                              OnOrderChanged="HandleOrderChanged" />
                 </div>
             }
         }
@@ -173,6 +183,12 @@ else if (_parent is not null)
     private List<ItemResponse> _allItems = [];
     private HashSet<DateOnly> _holidays = [];
     private Dictionary<DateOnly, string> _holidayNames = new();
+
+    // Pending changes (deferred until Save All)
+    private Dictionary<int, List<int>> _pendingReorders = new();
+    private List<PendingMove> _pendingMoves = [];
+
+    private sealed record PendingMove(int ItemId, DateOnly TargetDate, MealType TargetMealType, int NewOrder);
 
     // Drawer state
     private bool _drawerOpen;
@@ -286,21 +302,41 @@ else if (_parent is not null)
         await LoadAsync();
     }
 
-    private async Task MoveItemAsync((int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex) args)
+    private void HandleMoveItem((int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex) args)
     {
-        var result = await MealSlotItemSvc.MoveAsync(args.itemId, new MoveMealSlotItemRequest
-        {
-            TargetDate = args.toDate,
-            TargetMealType = args.toMealType,
-            NewOrder = args.newIndex
-        });
+        _pendingMoves.Add(new PendingMove(args.itemId, args.toDate, args.toMealType, args.newIndex));
 
-        if (result is null)
+        // Update local state so Blazor stays in sync with SortableJS DOM
+        MealSlotItemResponse? movedItem = null;
+        if (_dayPlanByDate.TryGetValue(args.fromDate, out var srcDp))
         {
-            Snackbar.Add("Failed to move item.", Severity.Error);
+            var srcSlot = srcDp.MealSlots.FirstOrDefault(ms => ms.MealType == args.fromMealType);
+            if (srcSlot is not null)
+            {
+                movedItem = srcSlot.MealSlotItems.FirstOrDefault(i => i.Id == args.itemId);
+                if (movedItem is not null)
+                    srcSlot.MealSlotItems.Remove(movedItem);
+            }
         }
 
-        await LoadAsync();
+        if (movedItem is not null)
+        {
+            if (!_dayPlanByDate.TryGetValue(args.toDate, out var tgtDp))
+            {
+                tgtDp = new DayPlanResponse { Date = args.toDate, MenuPlanId = MenuPlanId };
+                _dayPlanByDate[args.toDate] = tgtDp;
+            }
+            var tgtSlot = tgtDp.MealSlots.FirstOrDefault(ms => ms.MealType == args.toMealType);
+            if (tgtSlot is null)
+            {
+                tgtSlot = new MealSlotResponse { MealType = args.toMealType, DayPlanId = tgtDp.Id };
+                tgtDp.MealSlots.Add(tgtSlot);
+            }
+            var idx = Math.Min(args.newIndex, tgtSlot.MealSlotItems.Count);
+            tgtSlot.MealSlotItems.Insert(idx, movedItem);
+        }
+
+        StateHasChanged();
     }
 
     private async Task RemoveItemAsync(int mealSlotItemId)
@@ -315,5 +351,62 @@ else if (_parent is not null)
         {
             Snackbar.Add("Failed to remove item.", Severity.Error);
         }
+    }
+
+    private void HandleOrderChanged((int? mealSlotId, List<int> orderedIds) args)
+    {
+        if (args.mealSlotId is null) return;
+        _pendingReorders[args.mealSlotId.Value] = args.orderedIds;
+        StateHasChanged();
+    }
+
+    private async Task SaveAllAsync()
+    {
+        int moved = 0;
+        int reordered = 0;
+
+        // 1. Process cross-cell moves
+        foreach (var m in _pendingMoves)
+        {
+            var result = await MealSlotItemSvc.MoveAsync(m.ItemId, new MoveMealSlotItemRequest
+            {
+                TargetDate = m.TargetDate,
+                TargetMealType = m.TargetMealType,
+                NewOrder = m.NewOrder
+            });
+
+            if (result is not null)
+                moved++;
+            else
+                Snackbar.Add("Failed to move item.", Severity.Error);
+        }
+
+        // 2. Process same-slot reorders
+        foreach (var (slotId, orderedIds) in _pendingReorders)
+        {
+            var success = await MealSlotItemSvc.ReorderAsync(new ReorderMealSlotItemsRequest
+            {
+                MealSlotId = slotId,
+                OrderedItemIds = orderedIds
+            });
+
+            if (success)
+                reordered++;
+            else
+                Snackbar.Add($"Failed to reorder slot {slotId}.", Severity.Error);
+        }
+
+        _pendingMoves.Clear();
+        _pendingReorders.Clear();
+
+        if (moved > 0 || reordered > 0)
+        {
+            var parts = new List<string>();
+            if (moved > 0) parts.Add($"{moved} moved");
+            if (reordered > 0) parts.Add($"{reordered} reordered");
+            Snackbar.Add(string.Join(", ", parts), Severity.Success);
+        }
+
+        await LoadAsync();
     }
 }

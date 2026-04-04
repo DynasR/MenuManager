@@ -311,8 +311,10 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - Displays ordered list of `MealSlotItem` for that slot (`Order` field respected).
 - "+" button opens the MudDrawer (add item).
 - Delete button per item.
-- Each item element is draggable (SortableJS) — carries `data-id="{mealSlotItem.Id}"`.
+- Each item element is draggable (SortableJS) — carries `data-item-id="{mealSlotItem.Id}"`, uses `@key="item.Id"`.
 - The list container carries `data-date` and `data-mealtype` attributes.
+- Parameters: `OnItemMoved` (cross-cell move), `OnItemRemoved` (delete), `OnAddRequested` (drawer), `OnOrderChanged` (same-slot reorder).
+- `[JSInvokable] OnReorder(int[] orderedIds)` — called by JS on same-list sort, raises `OnOrderChanged`.
 
 ### MudDrawer (right anchor)
 - Opens when user clicks "+" in any MealCell.
@@ -333,27 +335,42 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
 ### Backend
 - `MealSlotItem.Order int default 0` — migration `AddMealSlotItemOrder` applied.
+- `CreateAsync` auto-assigns `Order = currentCount + 1` (sequential).
 - `MoveMealSlotItemRequest` in `Shared/DTOs/` — fields: `TargetDate`, `TargetMealType`, `NewOrder`.
   Backend resolves the target MealSlot itself (on-demand pattern) — no `TargetMealSlotId` exposed.
 - `MealSlotItemService.MoveAsync(int id, MoveMealSlotItemRequest)`:
   - Loads item + current slot → 404 if missing.
   - Resolves target MealSlot by `(DayPlanId, TargetMealType)` — creates it if absent.
-  - Updates `MealSlotId` + `Order`.
+  - Moves item to target slot, then **renumbers both source and target slots** (gap-free 1-based Order).
+  - Inserts at `NewOrder` position in target slot via `Math.Clamp`.
 - `PATCH /mealslotitem/{id}/move` — returns 200 or 404.
-- Tests: reorder within same slot, move to different slot, move to non-existent slot (on-demand), 404.
+- `ReorderMealSlotItemsRequest` in `Shared/DTOs/` — fields: `MealSlotId`, `OrderedItemIds` (List<int>).
+- `MealSlotItemService.ReorderAsync(ReorderMealSlotItemsRequest)`:
+  - Validates all IDs belong to the slot and list is complete (count match).
+  - Assigns 1-based Order per provided sequence.
+  - Returns `false` on empty slot, partial list, or unknown ID.
+- `PATCH /mealslotitems/reorder` — returns 204 or 404.
+- `MealSlotItemResponse` includes `Order` field (exposed to frontend).
+- Tests: reorder (correct, unknown ID, empty, partial), sequential Order on create, renumber source/target on move, insert position.
 
-### Frontend
-- `MealSlotItemService` client — `MoveAsync(int id, MoveMealSlotItemRequest)`.
-- `sortable-interop.js` — SortableJS configured with `group: "mealslots"` on all lists (enables cross-cell drag).
-- `onEnd` handler distinguishes two cases by comparing `from` and `to` list references:
-  - Same list → reorder (Scenario A).
-  - Different lists → move (Scenario B).
-- Calls `dotnetHelper.invokeMethodAsync('OnDrop', itemId, fromDate, fromMealType, toDate, toMealType, newIndex)`.
-- `[JSInvokable] OnDrop(...)` in `DayPlan/Index` builds `MoveMealSlotItemRequest` → calls `MoveAsync`.
+### Frontend — deferred save pattern
+- Drag & drop operations are **not** sent to the backend immediately.
+- `_pendingMoves` (List<PendingMove>) — cross-cell moves buffered locally.
+- `_pendingReorders` (Dictionary<int, List<int>>) — same-slot reorders buffered by MealSlotId.
+- `HandleMoveItem` updates local `_dayPlanByDate` state (remove from source, insert in target) so Blazor stays in sync with SortableJS DOM — no `LoadAsync()` until Save.
+- `HandleOrderChanged` stores the new order in `_pendingReorders`.
+- **Save All toolbar button** — disabled when both buffers empty. Processes moves first, then reorders. Snackbar summary on completion ("X moved, Y reordered"). Then `LoadAsync()`.
+
+### JS interop (`sortable-interop.js`)
+- IIFE with `Map` registry (element → `{ sortable, moveHandler, dotNetRef }`).
+- `initSortable(element, group)` — creates SortableJS instance, fires `sortcomplete` custom event on `onEnd`.
+- `observeSortable(element, dotNetRef)` — listens to `sortcomplete`, distinguishes cross-cell (→ `OnDrop`) vs same-list (→ `OnReorder`).
+- `destroySortable(element)` — cleans up instance + listeners + ref.
 
 ### Snackbar rule for drag & drop
-- **Error only** — snackbar displayed when `MoveAsync` returns null.
-- **No success snackbar** — the visual result of the drop is the feedback. Silent `LoadAsync()` on success.
+- **Error only during Save All** — snackbar per failed operation.
+- **Summary on success** — "X moved, Y reordered" (zeros omitted).
+- **No snackbar on individual drag** — visual DOM feedback is sufficient.
 
 ---
 

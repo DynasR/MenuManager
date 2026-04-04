@@ -50,6 +50,13 @@ public class MealSlotItemsController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpPatch("reorder")]
+    public async Task<IActionResult> Reorder(ReorderMealSlotItemsRequest request)
+    {
+        var result = await _service.ReorderAsync(request);
+        return result ? NoContent() : NotFound();
+    }
+
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {

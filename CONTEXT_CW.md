@@ -58,7 +58,12 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 - **On-demand** — DayPlan et MealSlot créés uniquement au premier MealSlotItem. Jamais pré-générés.
 - **Pattern Index** établi et harmonisé sur toutes les slices (référence : Category/Index.razor) — pending rows + dirty tracking + Save All.
 - **Enums dans Shared/Enums/** — source de vérité unique Client + Server.
-- **Drag & drop** — SortableJS via JS interop. `PATCH /mealslotitem/{id}/move`. Snackbar sur erreur uniquement, jamais sur succès.
+- **Drag & drop** — SortableJS via JS interop (IIFE + registry). Deux opérations :
+  - **Move cross-cell** : `PATCH /mealslotitem/{id}/move` — renumérote source et target slots.
+  - **Reorder same-slot** : `PATCH /mealslotitems/reorder` — `ReorderMealSlotItemsRequest(MealSlotId, OrderedItemIds)`.
+  - **Deferred save** : les drags ne sont pas envoyés immédiatement. Buffers locaux (`_pendingMoves`, `_pendingReorders`) + bouton Save All.
+  - Snackbar sur erreur uniquement pendant Save All, résumé ("X moved, Y reordered") sur succès.
+- **Order auto-séquentiel** — `CreateAsync` assigne `Order = count + 1`. `MoveAsync` renumérote les deux slots (gap-free, 1-based).
 - **Jours fériés FR** — calculés côté client dans `Client/Helpers/FrenchHolidays.cs` (algorithme de Pâques). Zéro appel API externe.
 - **MudIconButton** n'accepte pas Title/Tooltip → toujours envelopper dans `<MudTooltip>` (règle MUD0002).
 

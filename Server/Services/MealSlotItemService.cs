@@ -13,6 +13,7 @@ public interface IMealSlotItemService
     Task<MealSlotItemResponse?> UpdateAsync(int id, UpdateMealSlotItemRequest request);
     Task<bool> DeleteAsync(int id);
     Task<MealSlotItemResponse?> MoveAsync(int id, MoveMealSlotItemRequest request);
+    Task<bool> ReorderAsync(ReorderMealSlotItemsRequest request);
 }
 
 public class MealSlotItemService : IMealSlotItemService
@@ -52,12 +53,15 @@ public class MealSlotItemService : IMealSlotItemService
         var itemExists = await _db.Items.AnyAsync(i => i.Id == request.ItemId);
         if (!itemExists) return null;
 
+        var currentCount = await _db.MealSlotItems.CountAsync(msi => msi.MealSlotId == request.MealSlotId);
+
         var mealSlotItem = new MealSlotItem
         {
             Quantity = request.Quantity,
             Notes = request.Notes,
             MealSlotId = request.MealSlotId,
-            ItemId = request.ItemId
+            ItemId = request.ItemId,
+            Order = currentCount + 1
         };
 
         _db.MealSlotItems.Add(mealSlotItem);
@@ -107,6 +111,7 @@ public class MealSlotItemService : IMealSlotItemService
 
         if (mealSlotItem is null) return null;
 
+        var sourceSlotId = mealSlotItem.MealSlotId;
         var menuPlanId = mealSlotItem.MealSlot.DayPlan.MenuPlanId;
 
         // Resolve target DayPlan (on-demand)
@@ -131,14 +136,69 @@ public class MealSlotItemService : IMealSlotItemService
             await _db.SaveChangesAsync();
         }
 
+        // Move item to target slot
         mealSlotItem.MealSlotId = targetSlot.Id;
-        mealSlotItem.Order = request.NewOrder;
+        await _db.SaveChangesAsync();
+
+        // Renumber source slot (fill the gap left by removed item)
+        if (sourceSlotId != targetSlot.Id)
+            await RenumberSlotAsync(sourceSlotId);
+
+        // Renumber target slot with item inserted at desired position
+        var targetItems = await _db.MealSlotItems
+            .Where(msi => msi.MealSlotId == targetSlot.Id)
+            .OrderBy(msi => msi.Order)
+            .ToListAsync();
+
+        targetItems.Remove(mealSlotItem);
+        var insertIdx = Math.Clamp(request.NewOrder, 0, targetItems.Count);
+        targetItems.Insert(insertIdx, mealSlotItem);
+
+        for (int i = 0; i < targetItems.Count; i++)
+            targetItems[i].Order = i + 1;
+
         await _db.SaveChangesAsync();
 
         return await GetByIdAsync(id);
     }
 
+    public async Task<bool> ReorderAsync(ReorderMealSlotItemsRequest request)
+    {
+        var items = await _db.MealSlotItems
+            .Where(msi => msi.MealSlotId == request.MealSlotId)
+            .ToListAsync();
+
+        if (items.Count == 0) return false;
+        if (request.OrderedItemIds.Count != items.Count) return false;
+
+        var itemDict = items.ToDictionary(i => i.Id);
+
+        for (int i = 0; i < request.OrderedItemIds.Count; i++)
+        {
+            if (!itemDict.TryGetValue(request.OrderedItemIds[i], out var item))
+                return false;
+
+            item.Order = i + 1;
+        }
+
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private async Task RenumberSlotAsync(int slotId)
+    {
+        var items = await _db.MealSlotItems
+            .Where(msi => msi.MealSlotId == slotId)
+            .OrderBy(msi => msi.Order)
+            .ToListAsync();
+
+        for (int i = 0; i < items.Count; i++)
+            items[i].Order = i + 1;
+
+        await _db.SaveChangesAsync();
+    }
 
     private static MealSlotItemResponse MapToResponse(MealSlotItem msi) => new()
     {
@@ -147,6 +207,7 @@ public class MealSlotItemService : IMealSlotItemService
         ItemName = msi.Item?.Name ?? "",
         Quantity = msi.Quantity,
         Notes = msi.Notes,
+        Order = msi.Order,
         MealSlotId = msi.MealSlotId
     };
 }

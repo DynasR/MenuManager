@@ -130,6 +130,7 @@ public class DayPlanService : IDayPlanService
         ItemName = msi.Item?.Name ?? "",
         Quantity = msi.Quantity,
         Notes = msi.Notes,
+        Order = msi.Order,
         MealSlotId = msi.MealSlotId
     };
 }

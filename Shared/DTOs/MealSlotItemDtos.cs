@@ -24,3 +24,9 @@ public class MoveMealSlotItemRequest
     public MealType TargetMealType { get; set; }
     public int NewOrder { get; set; }
 }
+
+public class ReorderMealSlotItemsRequest
+{
+    public int MealSlotId { get; set; }
+    public List<int> OrderedItemIds { get; set; } = [];
+}
