@@ -143,14 +143,14 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 
 | Slice        | Service | Index           | Notes                                                              |
 |--------------|---------|-----------------|--------------------------------------------------------------------|
-| Layout       | —       | —               | MudTheme (Success=#1B5E20), Snackbar BottomCenter, RightPanelState  |
+| Layout       | —       | —               | MudTheme (Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0), gradient AppBar, NavMenu split (main top / admin bottom), RightPanelState |
 | Category     | ✅      | ✅ patched      | Reference implementation — new Save pattern applied                |
 | Item         | ✅      | ✅ patched      | FK CategoryId, enum Unit, decimal PackageSize                      |
 | Supplier     | ✅      | ✅ patched      | Party fields + CompanyName, Siret                                  |
 | Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
 | MenuPlan     | ✅      | ✅ cards        | 3-year cards, HasData coloring, MonthlyCost, unified button        |
-| DayPlan      | ✅      | ✅ calendar     | Month nav bar, drag & drop, shopping cart (see below)              |
+| DayPlan      | ✅      | ✅ calendar     | Month nav bar, drag & drop, shopping cart, copy/move cell+item     |
 | MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 | MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
@@ -186,11 +186,28 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 ### MealCell component (`Client/Components/MealCell.razor`)
 - One cell per `(DateOnly date, MealType mealType)`.
 - Ordered list of items, "+" button (opens drawer), delete button, SortableJS drag & drop.
-- Parameters: `OnItemMoved`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`.
+- Displays price per item + slot total (EUR, FR locale, `ceil(qty/PackageSize)*UnitPrice`).
+- **Copy/move parameters**: `HasPendingAction`, `IsSource`, `IsCopyMode`, `PendingSourceItemId`.
+- **CSS visual states**: `meal-cell-source-copy/move`, `meal-cell-target-copy/move` applied on cell; `meal-cell-item-source` on source item.
+- **Callbacks**: `OnItemMoved`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCopyCellRequested`, `OnMoveCellRequested`, `OnCopyItemRequested`, `OnMoveItemRequested`, `OnTargetSelected`.
 
-### AddItemAsync — on-demand creation
-- DayPlan → MealSlot → MealSlotItem created lazily when first item is added to a slot.
-- Silent success + `LoadAsync()`.
+### AddItemToSlotAsync — on-demand creation (shared helper)
+- Private `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)`.
+- DayPlan → MealSlot → MealSlotItem created lazily. Returns `false` on any API failure.
+- Called by: AddItemAsync (drawer), ExecuteCellActionAsync, ExecuteItemActionAsync.
+
+### Copy/Move feature (DayPlan/Index — fully implemented)
+
+2-step interaction, immediate (not deferred):
+1. User clicks Copy or Move button on an item or cell footer → `HandleSourceSelected` sets `_pendingAction` (`CellPendingAction` record).
+2. A chip appears in the toolbar center; all other cells become clickable targets.
+3. User clicks a target cell → `HandleTargetSelectedAsync` dispatches to `ExecuteCellActionAsync` or `ExecuteItemActionAsync`.
+4. Click on same source → cancel. `_pendingAction = null` to reset.
+
+- **Item-level**: copies/moves a single `MealSlotItem` (preserves Quantity).
+- **Cell-level**: copies/moves all items in a slot. On move, deletes originals.
+- Both use `AddItemToSlotAsync` for destination, then delete source on move.
+- State: `private CellPendingAction? _pendingAction` — `sealed record(SourceDate, SourceMealType, ItemId?, IsCopy)`.
 
 ---
 

@@ -1,32 +1,100 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="meal-cell">
-    <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list">
+<div class="meal-cell @CellCssClass"
+     style="@(IsActionTarget ? "cursor:pointer;" : "")"
+     @onclick="HandleTargetClick">
+    <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list" style="background:#fff3cd">
         @foreach (var item in Items)
         {
-            <li @key="item.Id" data-item-id="@item.Id" class="meal-cell-item">
-                <span>@item.Order — @item.ItemName</span>
-                <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
-                               OnClick="@(() => OnItemRemoved.InvokeAsync(item.Id))" />
+            var isItemSrc = IsSource && PendingSourceItemId == item.Id;
+            <li @key="item.Id" data-item-id="@item.Id"
+                class="meal-cell-item @(isItemSrc ? "meal-cell-item-source" : "")"
+                style="background:#d0f0ff">
+                <span class="meal-cell-item-name" style="background:#d8f5d8">@item.ItemName</span>
+                <span class="meal-cell-item-price" style="background:#f5d8f5">@FormatItemPrice(item)</span>
+                <span @onclick:stopPropagation="true">
+                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Color="Color.Info" Size="Size.Small"
+                                   Style="@(IsActionTarget ? "visibility:hidden" : "")"
+                                   OnClick="@(() => OnCopyItemRequested.InvokeAsync(item.Id))" />
+                </span>
+                <span @onclick:stopPropagation="true">
+                    <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove" Color="Color.Secondary" Size="Size.Small"
+                                   Style="@(IsActionTarget ? "visibility:hidden" : "")"
+                                   OnClick="@(() => OnMoveItemRequested.InvokeAsync(item.Id))" />
+                </span>
+                <span @onclick:stopPropagation="true">
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
+                                   Style="background:#ffd8b0"
+                                   OnClick="@(() => OnItemRemoved.InvokeAsync(item.Id))" />
+                </span>
             </li>
         }
     </ul>
-    <MudTooltip Text="Add item">
-        <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
-                       OnClick="@(() => OnAddRequested.InvokeAsync((Date, MealType)))" />
-    </MudTooltip>
+    <div class="meal-cell-footer">
+        <span @onclick:stopPropagation="true">
+            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                           Style="background:#b0e0b0"
+                           OnClick="@(() => OnAddRequested.InvokeAsync((Date, MealType)))" />
+        </span>
+        <span @onclick:stopPropagation="true">
+            <MudIconButton Icon="@Icons.Material.Filled.FileCopy" Color="Color.Info" Size="Size.Small"
+                           Style="@(IsActionTarget || Items.Count == 0 ? "visibility:hidden" : "background:#b0d8ff")"
+                           OnClick="@(() => OnCopyCellRequested.InvokeAsync())" />
+        </span>
+        <span @onclick:stopPropagation="true">
+            <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove" Color="Color.Secondary" Size="Size.Small"
+                           Style="@(IsActionTarget || Items.Count == 0 ? "visibility:hidden" : "")"
+                           OnClick="@(() => OnMoveCellRequested.InvokeAsync())" />
+        </span>
+        <span class="meal-cell-slot-total" style="background:#ffe8a0">@(SlotTotal > 0 ? SlotTotal.ToString("C", _fr) : "")</span>
+    </div>
 </div>
 
 @code {
+    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
+
     [Parameter, EditorRequired] public DateOnly Date { get; set; }
     [Parameter, EditorRequired] public MealType MealType { get; set; }
     [Parameter] public int? MealSlotId { get; set; }
     [Parameter] public List<MealSlotItemResponse> Items { get; set; } = [];
+
+    [Parameter] public bool HasPendingAction { get; set; }
+    [Parameter] public bool IsSource { get; set; }
+    [Parameter] public bool IsCopyMode { get; set; }
+    [Parameter] public int? PendingSourceItemId { get; set; }
+
+    private bool IsActionTarget => HasPendingAction && !IsSource;
+    private string CellCssClass => IsSource
+        ? (IsCopyMode ? "meal-cell-source-copy" : "meal-cell-source-move")
+        : IsActionTarget ? (IsCopyMode ? "meal-cell-target-copy" : "meal-cell-target-move") : "";
+
+    private decimal SlotTotal => Items
+        .Where(i => i.UnitPrice.HasValue)
+        .Sum(i => Math.Ceiling(i.Quantity / i.PackageSize) * i.UnitPrice!.Value);
+
+    private string FormatItemPrice(MealSlotItemResponse item)
+    {
+        if (!item.UnitPrice.HasValue) return "";
+        var cost = Math.Ceiling(item.Quantity / item.PackageSize) * item.UnitPrice.Value;
+        return cost.ToString("C", _fr);
+    }
+
     [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex)> OnItemMoved { get; set; }
     [Parameter] public EventCallback<int> OnItemRemoved { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnAddRequested { get; set; }
     [Parameter] public EventCallback<(int? mealSlotId, List<int> orderedIds)> OnOrderChanged { get; set; }
+    [Parameter] public EventCallback OnCopyCellRequested { get; set; }
+    [Parameter] public EventCallback OnMoveCellRequested { get; set; }
+    [Parameter] public EventCallback<int> OnCopyItemRequested { get; set; }
+    [Parameter] public EventCallback<int> OnMoveItemRequested { get; set; }
+    [Parameter] public EventCallback OnTargetSelected { get; set; }
+
+    private async Task HandleTargetClick()
+    {
+        if (IsActionTarget)
+            await OnTargetSelected.InvokeAsync();
+    }
 
     private ElementReference _listRef;
     private DotNetObjectReference<MealCell>? _dotNetRef;

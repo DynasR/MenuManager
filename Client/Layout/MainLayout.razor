@@ -8,7 +8,8 @@
 <MudDialogProvider />
 
 <MudLayout>
-    <MudAppBar Elevation="1">
+    <MudAppBar Elevation="2" Color="Color.Default"
+               Style="background: linear-gradient(135deg, #1565C0 0%, #7C3AED 100%); color: white;">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="ToggleDrawer" />
         <MudText Typo="Typo.h6" Class="ms-3">MenuManager</MudText>
@@ -42,7 +43,9 @@
     {
         PaletteLight = new PaletteLight
         {
-            Success = "#1B5E20"
+            Success = "#1B5E20",
+            Secondary = "#7C3AED",
+            Info = "#1565C0"
         }
     };
 

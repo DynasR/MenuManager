@@ -6,7 +6,14 @@
       "Bash(dotnet tool:*)",
       "Bash(ls:*)",
       "Bash(dotnet ef:*)",
-      "Bash(taskkill //F //PID 30644)"
+      "Bash(taskkill //F //PID 30644)",
+      "Bash(xargs cat:*)",
+      "Bash(xargs grep:*)",
+      "Bash(python3 /tmp/verify_unused.py)",
+      "Bash(grep -v \"^//\")",
+      "Bash(grep:*)",
+      "Bash(head -25 /z/MenuManager/Shared/Validators/*.cs)",
+      "Skill(update-config)"
     ]
   }
 }

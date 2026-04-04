@@ -27,15 +27,16 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 
 ### Frontend — complet
 
-| Page         | Points clés                                                       |
-|--------------|-------------------------------------------------------------------|
-| Category     | Référence pattern Index (pending rows + dirty + Save All)         |
-| Item         | FK Category, enum Unit, PackageSize                               |
-| Supplier     | Party + CompanyName, Siret                                        |
-| Customer     | Bouton CalendarMonth → MenuPlan                                   |
-| ItemSupplier | PK composite, pattern 404/409                                     |
-| MenuPlan     | 3 ans de cards groupées par année, HasData, MonthlyCost, bouton unifié |
-| DayPlan      | Calendrier, barre nav mois (±6), drag & drop, panier             |
+| Page         | Points clés                                                                      |
+|--------------|----------------------------------------------------------------------------------|
+| Category     | Référence pattern Index (pending rows + dirty + Save All)                        |
+| Item         | FK Category, enum Unit, PackageSize                                              |
+| Supplier     | Party + CompanyName, Siret                                                       |
+| Customer     | Bouton CalendarMonth → MenuPlan                                                  |
+| ItemSupplier | PK composite, pattern 404/409                                                    |
+| MenuPlan     | 3 ans de cards groupées par année, HasData, MonthlyCost, bouton unifié           |
+| DayPlan      | Calendrier, barre nav mois (±6), drag & drop, panier, copy/move item+cellule     |
+| Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
 
 ---
 
@@ -44,7 +45,8 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 Voir `CLAUDE.md` pour les détails. Résumé :
 - **Shared** pur (zéro EF), pas de repository, on-demand DayPlan/MealSlot.
 - **Deferred drag & drop**, **Shopping Cart** (panneau droit global).
-- **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan.
+- **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
+- **Copy/Move item+cellule** — immédiat (non différé), 2 étapes : source → target. `CellPendingAction` record dans DayPlan/Index.
 - **Tests** — SQLite in-memory uniquement.
 
 ---

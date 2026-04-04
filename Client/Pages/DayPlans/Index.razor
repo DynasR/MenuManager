@@ -26,14 +26,15 @@ else if (_parent is not null)
         @foreach (var m in _monthNav)
         {
             var isCurrent = m.Month == _parent!.Month && m.Year == _parent.Year;
-            var color = isCurrent ? Color.Default : m.HasData ? Color.Primary : Color.Default;
+            var color = isCurrent ? Color.Success : m.HasData ? Color.Primary : Color.Default;
             var variant = isCurrent ? Variant.Filled : m.HasData ? Variant.Filled : Variant.Outlined;
             var chipClass = isCurrent ? "month-nav-chip month-current" : "month-nav-chip";
+            var size = isCurrent ? Size.Medium : Size.Small;
             <MudTooltip Text="@m.Label" Placement="Placement.Bottom">
-                <MudButton Size="Size.Small" Variant="@variant" Color="@color"
+                <MudButton Size="@size" Variant="@variant" Color="@color"
                            Class="@chipClass"
-                           Disabled="@(isCurrent || _navigating)"
-                           OnClick="@(() => NavigateToMonthAsync(m))">
+                           Disabled="@(!isCurrent && _navigating)"
+                           OnClick="@(async () => { if (!isCurrent) await NavigateToMonthAsync(m); })">
                     @m.Short
                 </MudButton>
             </MudTooltip>
@@ -41,7 +42,21 @@ else if (_parent is not null)
     </div>
 
     <MudToolBar Dense="true" Class="mb-2">
-        <MudSpacer />
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
+                   Style="visibility: hidden;" Disabled="true">
+            Save All
+        </MudButton>
+        <div style="flex: 1; display: flex; justify-content: center;">
+            @if (_pendingAction is not null)
+            {
+                var actionLabel = _pendingAction.IsCopy ? "Copier" : "Déplacer";
+                var scopeLabel = _pendingAction.ItemId.HasValue ? "item" : "cellule";
+                <MudChip T="string" Color="@(_pendingAction.IsCopy ? Color.Info : Color.Secondary)"
+                         OnClose="@(() => _pendingAction = null)">
+                    @actionLabel @scopeLabel — cliquez sur la cellule cible
+                </MudChip>
+            }
+        </div>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
                    Disabled="@(_pendingMoves.Count == 0 && _pendingReorders.Count == 0)"
                    OnClick="SaveAllAsync">
@@ -93,15 +108,29 @@ else if (_parent is not null)
             @foreach (var mt in _mealTypes)
             {
                 var slot = dp?.MealSlots.FirstOrDefault(ms => ms.MealType == mt);
+                var capturedDate = date;
+                var capturedMt = mt;
+                var isSource = _pendingAction is not null
+                    && _pendingAction.SourceDate == capturedDate
+                    && _pendingAction.SourceMealType == capturedMt;
                 <div class="@cellCssClass">
-                    <MealCell Date="date"
-                              MealType="mt"
+                    <MealCell Date="capturedDate"
+                              MealType="capturedMt"
                               MealSlotId="slot?.Id"
                               Items="@(slot?.MealSlotItems ?? [])"
+                              HasPendingAction="_pendingAction is not null"
+                              IsSource="isSource"
+                              IsCopyMode="@(_pendingAction?.IsCopy ?? false)"
+                              PendingSourceItemId="@(isSource ? _pendingAction!.ItemId : null)"
                               OnAddRequested="OpenDrawer"
                               OnItemRemoved="RemoveItemAsync"
                               OnItemMoved="HandleMoveItem"
-                              OnOrderChanged="HandleOrderChanged" />
+                              OnOrderChanged="HandleOrderChanged"
+                              OnCopyCellRequested="@(() => HandleSourceSelected(capturedDate, capturedMt, null, true))"
+                              OnMoveCellRequested="@(() => HandleSourceSelected(capturedDate, capturedMt, null, false))"
+                              OnCopyItemRequested="@(itemId => HandleSourceSelected(capturedDate, capturedMt, itemId, true))"
+                              OnMoveItemRequested="@(itemId => HandleSourceSelected(capturedDate, capturedMt, itemId, false))"
+                              OnTargetSelected="@(() => HandleTargetSelectedAsync(capturedDate, capturedMt))" />
                 </div>
             }
         }
@@ -159,6 +188,10 @@ else if (_parent is not null)
     }
 
     .month-current {
+        min-width: 54px !important;
+        width: 54px;
+        height: 54px !important;
+        font-size: 0.8rem !important;
         background-color: #1B5E20 !important;
         color: #fff !important;
     }
@@ -189,6 +222,14 @@ else if (_parent is not null)
         background: var(--mud-palette-surface);
         padding: 4px;
         min-height: 60px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .meal-cell {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
     }
 
     .dayplan-weekend {
@@ -206,11 +247,69 @@ else if (_parent is not null)
     }
 
     .meal-cell-item {
-        display: flex;
+        display: grid;
+        grid-template-columns: 1fr 56px auto auto auto;
         align-items: center;
-        justify-content: space-between;
+        gap: 2px;
         padding: 2px 4px;
         font-size: 0.8rem;
+    }
+
+    .meal-cell-source-copy {
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--mud-palette-info) 8%, var(--mud-palette-surface));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-info) 28%, transparent),
+                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-info) 10%, transparent);
+    }
+    .meal-cell-source-move {
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--mud-palette-secondary) 8%, var(--mud-palette-surface));
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-secondary) 28%, transparent),
+                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-secondary) 10%, transparent);
+    }
+    .meal-cell-target-copy {
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--mud-palette-info) 8%, var(--mud-palette-surface)) !important;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-info) 28%, transparent),
+                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-info) 10%, transparent);
+    }
+    .meal-cell-target-move {
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--mud-palette-secondary) 8%, var(--mud-palette-surface)) !important;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-secondary) 28%, transparent),
+                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-secondary) 10%, transparent);
+    }
+
+    .meal-cell-item-source {
+        background: color-mix(in srgb, var(--mud-palette-info) 20%, #d0f0ff) !important;
+    }
+
+    .meal-cell-item-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .meal-cell-item-price {
+        font-size: 0.75rem;
+        color: var(--mud-palette-text-secondary);
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .meal-cell-footer {
+        flex: 1;
+        display: flex;
+        align-items: center;
+    }
+
+    .meal-cell-slot-total {
+        flex: 1;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--mud-palette-text-primary);
+        text-align: center;
+        white-space: nowrap;
     }
 </style>
 
@@ -242,8 +341,12 @@ else if (_parent is not null)
     private Dictionary<int, List<int>> _pendingReorders = new();
     private List<PendingMove> _pendingMoves = [];
 
+    // Copy/move action state
+    private CellPendingAction? _pendingAction;
+
     private sealed record PendingMove(int ItemId, DateOnly TargetDate, MealType TargetMealType, int NewOrder);
     private sealed record MonthNavItem(int Month, int Year, string Label, string Short, int? MenuPlanId, bool HasData);
+    private sealed record CellPendingAction(DateOnly SourceDate, MealType SourceMealType, int? ItemId, bool IsCopy);
 
     // Drawer state
     private bool _drawerOpen;
@@ -325,61 +428,107 @@ else if (_parent is not null)
 
     private async Task AddItemAsync(ItemResponse item)
     {
-        // 1. Ensure DayPlan exists
-        if (!_dayPlanByDate.TryGetValue(_selectedDate, out var dayPlan))
+        var success = await AddItemToSlotAsync(_selectedDate, _selectedMealType, item.Id, 1);
+        Snackbar.Add(success ? $"{item.Name} added." : "Failed to add item.", success ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+
+    private async Task<bool> AddItemToSlotAsync(DateOnly date, MealType mealType, int itemId, decimal quantity)
+    {
+        if (!_dayPlanByDate.TryGetValue(date, out var dayPlan))
         {
-            var created = await DayPlanSvc.CreateAsync(new CreateDayPlanRequest
-            {
-                Date = _selectedDate,
-                MenuPlanId = MenuPlanId
-            });
-            if (created is null)
-            {
-                Snackbar.Add("Failed to create day plan.", Severity.Error);
-                return;
-            }
+            var created = await DayPlanSvc.CreateAsync(new CreateDayPlanRequest { Date = date, MenuPlanId = MenuPlanId });
+            if (created is null) return false;
             dayPlan = created;
-            _dayPlanByDate[_selectedDate] = dayPlan;
+            _dayPlanByDate[date] = dayPlan;
         }
 
-        // 2. Ensure MealSlot exists
-        var slot = dayPlan.MealSlots.FirstOrDefault(ms => ms.MealType == _selectedMealType);
+        var slot = dayPlan.MealSlots.FirstOrDefault(ms => ms.MealType == mealType);
         if (slot is null)
         {
-            var createdSlot = await MealSlotSvc.CreateAsync(new CreateMealSlotRequest
-            {
-                DayPlanId = dayPlan.Id,
-                MealType = _selectedMealType
-            });
-            if (createdSlot is null)
-            {
-                Snackbar.Add("Failed to create meal slot.", Severity.Error);
-                return;
-            }
-            slot = new MealSlotResponse
-            {
-                Id = createdSlot.Id,
-                MealType = createdSlot.MealType,
-                DayPlanId = createdSlot.DayPlanId
-            };
+            var createdSlot = await MealSlotSvc.CreateAsync(new CreateMealSlotRequest { DayPlanId = dayPlan.Id, MealType = mealType });
+            if (createdSlot is null) return false;
+            slot = new MealSlotResponse { Id = createdSlot.Id, MealType = createdSlot.MealType, DayPlanId = createdSlot.DayPlanId };
             dayPlan.MealSlots.Add(slot);
         }
 
-        // 3. Create MealSlotItem
-        var result = await MealSlotItemSvc.CreateAsync(new CreateMealSlotItemRequest
-        {
-            MealSlotId = slot.Id,
-            ItemId = item.Id,
-            Quantity = 1
-        });
+        var result = await MealSlotItemSvc.CreateAsync(new CreateMealSlotItemRequest { MealSlotId = slot.Id, ItemId = itemId, Quantity = quantity });
+        return result is not null;
+    }
 
-        if (result is null)
+    private void HandleSourceSelected(DateOnly date, MealType mt, int? itemId, bool isCopy)
+    {
+        // Second click on same source → cancel
+        if (_pendingAction?.SourceDate == date && _pendingAction?.SourceMealType == mt && _pendingAction?.ItemId == itemId)
+            _pendingAction = null;
+        else
+            _pendingAction = new(date, mt, itemId, isCopy);
+    }
+
+    private async Task HandleTargetSelectedAsync(DateOnly targetDate, MealType targetMealType)
+    {
+        if (_pendingAction is null) return;
+        // Click on source cell → cancel
+        if (_pendingAction.SourceDate == targetDate && _pendingAction.SourceMealType == targetMealType)
         {
-            Snackbar.Add("Failed to add item.", Severity.Error);
+            _pendingAction = null;
             return;
         }
 
-        Snackbar.Add($"{item.Name} added.", Severity.Success);
+        var action = _pendingAction;
+        _pendingAction = null;
+
+        if (action.ItemId is null)
+            await ExecuteCellActionAsync(action.SourceDate, action.SourceMealType, targetDate, targetMealType, action.IsCopy);
+        else
+            await ExecuteItemActionAsync(action.SourceDate, action.SourceMealType, action.ItemId.Value, targetDate, targetMealType, action.IsCopy);
+    }
+
+    private async Task ExecuteCellActionAsync(DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, bool isCopy)
+    {
+        if (!_dayPlanByDate.TryGetValue(fromDate, out var srcDp)) return;
+        var srcSlot = srcDp.MealSlots.FirstOrDefault(ms => ms.MealType == fromMealType);
+        if (srcSlot is null || srcSlot.MealSlotItems.Count == 0) return;
+
+        var sourceItems = srcSlot.MealSlotItems.ToList();
+        int done = 0;
+        foreach (var msi in sourceItems)
+        {
+            if (await AddItemToSlotAsync(toDate, toMealType, msi.ItemId, msi.Quantity))
+                done++;
+        }
+
+        if (!isCopy)
+        {
+            foreach (var msi in sourceItems)
+                await MealSlotItemSvc.DeleteAsync(msi.Id);
+        }
+
+        Snackbar.Add($"{done} item(s) {(isCopy ? "copiés" : "déplacés")}.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task ExecuteItemActionAsync(DateOnly fromDate, MealType fromMealType, int mealSlotItemId, DateOnly toDate, MealType toMealType, bool isCopy)
+    {
+        MealSlotItemResponse? srcItem = null;
+        if (_dayPlanByDate.TryGetValue(fromDate, out var srcDp))
+        {
+            var srcSlot = srcDp.MealSlots.FirstOrDefault(ms => ms.MealType == fromMealType);
+            srcItem = srcSlot?.MealSlotItems.FirstOrDefault(i => i.Id == mealSlotItemId);
+        }
+        if (srcItem is null) return;
+
+        var success = await AddItemToSlotAsync(toDate, toMealType, srcItem.ItemId, srcItem.Quantity);
+        if (!success)
+        {
+            Snackbar.Add("Échec de l'ajout.", Severity.Error);
+            return;
+        }
+
+        if (!isCopy)
+            await MealSlotItemSvc.DeleteAsync(mealSlotItemId);
+
+        Snackbar.Add(isCopy ? "Item copié." : "Item déplacé.", Severity.Success);
         await LoadAsync();
     }
 
@@ -420,20 +569,6 @@ else if (_parent is not null)
         StateHasChanged();
     }
 
-    private async Task RemoveItemAsync(int mealSlotItemId)
-    {
-        var deleted = await MealSlotItemSvc.DeleteAsync(mealSlotItemId);
-        if (deleted)
-        {
-            Snackbar.Add("Item removed.", Severity.Success);
-            await LoadAsync();
-        }
-        else
-        {
-            Snackbar.Add("Failed to remove item.", Severity.Error);
-        }
-    }
-
     private void HandleOrderChanged((int? mealSlotId, List<int> orderedIds) args)
     {
         if (args.mealSlotId is null) return;
@@ -446,7 +581,6 @@ else if (_parent is not null)
         int moved = 0;
         int reordered = 0;
 
-        // 1. Process cross-cell moves
         foreach (var m in _pendingMoves)
         {
             var result = await MealSlotItemSvc.MoveAsync(m.ItemId, new MoveMealSlotItemRequest
@@ -462,7 +596,6 @@ else if (_parent is not null)
                 Snackbar.Add("Failed to move item.", Severity.Error);
         }
 
-        // 2. Process same-slot reorders
         foreach (var (slotId, orderedIds) in _pendingReorders)
         {
             var success = await MealSlotItemSvc.ReorderAsync(new ReorderMealSlotItemsRequest
@@ -489,6 +622,20 @@ else if (_parent is not null)
         }
 
         await LoadAsync();
+    }
+
+    private async Task RemoveItemAsync(int mealSlotItemId)
+    {
+        var deleted = await MealSlotItemSvc.DeleteAsync(mealSlotItemId);
+        if (deleted)
+        {
+            Snackbar.Add("Item removed.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to remove item.", Severity.Error);
+        }
     }
 
     private void BuildMonthNav()
