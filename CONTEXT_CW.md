@@ -47,8 +47,9 @@ et défendre chaque décision technique.
 ✅ Bouton New supprimé — bouton Add row permanent en toolbar
 ✅ Switch Edition Mode supprimé — Add row toujours visible
 ✅ Alignement colonnes : pending rows dans une MudDataGrid identique à la grille principale
-✅ ColonneParentCategory éditable inline sur Category/Index (MudSelect<int?> avec option None)
+✅ Colonne ParentCategory éditable inline sur Category/Index (MudSelect<int?> avec option None)
 ✅ Snackbar erreur dans ValidateRow quand created == null
+✅ Category/Index patché : nouveau pattern Save (référence pour toutes les autres pages)
 ✅ Commit propre posé sur le repo
 
 ## Entités (Shared/Entities/)
@@ -80,32 +81,54 @@ MealSlotItem — Id, Quantity(10,3), Notes, MealSlotId, ItemId
 ## Slices frontend terminées (Client complet)
 ✅ Layout        — MainLayout, NavMenu, 4 providers MudBlazor
 ✅ HttpClient    — BaseAddress via Client/wwwroot/appsettings.json ("http://localhost:5075")
-✅ Category      — Service + Index (inline edit + pending rows + ParentCategory éditable)
-✅ Item          — Service + Index (inline edit + pending rows, enum Unit, decimal PackageSize)
-✅ Supplier      — Service + Index (inline edit + pending rows, champs Party + CompanyName/Siret)
-✅ Customer      — Service + Index (inline edit + pending rows, champs Party uniquement)
-✅ ItemSupplier  — Service + Index (inline edit + pending rows, PK composite, snackbar 404/409)
+✅ Category      — Service + Index patché (référence du nouveau pattern Save)
+⚠️ Item          — Service + Index (à patcher : nouveau pattern Save)
+⚠️ Supplier      — Service + Index (à patcher : nouveau pattern Save)
+⚠️ Customer      — Service + Index (à patcher : nouveau pattern Save)
+⚠️ ItemSupplier  — Service + Index (à patcher : nouveau pattern Save, PK composite)
 
-## Pattern Index (établi et harmonisé sur toutes les slices)
+## Pattern Index (établi, harmonisé, référence : Category/Index.razor)
+
+### Grille principale
 - MudDataGrid avec EditMode="DataGridEditMode.Cell"
-- Toolbar : bouton "Add row" permanent (pas de switch, pas de bouton New)
-- Pending rows dans une MudDataGrid séparée, colonnes identiques à la grille principale
-- ValidateRow → Service.CreateAsync → snackbar erreur si null/erreur, retire du brouillon + recharge si succès
-- CommittedItemChanges → Service.UpdateAsync (inline edit des lignes existantes)
-- Bouton Delete inline sur chaque ligne de la grille principale
-- Pages Create.razor supprimées — la création se fait exclusivement via pending rows
-- Colonnes FK : MudSelect dans EditTemplate (éditable inline)
-- Colonnes enum : MudSelect dans EditTemplate
-- Pour PK composite (ItemSupplier) : ValidateRow extrait ItemId+SupplierId pour appeler CreateAsync
+- Pas de CommittedItemChanges — sauvegarde toujours explicite
+- Colonnes éditables : EditTemplate + ValueChanged (pas @bind-Value)
+  → ValueChanged intercepte le changement, met à jour le champ, ajoute l'Id dans _dirtyRows
+- _dirtyRows : HashSet<int> (HashSet<(int,int)> pour PK composite ItemSupplier)
+- Bouton Save individuel par ligne (icône disquette), disabled si !_dirtyRows.Contains(id)
+- Bouton Delete inline sur chaque ligne
+- _dirtyRows.Clear() dans LoadAsync() après rechargement
+
+### Pending rows
+- MudDataGrid séparée, colonnes identiques à la grille principale
+- Bouton Validate (coche verte) : disabled si Name vide ou whitespace
+- Bouton Cancel (croix rouge)
+- ValidateRow → Service.CreateAsync → snackbar erreur si null, retire du brouillon + recharge si succès
+
+### Save All (toolbar)
+- Un seul bouton Save All, grisé si _pendingRows ET _dirtyRows sont tous deux vides
+- Ordre strict : (1) créer les pending rows séquentiellement, (2) mettre à jour les dirty rows
+- Non bloquant : chaque échec → snackbar erreur + continue
+- Si au moins un succès → reload + snackbar résumé "X created, Y updated" (zéros omis)
+
+### Toolbar
+- Bouton "Add row" permanent
+- Bouton "Save All" (voir ci-dessus)
+- Pas de switch, pas de bouton New, pas de navigation vers Create
+
+### Artefacts supprimés
+- Toutes les pages Create.razor supprimées
+- Toutes les pages Edit.razor supprimées
 
 ## Pattern dropdown FK
 - Listes FK chargées dans OnInitializedAsync() via le service correspondant
-- MudSelect<int> (ou int?) avec @bind-Value sur le champ du draft/DTO
-- MudSelectItem itère sur la liste : affiche Name, valeur Id
+- Dans pending rows (draft) : @bind-Value suffisant (pas de dirty tracking)
+- Dans grille principale (EditTemplate) : ValueChanged obligatoire pour marquer la ligne dirty
+- MudSelect<int> (ou int?) selon le type exact du champ DTO
 - Pour nullable (ParentCategoryId) : option "— None —" avec valeur null en tête de liste
 
 ## Pattern enum dans le frontend
-- MudSelect<TEnum> avec @bind-Value
+- Même règle que FK : @bind-Value dans pending rows, ValueChanged dans grille principale
 - Itère via Enum.GetValues<TEnum>()
 - L'enum Shared est la source de vérité unique Client + Server
 
@@ -133,7 +156,7 @@ Le frontend switche sur Error pour afficher le bon message snackbar.
 - AppDbContext utilisé directement dans les services (pas de repository pattern)
 - Séparation stricte logique métier / rendu (testabilité maximale)
 - Tests : SQLite in-memory (EF Core InMemory interdit : n'applique pas les contraintes)
-- Brief CC pattern-based ("fais comme X") pour création multi-fichiers avec modèle existant
+- Brief CC pattern-based ("fais comme Category/Index") pour patcher les autres slices
 - Brief CC diff explicite champ par champ pour modification chirurgicale sans modèle analogue
 - CW = intention + contraintes uniquement, pas de code dans les briefs
 
@@ -151,10 +174,28 @@ Le frontend switche sur Error pour afficher le bon message snackbar.
 - Client  : lit ServerUrl depuis Client/wwwroot/appsettings.json
 - Docker  : PostgreSQL sur port 5432
 
+## Prochaines étapes
+
+### 1. Harmonisation des IHMs existantes (priorité immédiate)
+Appliquer le nouveau pattern Save (établi sur Category/Index.razor) aux 4 autres pages :
+  Item → Supplier → Customer → ItemSupplier
+
+Pour chaque page, le diff est identique :
+- Remplacer CommittedItemChanges par _dirtyRows + ValueChanged sur chaque colonne éditable
+- Ajouter le bouton Save individuel par ligne (disabled si non dirty)
+- Remplacer ou créer le Save All unifié (pending + dirty, ordre strict)
+- Désactiver la coche verte si Name vide ou whitespace
+
+Référence : Category/Index.razor — brief CC "fais comme Category/Index"
+
+Cas particulier ItemSupplier : _dirtyRows est un HashSet<(int ItemId, int SupplierId)>
+car la PK est composite.
+
+### 2. Nouvelles slices frontend
+MenuPlan → DayPlan → MealSlot → MealSlotItem
+Appliquer le pattern Index complet sur chacune.
+
 ## Flow obligatoire pour chaque nouvelle feature (IMPORTANT)
 Avant que CC code, CW doit :
 1. Expliquer le concept impliqué (5 min), si nouveau
 2. Rédiger un brief CC court : intention + contraintes (pas de code)
-
-## Prochaine étape
-À définir — slices MenuPlan / DayPlan / MealSlot / MealSlotItem frontend restent à faire

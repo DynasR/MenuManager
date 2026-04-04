@@ -1,0 +1,221 @@
+@page "/menuplans"
+@inject MenuPlanService MenuPlanSvc
+@inject CustomerService CustomerSvc
+@inject ISnackbar Snackbar
+
+<PageTitle>Menu Plans</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Menu Plans</MudText>
+
+<MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PlaylistAdd"
+           OnClick="AddRow" Class="mb-4">
+    Add row
+</MudButton>
+
+@if (_pendingRows.Count > 0)
+{
+    <MudDataGrid T="MenuPlanDraft" Items="_pendingRows" ReadOnly="false"
+                 EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
+                 Class="mb-0">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                                  RequiredError="Name is required." Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Month" Title="Month" Editable="true">
+                <CellTemplate>
+                    @MonthName(context.Item.Month)
+                </CellTemplate>
+                <EditTemplate>
+                    <MudSelect T="int" @bind-Value="context.Item.Month"
+                               Immediate="true" Margin="Margin.Dense">
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            var month = m;
+                            <MudSelectItem T="int" Value="month">@MonthName(month)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Year" Title="Year" Editable="true">
+                <EditTemplate>
+                    <MudNumericField T="int" @bind-Value="context.Item.Year" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.CustomerId" Title="Customer" Editable="true">
+                <CellTemplate>
+                    @CustomerName(context.Item.CustomerId)
+                </CellTemplate>
+                <EditTemplate>
+                    <MudSelect T="int" @bind-Value="context.Item.CustomerId"
+                               Immediate="true" Margin="Margin.Dense">
+                        @foreach (var c in _customers)
+                        {
+                            <MudSelectItem T="int" Value="c.Id">@c.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </EditTemplate>
+            </PropertyColumn>
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   OnClick="@(() => ValidateRow(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => RemoveRow(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+<MudDataGrid T="MenuPlanResponse" Items="_menuPlans" ReadOnly="false"
+             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
+             Loading="_loading" Hover="true" Striped="true" Dense="true">
+    <Columns>
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                              RequiredError="Name is required." Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Month" Title="Month" Editable="true">
+            <CellTemplate>
+                @MonthName(context.Item.Month)
+            </CellTemplate>
+            <EditTemplate>
+                <MudSelect T="int" @bind-Value="context.Item.Month"
+                           Immediate="true" Margin="Margin.Dense">
+                    @for (var m = 1; m <= 12; m++)
+                    {
+                        var month = m;
+                        <MudSelectItem T="int" Value="month">@MonthName(month)</MudSelectItem>
+                    }
+                </MudSelect>
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Year" Title="Year" Editable="true">
+            <EditTemplate>
+                <MudNumericField T="int" @bind-Value="context.Item.Year" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.CustomerId" Title="Customer" Editable="true">
+            <CellTemplate>
+                @context.Item.CustomerName
+            </CellTemplate>
+            <EditTemplate>
+                <MudSelect T="int" @bind-Value="context.Item.CustomerId"
+                           Immediate="true" Margin="Margin.Dense">
+                    @foreach (var c in _customers)
+                    {
+                        <MudSelectItem T="int" Value="c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </EditTemplate>
+        </PropertyColumn>
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context.Item))" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
+
+@code {
+    private List<MenuPlanResponse> _menuPlans = [];
+    private List<CustomerResponse> _customers = [];
+    private bool _loading = true;
+    private List<MenuPlanDraft> _pendingRows = [];
+
+    private sealed class MenuPlanDraft
+    {
+        public string Name { get; set; } = "";
+        public int Month { get; set; } = 1;
+        public int Year { get; set; } = DateTime.Now.Year;
+        public int CustomerId { get; set; }
+    }
+
+    private void AddRow() => _pendingRows.Add(new MenuPlanDraft());
+
+    private void RemoveRow(MenuPlanDraft draft) => _pendingRows.Remove(draft);
+
+    private async Task ValidateRow(MenuPlanDraft draft)
+    {
+        var result = await MenuPlanSvc.CreateAsync(new MenuPlanRequest
+        {
+            Name = draft.Name,
+            Month = draft.Month,
+            Year = draft.Year,
+            CustomerId = draft.CustomerId
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Menu plan \"{draft.Name}\" created.", Severity.Success);
+            _pendingRows.Remove(draft);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Customer not found.", Severity.Error);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private static string MonthName(int month) =>
+        new DateTime(2000, Math.Clamp(month, 1, 12), 1).ToString("MMMM");
+
+    private string CustomerName(int customerId) =>
+        _customers.FirstOrDefault(c => c.Id == customerId)?.Name ?? "";
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _menuPlans = await MenuPlanSvc.GetAllAsync();
+        _customers = await CustomerSvc.GetAllAsync();
+        _loading = false;
+    }
+
+    private async Task<DataGridEditFormAction> OnCommittedItemChanges(MenuPlanResponse item)
+    {
+        var result = await MenuPlanSvc.UpdateAsync(item.Id, new MenuPlanRequest
+        {
+            Name = item.Name,
+            Month = item.Month,
+            Year = item.Year,
+            CustomerId = item.CustomerId
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Menu plan \"{item.Name}\" updated.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update menu plan.", Severity.Error);
+            await LoadAsync();
+        }
+
+        return DataGridEditFormAction.Close;
+    }
+
+    private async Task DeleteAsync(MenuPlanResponse menuPlan)
+    {
+        var deleted = await MenuPlanSvc.DeleteAsync(menuPlan.Id);
+        if (deleted)
+        {
+            Snackbar.Add($"Menu plan \"{menuPlan.Name}\" deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to delete menu plan.", Severity.Error);
+        }
+    }
+}

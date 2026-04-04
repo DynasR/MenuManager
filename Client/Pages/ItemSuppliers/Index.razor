@@ -12,14 +12,21 @@
            OnClick="AddRow" Class="mb-4">
     Add row
 </MudButton>
+<MudButton Variant="Variant.Filled" Color="Color.Primary"
+           Disabled="@(_pendingRows.Count == 0 && _dirtyRows.Count == 0)"
+           OnClick="SaveAllAsync"
+           StartIcon="@Icons.Material.Filled.SaveAlt"
+           Class="mb-4 ml-2">
+    Save All
+</MudButton>
 
 @if (_pendingRows.Count > 0)
 {
     <MudDataGrid T="ItemSupplierDraft" Items="_pendingRows" ReadOnly="false"
                  EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
-                 Class="mb-0">
+                 Class="mb-0" Style="table-layout: fixed; width: 100%">
         <Columns>
-            <PropertyColumn Property="x => x.ItemId" Title="Item" Editable="true">
+            <PropertyColumn Property="x => x.ItemId" Title="Item" Editable="true" Style="width: 22%">
                 <CellTemplate>
                     @ItemName(context.Item.ItemId)
                 </CellTemplate>
@@ -33,7 +40,7 @@
                     </MudSelect>
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.SupplierId" Title="Supplier" Editable="true">
+            <PropertyColumn Property="x => x.SupplierId" Title="Supplier" Editable="true" Style="width: 22%">
                 <CellTemplate>
                     @SupplierName(context.Item.SupplierId)
                 </CellTemplate>
@@ -47,25 +54,26 @@
                     </MudSelect>
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.UnitPrice" Title="Unit Price" Editable="true">
+            <PropertyColumn Property="x => x.UnitPrice" Title="Unit Price" Editable="true" Style="width: 12%">
                 <EditTemplate>
                     <MudNumericField T="decimal" @bind-Value="context.Item.UnitPrice"
                                      Min="0m" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.SupplierReference" Title="Supplier Reference" Editable="true">
+            <PropertyColumn Property="x => x.SupplierReference" Title="Supplier Reference" Editable="true" Style="width: 20%">
                 <EditTemplate>
                     <MudTextField @bind-Value="context.Item.SupplierReference" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.IsAvailable" Title="Available" Editable="true">
+            <PropertyColumn Property="x => x.IsAvailable" Title="Available" Editable="true" Style="width: 12%">
                 <EditTemplate>
                     <MudCheckBox @bind-Value="context.Item.IsAvailable" />
                 </EditTemplate>
             </PropertyColumn>
-            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 8%">
                 <CellTemplate>
                     <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   Disabled="@(context.Item.ItemId == 0 || context.Item.SupplierId == 0)"
                                    OnClick="@(() => ValidateRow(context.Item))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
                                    OnClick="@(() => RemoveRow(context.Item))" />
@@ -76,33 +84,45 @@
 }
 
 <MudDataGrid T="ItemSupplierResponse" Items="_itemSuppliers" ReadOnly="false"
-             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
-             Loading="_loading" Hover="true" Striped="true" Dense="true">
+             EditMode="DataGridEditMode.Cell"
+             Loading="_loading" Hover="true" Striped="true" Dense="true"
+             Style="table-layout: fixed; width: 100%">
     <Columns>
-        <PropertyColumn Property="x => x.ItemName" Title="Item" />
-        <PropertyColumn Property="x => x.SupplierName" Title="Supplier" />
-        <PropertyColumn Property="x => x.UnitPrice" Title="Unit Price" Editable="true">
+        <PropertyColumn Property="x => x.ItemName" Title="Item" Style="width: 22%" />
+        <PropertyColumn Property="x => x.SupplierName" Title="Supplier" Style="width: 22%" />
+        <PropertyColumn Property="x => x.UnitPrice" Title="Unit Price" Editable="true" Style="width: 12%">
             <EditTemplate>
-                <MudNumericField T="decimal" @bind-Value="context.Item.UnitPrice"
-                                 Min="0m" Immediate="true" />
+                <MudNumericField
+                    Value="@context.Item.UnitPrice"
+                    ValueChanged="@((decimal val) => { context.Item.UnitPrice = val; _dirtyRows.Add((context.Item.ItemId, context.Item.SupplierId)); StateHasChanged(); })"
+                    Min="0m" Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.SupplierReference" Title="Supplier Reference" Editable="true">
+        <PropertyColumn Property="x => x.SupplierReference" Title="Supplier Reference" Editable="true" Style="width: 20%">
             <EditTemplate>
-                <MudTextField @bind-Value="context.Item.SupplierReference" Immediate="true" />
+                <MudTextField
+                    Value="@context.Item.SupplierReference"
+                    ValueChanged="@((string val) => { context.Item.SupplierReference = val; _dirtyRows.Add((context.Item.ItemId, context.Item.SupplierId)); StateHasChanged(); })"
+                    Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.IsAvailable" Title="Available" Editable="true">
+        <PropertyColumn Property="x => x.IsAvailable" Title="Available" Editable="true" Style="width: 12%">
             <CellTemplate>
                 <MudIcon Icon="@(context.Item.IsAvailable ? Icons.Material.Filled.Check : Icons.Material.Filled.Close)"
                          Color="@(context.Item.IsAvailable ? Color.Success : Color.Error)" Size="Size.Small" />
             </CellTemplate>
             <EditTemplate>
-                <MudCheckBox @bind-Value="context.Item.IsAvailable" />
+                <MudCheckBox
+                    Value="@context.Item.IsAvailable"
+                    ValueChanged="@((bool val) => { context.Item.IsAvailable = val; _dirtyRows.Add((context.Item.ItemId, context.Item.SupplierId)); StateHasChanged(); })" />
             </EditTemplate>
         </PropertyColumn>
-        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 8%">
             <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" Size="Size.Small"
+                               Disabled="@(!_dirtyRows.Contains((context.Item.ItemId, context.Item.SupplierId)))"
+                               OnClick="@(() => SaveRow(context.Item))"
+                               />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => DeleteAsync(context.Item))" />
             </CellTemplate>
@@ -114,10 +134,11 @@
     private List<ItemSupplierResponse> _itemSuppliers = [];
     private List<ItemResponse> _items = [];
     private List<SupplierResponse> _suppliers = [];
+    private HashSet<(int ItemId, int SupplierId)> _dirtyRows = new();
     private bool _loading = true;
     private List<ItemSupplierDraft> _pendingRows = [];
 
-    private class ItemSupplierDraft
+    private sealed class ItemSupplierDraft
     {
         public int ItemId { get; set; }
         public int SupplierId { get; set; }
@@ -130,7 +151,7 @@
 
     private void RemoveRow(ItemSupplierDraft draft) => _pendingRows.Remove(draft);
 
-    private async Task ValidateRow(ItemSupplierDraft draft)
+    private async Task<bool> ValidateRow(ItemSupplierDraft draft)
     {
         var result = await ItemSupplierSvc.CreateAsync(new CreateItemSupplierRequest
         {
@@ -143,21 +164,19 @@
 
         if (result.Error is null)
         {
-            Snackbar.Add("Item-Supplier link created.", Severity.Success);
             _pendingRows.Remove(draft);
-            await LoadAsync();
+            return true;
         }
-        else
+
+        var message = result.Error switch
         {
-            var message = result.Error switch
-            {
-                CreateItemSupplierError.ItemNotFound => "Item not found.",
-                CreateItemSupplierError.SupplierNotFound => "Supplier not found.",
-                CreateItemSupplierError.AlreadyExists => "This Item-Supplier link already exists.",
-                _ => "Failed to create link."
-            };
-            Snackbar.Add(message, Severity.Error);
-        }
+            CreateItemSupplierError.ItemNotFound => "Item not found.",
+            CreateItemSupplierError.SupplierNotFound => "Supplier not found.",
+            CreateItemSupplierError.AlreadyExists => "This Item-Supplier link already exists.",
+            _ => "Failed to create link."
+        };
+        Snackbar.Add(message, Severity.Error);
+        return false;
     }
 
     protected override async Task OnInitializedAsync()
@@ -177,29 +196,72 @@
         _itemSuppliers = await ItemSupplierSvc.GetAllAsync();
         _items = await ItemSvc.GetAllAsync();
         _suppliers = await SupplierSvc.GetAllAsync();
+        _dirtyRows.Clear();
         _loading = false;
     }
 
-    private async Task<DataGridEditFormAction> OnCommittedItemChanges(ItemSupplierResponse item)
+    private async Task SaveRow(ItemSupplierResponse item)
     {
-        var result = await ItemSupplierSvc.UpdateAsync(item.ItemId, item.SupplierId, new UpdateItemSupplierRequest
+        var request = new UpdateItemSupplierRequest
         {
             UnitPrice = item.UnitPrice,
             SupplierReference = item.SupplierReference,
             IsAvailable = item.IsAvailable
-        });
-
-        if (result is not null)
-        {
-            Snackbar.Add("Item-Supplier link updated.", Severity.Success);
-        }
+        };
+        var updated = await ItemSupplierSvc.UpdateAsync(item.ItemId, item.SupplierId, request);
+        if (updated == null)
+            Snackbar.Add("Failed to save link.", Severity.Error);
         else
         {
-            Snackbar.Add("Failed to update link.", Severity.Error);
-            await LoadAsync();
+            _dirtyRows.Remove((item.ItemId, item.SupplierId));
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAllAsync()
+    {
+        int created = 0, updated = 0, errors = 0;
+
+        foreach (var draft in _pendingRows.ToList())
+        {
+            if (await ValidateRow(draft))
+                created++;
+            else
+                errors++;
         }
 
-        return DataGridEditFormAction.Close;
+        foreach (var key in _dirtyRows.ToList())
+        {
+            var item = _itemSuppliers.FirstOrDefault(x => x.ItemId == key.ItemId && x.SupplierId == key.SupplierId);
+            if (item == null) continue;
+
+            var request = new UpdateItemSupplierRequest
+            {
+                UnitPrice = item.UnitPrice,
+                SupplierReference = item.SupplierReference,
+                IsAvailable = item.IsAvailable
+            };
+            var result = await ItemSupplierSvc.UpdateAsync(item.ItemId, item.SupplierId, request);
+            if (result != null)
+            {
+                _dirtyRows.Remove(key);
+                updated++;
+            }
+            else
+            {
+                Snackbar.Add("Failed to save link.", Severity.Error);
+                errors++;
+            }
+        }
+
+        if (created + updated > 0)
+        {
+            var parts = new List<string>();
+            if (created > 0) parts.Add($"{created} created");
+            if (updated > 0) parts.Add($"{updated} updated");
+            Snackbar.Add(string.Join(", ", parts), Severity.Success);
+            await LoadAsync();
+        }
     }
 
     private async Task DeleteAsync(ItemSupplierResponse itemSupplier)

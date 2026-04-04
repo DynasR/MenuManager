@@ -29,11 +29,15 @@ public class AppDbContext : DbContext
             .HasKey(isp => new { isp.ItemId, isp.SupplierId });
 
         // Category — self-referencing hierarchy
-        modelBuilder.Entity<Category>()
-            .HasOne(c => c.ParentCategory)
-            .WithMany(c => c.SubCategories)
-            .HasForeignKey(c => c.ParentCategoryId)
-            .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<Category>(entity =>
+        {
+            entity.HasOne(c => c.ParentCategory)
+                .WithMany(c => c.SubCategories)
+                .HasForeignKey(c => c.ParentCategoryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasCheckConstraint("CK_Category_Name_NotEmpty", "trim(\"Name\") <> ''");
+        });
 
         // Item -> Category
         modelBuilder.Entity<Item>()

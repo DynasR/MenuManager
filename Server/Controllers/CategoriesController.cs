@@ -34,7 +34,9 @@ public class CategoriesController : ControllerBase
     public async Task<ActionResult<CategoryResponse>> Create(CreateCategoryRequest request)
     {
         var result = await _service.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        return result is null
+            ? NotFound()
+            : CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
     [HttpPut("{id:int}")]

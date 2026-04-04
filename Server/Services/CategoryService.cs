@@ -10,7 +10,7 @@ public interface ICategoryService
     Task<List<CategoryResponse>> GetAllAsync();
     Task<List<CategoryResponse>> GetTreeAsync();
     Task<CategoryResponse?> GetByIdAsync(int id);
-    Task<CategoryResponse> CreateAsync(CreateCategoryRequest request);
+    Task<CategoryResponse?> CreateAsync(CreateCategoryRequest request);
     Task<CategoryResponse?> UpdateAsync(int id, UpdateCategoryRequest request);
     Task<bool> DeleteAsync(int id);
 }
@@ -51,8 +51,16 @@ public class CategoryService : ICategoryService
         return category is null ? null : MapToResponse(category);
     }
 
-    public async Task<CategoryResponse> CreateAsync(CreateCategoryRequest request)
+    public async Task<CategoryResponse?> CreateAsync(CreateCategoryRequest request)
     {
+        if (request.ParentCategoryId != null)
+        {
+            var parentExists = await _db.Categories
+                .AnyAsync(c => c.Id == request.ParentCategoryId);
+            if (!parentExists)
+                return null;
+        }
+
         var category = new Category
         {
             Name = request.Name,

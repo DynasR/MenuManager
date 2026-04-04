@@ -10,42 +10,60 @@
            OnClick="AddRow" Class="mb-4">
     Add row
 </MudButton>
+<MudButton Variant="Variant.Filled" Color="Color.Primary"
+           Disabled="@(_pendingRows.Count == 0 && _dirtyRows.Count == 0)"
+           OnClick="SaveAllAsync"
+           StartIcon="@Icons.Material.Filled.SaveAlt"
+           Class="mb-4 ml-2">
+    Save All
+</MudButton>
 
 @if (_pendingRows.Count > 0)
 {
     <MudDataGrid T="CustomerDraft" Items="_pendingRows" ReadOnly="false"
                  EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
-                 Class="mb-0">
+                 Class="mb-0" Style="table-layout: fixed; width: 100%">
         <Columns>
-            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 15%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
                                   RequiredError="Name is required." Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true">
+            <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true" Style="width: 12%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Phone" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Email" Title="Email" Editable="true">
+            <PropertyColumn Property="x => x.Email" Title="Email" Editable="true" Style="width: 20%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Email" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.City" Title="City" Editable="true">
+            <PropertyColumn Property="x => x.Address" Title="Address" Editable="true" Style="width: 18%">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Address" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.City" Title="City" Editable="true" Style="width: 12%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.City" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Country" Title="Country" Editable="true">
+            <PropertyColumn Property="x => x.PostalCode" Title="PostalCode" Editable="true" Style="width: 8%">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.PostalCode" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Country" Title="Country" Editable="true" Style="width: 10%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Country" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 5%">
                 <CellTemplate>
                     <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   Disabled="@(string.IsNullOrWhiteSpace(context.Item.Name))"
                                    OnClick="@(() => ValidateRow(context.Item))" />
                     <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
                                    OnClick="@(() => RemoveRow(context.Item))" />
@@ -56,37 +74,72 @@
 }
 
 <MudDataGrid T="CustomerResponse" Items="_customers" ReadOnly="false"
-             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
-             Loading="_loading" Hover="true" Striped="true" Dense="true">
+             EditMode="DataGridEditMode.Cell"
+             Loading="_loading" Hover="true" Striped="true" Dense="true"
+             Style="table-layout: fixed; width: 100%">
     <Columns>
-        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 15%">
             <EditTemplate>
-                <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
-                              RequiredError="Name is required." Immediate="true" />
+                <MudTextField
+                    Value="@context.Item.Name"
+                    ValueChanged="@((string val) => { context.Item.Name = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true">
+        <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true" Style="width: 12%">
             <EditTemplate>
-                <MudTextField T="string" @bind-Value="context.Item.Phone" Immediate="true" />
+                <MudTextField
+                    Value="@context.Item.Phone"
+                    ValueChanged="@((string val) => { context.Item.Phone = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Email" Title="Email" Editable="true">
+        <PropertyColumn Property="x => x.Email" Title="Email" Editable="true" Style="width: 20%">
             <EditTemplate>
-                <MudTextField T="string" @bind-Value="context.Item.Email" Immediate="true" />
+                <MudTextField
+                    Value="@context.Item.Email"
+                    ValueChanged="@((string val) => { context.Item.Email = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.City" Title="City" Editable="true">
+        <PropertyColumn Property="x => x.Address" Title="Address" Editable="true" Style="width: 18%">
             <EditTemplate>
-                <MudTextField T="string" @bind-Value="context.Item.City" Immediate="true" />
+                <MudTextField
+                    Value="@context.Item.Address"
+                    ValueChanged="@((string val) => { context.Item.Address = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Country" Title="Country" Editable="true">
+        <PropertyColumn Property="x => x.City" Title="City" Editable="true" Style="width: 12%">
             <EditTemplate>
-                <MudTextField T="string" @bind-Value="context.Item.Country" Immediate="true" />
+                <MudTextField
+                    Value="@context.Item.City"
+                    ValueChanged="@((string val) => { context.Item.City = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+        <PropertyColumn Property="x => x.PostalCode" Title="PostalCode" Editable="true" Style="width: 8%">
+            <EditTemplate>
+                <MudTextField
+                    Value="@context.Item.PostalCode"
+                    ValueChanged="@((string val) => { context.Item.PostalCode = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Country" Title="Country" Editable="true" Style="width: 10%">
+            <EditTemplate>
+                <MudTextField
+                    Value="@context.Item.Country"
+                    ValueChanged="@((string val) => { context.Item.Country = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 5%">
             <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" Size="Size.Small"
+                               Disabled="@(!_dirtyRows.Contains(context.Item.Id))"
+                               OnClick="@(() => SaveRow(context.Item))"
+                               />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => DeleteAsync(context.Item))" />
             </CellTemplate>
@@ -96,15 +149,18 @@
 
 @code {
     private List<CustomerResponse> _customers = [];
+    private HashSet<int> _dirtyRows = new();
     private bool _loading = true;
     private List<CustomerDraft> _pendingRows = [];
 
-    private class CustomerDraft
+    private sealed class CustomerDraft
     {
         public string Name { get; set; } = "";
         public string? Phone { get; set; }
         public string? Email { get; set; }
+        public string? Address { get; set; }
         public string? City { get; set; }
+        public string? PostalCode { get; set; }
         public string? Country { get; set; }
     }
 
@@ -112,27 +168,27 @@
 
     private void RemoveRow(CustomerDraft draft) => _pendingRows.Remove(draft);
 
-    private async Task ValidateRow(CustomerDraft draft)
+    private async Task<bool> ValidateRow(CustomerDraft draft)
     {
         var result = await CustomerSvc.CreateAsync(new CreateCustomerRequest
         {
             Name = draft.Name,
             Phone = draft.Phone,
             Email = draft.Email,
+            Address = draft.Address,
             City = draft.City,
+            PostalCode = draft.PostalCode,
             Country = draft.Country
         });
 
         if (result is not null)
         {
-            Snackbar.Add($"Customer \"{draft.Name}\" created.", Severity.Success);
             _pendingRows.Remove(draft);
-            await LoadAsync();
+            return true;
         }
-        else
-        {
-            Snackbar.Add("Failed to create customer.", Severity.Error);
-        }
+
+        Snackbar.Add($"Failed to create \"{draft.Name}\"", Severity.Error);
+        return false;
     }
 
     protected override async Task OnInitializedAsync()
@@ -144,31 +200,80 @@
     {
         _loading = true;
         _customers = await CustomerSvc.GetAllAsync();
+        _dirtyRows.Clear();
         _loading = false;
     }
 
-    private async Task<DataGridEditFormAction> OnCommittedItemChanges(CustomerResponse item)
+    private async Task SaveRow(CustomerResponse item)
     {
-        var result = await CustomerSvc.UpdateAsync(item.Id, new UpdateCustomerRequest
+        var request = new UpdateCustomerRequest
         {
             Name = item.Name,
             Phone = item.Phone,
             Email = item.Email,
+            Address = item.Address,
             City = item.City,
+            PostalCode = item.PostalCode,
             Country = item.Country
-        });
-
-        if (result is not null)
-        {
-            Snackbar.Add($"Customer \"{item.Name}\" updated.", Severity.Success);
-        }
+        };
+        var updated = await CustomerSvc.UpdateAsync(item.Id, request);
+        if (updated == null)
+            Snackbar.Add($"Failed to save \"{item.Name}\"", Severity.Error);
         else
         {
-            Snackbar.Add("Failed to update customer.", Severity.Error);
-            await LoadAsync();
+            _dirtyRows.Remove(item.Id);
+            StateHasChanged();
+        }
+    }
+
+    private async Task SaveAllAsync()
+    {
+        int created = 0, updated = 0, errors = 0;
+
+        foreach (var draft in _pendingRows.ToList())
+        {
+            if (await ValidateRow(draft))
+                created++;
+            else
+                errors++;
         }
 
-        return DataGridEditFormAction.Close;
+        foreach (var id in _dirtyRows.ToList())
+        {
+            var item = _customers.FirstOrDefault(c => c.Id == id);
+            if (item == null) continue;
+
+            var request = new UpdateCustomerRequest
+            {
+                Name = item.Name,
+                Phone = item.Phone,
+                Email = item.Email,
+                Address = item.Address,
+                City = item.City,
+                PostalCode = item.PostalCode,
+                Country = item.Country
+            };
+            var result = await CustomerSvc.UpdateAsync(item.Id, request);
+            if (result != null)
+            {
+                _dirtyRows.Remove(id);
+                updated++;
+            }
+            else
+            {
+                Snackbar.Add($"Failed to save \"{item.Name}\"", Severity.Error);
+                errors++;
+            }
+        }
+
+        if (created + updated > 0)
+        {
+            var parts = new List<string>();
+            if (created > 0) parts.Add($"{created} created");
+            if (updated > 0) parts.Add($"{updated} updated");
+            Snackbar.Add(string.Join(", ", parts), Severity.Success);
+            await LoadAsync();
+        }
     }
 
     private async Task DeleteAsync(CustomerResponse customer)
