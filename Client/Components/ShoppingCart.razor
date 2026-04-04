@@ -1,0 +1,108 @@
+@using MenuManager.Shared.Enums
+
+<MudText Typo="Typo.h6" Class="pa-4">Shopping Cart</MudText>
+
+@if (!_lines.Any())
+{
+    <MudText Class="pa-4" Color="Color.Secondary">No items in the plan yet.</MudText>
+}
+else
+{
+    <MudList T="ShoppingLine" Dense="true" Class="px-2">
+        @foreach (var line in _lines)
+        {
+            <MudListItem T="ShoppingLine">
+                <div style="display: flex; flex-direction: column; width: 100%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <MudText Typo="Typo.body2" Style="font-weight: 600;">@line.ItemName</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                            @line.PackagesToBuy pkg
+                        </MudChip>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">
+                            @line.TotalQuantity @FormatUnit(line.Unit)
+                        </MudText>
+                        <MudText Typo="Typo.body2">
+                            @(line.LineTotal.HasValue ? line.LineTotal.Value.ToString("C2", _frCulture) : "—")
+                        </MudText>
+                    </div>
+                </div>
+            </MudListItem>
+            <MudDivider />
+        }
+    </MudList>
+
+    <div class="pa-4" style="display: flex; justify-content: space-between; align-items: center;">
+        <MudText Typo="Typo.h6">Total</MudText>
+        <MudText Typo="Typo.h6">@_grandTotal.ToString("C2", _frCulture)</MudText>
+    </div>
+
+    @if (_hasMissingPrices)
+    {
+        <MudText Typo="Typo.caption" Color="Color.Warning" Class="px-4 pb-2">
+            * Some items have missing prices and are not included in the total.
+        </MudText>
+    }
+}
+
+@code {
+    [Parameter]
+    public IEnumerable<MealSlotItemResponse> Items { get; set; } = [];
+
+    private static readonly System.Globalization.CultureInfo _frCulture = new("fr-FR");
+
+    private List<ShoppingLine> _lines = [];
+    private decimal _grandTotal;
+    private bool _hasMissingPrices;
+
+    protected override void OnParametersSet()
+    {
+        _lines = ComputeLines(Items);
+        _grandTotal = _lines.Where(l => l.LineTotal.HasValue).Sum(l => l.LineTotal!.Value);
+        _hasMissingPrices = _lines.Any(l => !l.LineTotal.HasValue);
+    }
+
+    private static List<ShoppingLine> ComputeLines(IEnumerable<MealSlotItemResponse> items)
+    {
+        return items
+            .GroupBy(i => i.ItemId)
+            .Select(g =>
+            {
+                var first = g.First();
+                var totalQty = g.Sum(i => i.Quantity);
+                var packages = (int)Math.Ceiling(totalQty / first.PackageSize);
+                decimal? lineTotal = first.UnitPrice.HasValue ? packages * first.UnitPrice.Value : null;
+
+                return new ShoppingLine(
+                    first.ItemName,
+                    totalQty,
+                    first.Unit,
+                    first.PackageSize,
+                    packages,
+                    first.UnitPrice,
+                    lineTotal);
+            })
+            .OrderBy(l => l.ItemName)
+            .ToList();
+    }
+
+    private static string FormatUnit(MeasurementUnit unit) => unit switch
+    {
+        MeasurementUnit.Piece => "pcs",
+        MeasurementUnit.Gram => "g",
+        MeasurementUnit.Kilogram => "kg",
+        MeasurementUnit.Milliliter => "mL",
+        MeasurementUnit.Liter => "L",
+        _ => unit.ToString()
+    };
+
+    private sealed record ShoppingLine(
+        string ItemName,
+        decimal TotalQuantity,
+        MeasurementUnit Unit,
+        decimal PackageSize,
+        int PackagesToBuy,
+        decimal? UnitPrice,
+        decimal? LineTotal);
+}

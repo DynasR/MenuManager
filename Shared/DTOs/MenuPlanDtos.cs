@@ -1,4 +1,5 @@
 using MenuManager.Shared.Entities;
+using MenuManager.Shared.Enums;
 
 namespace MenuManager.Shared.DTOs;
 
@@ -71,4 +72,7 @@ public class MealSlotItemResponse
     public string? Notes { get; set; }
     public int Order { get; set; }
     public int MealSlotId { get; set; }
+    public decimal? UnitPrice { get; set; }
+    public decimal PackageSize { get; set; }
+    public MeasurementUnit Unit { get; set; }
 }

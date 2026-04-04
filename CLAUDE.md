@@ -103,15 +103,9 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 
 ### 404 vs 409 pattern (ItemSupplier model)
 
-When `CreateAsync` can fail for multiple distinct reasons, use a result type in `Shared/DTOs/`:
-
-```csharp
-public enum CreateItemSupplierError { ItemNotFound, SupplierNotFound, AlreadyExists }
-public record CreateItemSupplierResult(ItemSupplierResponse? Response, CreateItemSupplierError? Error);
-```
-
-Controller switches on `Error` to return the correct HTTP status.
-Frontend switches on `Error` to display the correct snackbar message.
+When `CreateAsync` can fail for multiple distinct reasons, use a result type (`enum` + `record`) in `Shared/DTOs/`.
+Controller switches on `Error` → correct HTTP status. Frontend switches on `Error` → correct snackbar.
+Reference: `ItemSupplierDtos.cs`.
 
 ---
 
@@ -185,70 +179,16 @@ Percentage values must sum to 100%. Choose values proportional to expected conte
 
 ---
 
-## FK dropdown pattern
+## FK & Enum dropdown rules
 
-```razor
-@code {
-    private List<CategoryResponse> _categories = new();
+Reference: `Item/Index.razor` (FK + enum in same page).
 
-    protected override async Task OnInitializedAsync()
-    {
-        _categories = await CategoryService.GetAllAsync();
-    }
-}
-
-// In pending rows (draft): @bind-Value is fine — no dirty tracking needed
-<MudSelect T="int" @bind-Value="draft.CategoryId" Label="Category">
-    @foreach (var cat in _categories)
-    {
-        <MudSelectItem Value="cat.Id">@cat.Name</MudSelectItem>
-    }
-</MudSelect>
-
-// In main grid (EditTemplate): use ValueChanged to mark row dirty
-<MudSelect T="int"
-           Value="context.Item.CategoryId"
-           ValueChanged="@((int val) => { context.Item.CategoryId = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })">
-    @foreach (var cat in _categories)
-    {
-        <MudSelectItem Value="cat.Id">@cat.Name</MudSelectItem>
-    }
-</MudSelect>
-```
-
-Rules:
-- `MudSelect<T>` type must match the DTO field type exactly (`int` vs `int?`).
-- For nullable FK (e.g. `ParentCategoryId`): add a "— None —" option with `null` value at the top.
+- **Pending rows** (drafts): `@bind-Value` — no dirty tracking needed.
+- **Main grid** (EditTemplate): `Value` + `ValueChanged` to mark row dirty via `_dirtyRows.Add(...)`.
+- `MudSelect<T>` type must match DTO field type exactly (`int` vs `int?`).
+- Nullable FK (e.g. `ParentCategoryId`): add "— None —" option with `null` value at top.
 - FK data loaded in `OnInitializedAsync()`, never in a button handler.
-- No business logic in the component.
-
----
-
-## Enum dropdown pattern
-
-```razor
-// In pending rows (draft): @bind-Value
-<MudSelect T="MeasurementUnit" @bind-Value="draft.Unit" Label="Unit">
-    @foreach (var u in Enum.GetValues<MeasurementUnit>())
-    {
-        <MudSelectItem Value="u">@u</MudSelectItem>
-    }
-</MudSelect>
-
-// In main grid (EditTemplate): ValueChanged to mark row dirty
-<MudSelect T="MeasurementUnit"
-           Value="context.Item.Unit"
-           ValueChanged="@((MeasurementUnit val) => { context.Item.Unit = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })">
-    @foreach (var u in Enum.GetValues<MeasurementUnit>())
-    {
-        <MudSelectItem Value="u">@u</MudSelectItem>
-    }
-</MudSelect>
-```
-
-Rules:
-- No hardcoded list — `Enum.GetValues<T>()` is the single source of truth.
-- The enum lives in `Shared/Enums/` — automatically available to both Client and Server.
+- Enums: `Enum.GetValues<T>()` — no hardcoded lists. Enums live in `Shared/Enums/`.
 
 ---
 
@@ -261,7 +201,7 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 
 | Slice        | Service | Index           | Notes                                                              |
 |--------------|---------|-----------------|--------------------------------------------------------------------|
-| Layout       | —       | —               | MainLayout, NavMenu, 4 MudBlazor providers                         |
+| Layout       | —       | —               | MainLayout, NavMenu, RightPanelState, 4 MudBlazor providers         |
 | Category     | ✅      | ✅ patched      | Reference implementation — new Save pattern applied                |
 | Item         | ✅      | ✅ patched      | FK CategoryId, enum Unit, decimal PackageSize                      |
 | Supplier     | ✅      | ✅ patched      | Party fields + CompanyName, Siret                                  |
@@ -350,8 +290,9 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
   - Assigns 1-based Order per provided sequence.
   - Returns `false` on empty slot, partial list, or unknown ID.
 - `PATCH /mealslotitems/reorder` — returns 204 or 404.
-- `MealSlotItemResponse` includes `Order` field (exposed to frontend).
-- Tests: reorder (correct, unknown ID, empty, partial), sequential Order on create, renumber source/target on move, insert position.
+- `MealSlotItemResponse` includes `Order`, `UnitPrice` (nullable decimal), `PackageSize`, `Unit` fields.
+- All services mapping `MealSlotItemResponse` include `Item.ItemSuppliers` to resolve `UnitPrice` (first available supplier, ordered by SupplierId).
+- Tests: reorder (correct, unknown ID, empty, partial), sequential Order on create, renumber source/target on move, insert position, UnitPrice resolution.
 
 ### Frontend — deferred save pattern
 - Drag & drop operations are **not** sent to the backend immediately.
@@ -371,6 +312,24 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Error only during Save All** — snackbar per failed operation.
 - **Summary on success** — "X moved, Y reordered" (zeros omitted).
 - **No snackbar on individual drag** — visual DOM feedback is sufficient.
+
+---
+
+## Shopping Cart (right panel)
+
+### RightPanelState (`Client/Services/RightPanelState.cs`)
+- Scoped service managing a global right-side `MudDrawer` in `MainLayout`.
+- Properties: `Content` (RenderFragment?), `IsOpen` (bool).
+- Methods: `SetContent`, `Toggle`, `Open`, `Close`. Fires `OnChange` event.
+- Any page can inject `RightPanelState` to push content into the right panel.
+- `MainLayout` subscribes to `OnChange` to re-render. Cart icon in AppBar visible only when `Content is not null`.
+
+### ShoppingCart component (`Client/Components/ShoppingCart.razor`)
+- Parameter: `IEnumerable<MealSlotItemResponse> Items`.
+- Aggregates items by `ItemId` → computes `TotalQuantity`, `PackagesToBuy` (`ceil(qty / PackageSize)`), `LineTotal` (`packages * UnitPrice`).
+- Displays grand total in EUR (FR locale). Warning when some items have missing prices.
+- DayPlan/Index feeds all `MealSlotItems` from `_dayPlanByDate` into the cart via `RightPanel.SetContent`.
+- Cart content refreshed on every `LoadAsync()`. Disposed when leaving the page.
 
 ---
 

@@ -120,7 +120,8 @@ public class MenuPlanService : IMenuPlanService
             .Include(mp => mp.DayPlans)
                 .ThenInclude(dp => dp.MealSlots)
                     .ThenInclude(ms => ms.MealSlotItems)
-                        .ThenInclude(msi => msi.Item);
+                        .ThenInclude(msi => msi.Item)
+                            .ThenInclude(i => i.ItemSuppliers);
 
     private static DayPlan MapRequestToDayPlan(DayPlanRequest req) => new()
     {
@@ -176,6 +177,14 @@ public class MenuPlanService : IMenuPlanService
         ItemName = msi.Item?.Name ?? "",
         Quantity = msi.Quantity,
         Notes = msi.Notes,
-        MealSlotId = msi.MealSlotId
+        Order = msi.Order,
+        MealSlotId = msi.MealSlotId,
+        UnitPrice = msi.Item?.ItemSuppliers
+            .Where(s => s.IsAvailable)
+            .OrderBy(s => s.SupplierId)
+            .Select(s => (decimal?)s.UnitPrice)
+            .FirstOrDefault(),
+        PackageSize = msi.Item?.PackageSize ?? 1,
+        Unit = msi.Item?.Unit ?? default
     };
 }

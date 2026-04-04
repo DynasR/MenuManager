@@ -127,6 +127,9 @@ public class MealSlotItemServiceTests : IDisposable
         result.Should().HaveCount(1);
         result[0].ItemName.Should().Be(item.Name);
         result[0].Quantity.Should().Be(2.5m);
+        result[0].PackageSize.Should().Be(1);
+        result[0].Unit.Should().Be(MeasurementUnit.Piece);
+        result[0].UnitPrice.Should().BeNull();
     }
 
     // ── GetByIdAsync ─────────────────────────────────────────────────────────
@@ -152,6 +155,9 @@ public class MealSlotItemServiceTests : IDisposable
         result!.ItemName.Should().Be(item.Name);
         result.Quantity.Should().Be(2.5m);
         result.Notes.Should().Be("test note");
+        result.PackageSize.Should().Be(1);
+        result.Unit.Should().Be(MeasurementUnit.Piece);
+        result.UnitPrice.Should().BeNull();
     }
 
     // ── CreateAsync ──────────────────────────────────────────────────────────
@@ -206,6 +212,81 @@ public class MealSlotItemServiceTests : IDisposable
         result.Quantity.Should().Be(3.5m);
         result.Notes.Should().Be("some notes");
         result.MealSlotId.Should().Be(mealSlot.Id);
+        result.PackageSize.Should().Be(1);
+        result.Unit.Should().Be(MeasurementUnit.Piece);
+        result.UnitPrice.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReturnsUnitPrice_WhenAvailableSupplierExists()
+    {
+        var mealSlot = await SeedMealSlotAsync();
+        var item = await SeedItemAsync();
+
+        var supplier = new Supplier
+        {
+            Name = "Supplier A",
+            CompanyName = "Co A",
+            Siret = "12345678901234",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Suppliers.Add(supplier);
+        await _db.SaveChangesAsync();
+
+        _db.ItemSuppliers.Add(new ItemSupplier
+        {
+            ItemId = item.Id,
+            SupplierId = supplier.Id,
+            UnitPrice = 2.50m,
+            IsAvailable = true,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.CreateAsync(new CreateMealSlotItemRequest
+        {
+            MealSlotId = mealSlot.Id,
+            ItemId = item.Id,
+            Quantity = 1m
+        });
+
+        result.Should().NotBeNull();
+        result!.UnitPrice.Should().Be(2.50m);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_ReturnsNullUnitPrice_WhenNoAvailableSupplier()
+    {
+        var mealSlot = await SeedMealSlotAsync();
+        var item = await SeedItemAsync();
+        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+
+        var supplier = new Supplier
+        {
+            Name = "Supplier B",
+            CompanyName = "Co B",
+            Siret = "12345678901235",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Suppliers.Add(supplier);
+        await _db.SaveChangesAsync();
+
+        _db.ItemSuppliers.Add(new ItemSupplier
+        {
+            ItemId = item.Id,
+            SupplierId = supplier.Id,
+            UnitPrice = 3.00m,
+            IsAvailable = false,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetByIdAsync(msi.Id);
+
+        result.Should().NotBeNull();
+        result!.UnitPrice.Should().BeNull();
     }
 
     // ── UpdateAsync ──────────────────────────────────────────────────────────

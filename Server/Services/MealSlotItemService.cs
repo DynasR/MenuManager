@@ -29,6 +29,7 @@ public class MealSlotItemService : IMealSlotItemService
     {
         var items = await _db.MealSlotItems
             .Include(msi => msi.Item)
+                .ThenInclude(i => i.ItemSuppliers)
             .AsNoTracking()
             .ToListAsync();
 
@@ -39,6 +40,7 @@ public class MealSlotItemService : IMealSlotItemService
     {
         var item = await _db.MealSlotItems
             .Include(msi => msi.Item)
+                .ThenInclude(i => i.ItemSuppliers)
             .AsNoTracking()
             .FirstOrDefaultAsync(msi => msi.Id == id);
 
@@ -208,6 +210,13 @@ public class MealSlotItemService : IMealSlotItemService
         Quantity = msi.Quantity,
         Notes = msi.Notes,
         Order = msi.Order,
-        MealSlotId = msi.MealSlotId
+        MealSlotId = msi.MealSlotId,
+        UnitPrice = msi.Item?.ItemSuppliers
+            .Where(s => s.IsAvailable)
+            .OrderBy(s => s.SupplierId)
+            .Select(s => (decimal?)s.UnitPrice)
+            .FirstOrDefault(),
+        PackageSize = msi.Item?.PackageSize ?? 1,
+        Unit = msi.Item?.Unit ?? default
     };
 }

@@ -30,6 +30,7 @@ public class DayPlanService : IDayPlanService
             .Include(dp => dp.MealSlots)
                 .ThenInclude(ms => ms.MealSlotItems)
                     .ThenInclude(msi => msi.Item)
+                        .ThenInclude(i => i.ItemSuppliers)
             .AsNoTracking()
             .ToListAsync();
 
@@ -43,6 +44,7 @@ public class DayPlanService : IDayPlanService
             .Include(dp => dp.MealSlots)
                 .ThenInclude(ms => ms.MealSlotItems)
                     .ThenInclude(msi => msi.Item)
+                        .ThenInclude(i => i.ItemSuppliers)
             .AsNoTracking()
             .ToListAsync();
 
@@ -55,6 +57,7 @@ public class DayPlanService : IDayPlanService
             .Include(dp => dp.MealSlots)
                 .ThenInclude(ms => ms.MealSlotItems)
                     .ThenInclude(msi => msi.Item)
+                        .ThenInclude(i => i.ItemSuppliers)
             .AsNoTracking()
             .FirstOrDefaultAsync(dp => dp.Id == id);
 
@@ -131,6 +134,13 @@ public class DayPlanService : IDayPlanService
         Quantity = msi.Quantity,
         Notes = msi.Notes,
         Order = msi.Order,
-        MealSlotId = msi.MealSlotId
+        MealSlotId = msi.MealSlotId,
+        UnitPrice = msi.Item?.ItemSuppliers
+            .Where(s => s.IsAvailable)
+            .OrderBy(s => s.SupplierId)
+            .Select(s => (decimal?)s.UnitPrice)
+            .FirstOrDefault(),
+        PackageSize = msi.Item?.PackageSize ?? 1,
+        Unit = msi.Item?.Unit ?? default
     };
 }

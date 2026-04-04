@@ -19,6 +19,7 @@ builder.Services.AddScoped<MenuPlanService>();
 builder.Services.AddScoped<DayPlanService>();
 builder.Services.AddScoped<MealSlotService>();
 builder.Services.AddScoped<MealSlotItemService>();
+builder.Services.AddScoped<RightPanelState>();
 builder.Services.AddMudServices();
 
 await builder.Build().RunAsync();

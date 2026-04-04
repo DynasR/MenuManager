@@ -1,4 +1,6 @@
 @inherits LayoutComponentBase
+@inject RightPanelState RightPanel
+@implements IDisposable
 
 <MudThemeProvider />
 <MudPopoverProvider />
@@ -10,9 +12,23 @@
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="ToggleDrawer" />
         <MudText Typo="Typo.h6" Class="ms-3">MenuManager</MudText>
+        <MudSpacer />
+        @if (RightPanel.Content is not null)
+        {
+            <MudIconButton Icon="@Icons.Material.Filled.ShoppingCart" Color="Color.Inherit"
+                           OnClick="RightPanel.Toggle" />
+        }
     </MudAppBar>
     <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
         <NavMenu />
+    </MudDrawer>
+    <MudDrawer Anchor="Anchor.Right" Width="320px"
+               ClipMode="DrawerClipMode.Always"
+               Open="RightPanel.IsOpen" OpenChanged="OnRightPanelOpenChanged" Elevation="2">
+        @if (RightPanel.Content is not null)
+        {
+            @RightPanel.Content
+        }
     </MudDrawer>
     <MudMainContent>
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pt-4">
@@ -24,4 +40,22 @@
 @code {
     private bool _drawerOpen = true;
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    protected override void OnInitialized()
+    {
+        RightPanel.OnChange += OnRightPanelChanged;
+    }
+
+    private void OnRightPanelChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnRightPanelOpenChanged(bool open)
+    {
+        if (!open)
+            RightPanel.Close();
+    }
+
+    public void Dispose()
+    {
+        RightPanel.OnChange -= OnRightPanelChanged;
+    }
 }

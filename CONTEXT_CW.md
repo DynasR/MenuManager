@@ -30,7 +30,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 ### Frontend — toutes les slices complètes
 | Slice        | Notes                                                                  |
 |--------------|------------------------------------------------------------------------|
-| Layout       | MainLayout, NavMenu, 4 providers MudBlazor                             |
+| Layout       | MainLayout, NavMenu, RightPanelState, 4 providers MudBlazor            |
 | Category     | Référence du pattern Index/Save                                        |
 | Item         | FK CategoryId, enum MeasurementUnit, decimal PackageSize               |
 | Supplier     | Party fields + CompanyName, Siret                                      |
@@ -40,6 +40,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | DayPlan      | Calendrier mensuel, dates FR, coloring weekend/fériés, drag & drop     |
 | MealSlot     | Pas de page — logique embarquée dans DayPlan/Index                     |
 | MealSlotItem | Pas de page — logique embarquée dans DayPlan/Index                     |
+| ShoppingCart | Panneau droit global (RightPanelState), agrégation items + prix        |
 
 ### Migrations appliquées
 | Nom                            | Description                                    |
@@ -65,6 +66,9 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
   - Snackbar sur erreur uniquement pendant Save All, résumé ("X moved, Y reordered") sur succès.
 - **Order auto-séquentiel** — `CreateAsync` assigne `Order = count + 1`. `MoveAsync` renumérote les deux slots (gap-free, 1-based).
 - **Jours fériés FR** — calculés côté client dans `Client/Helpers/FrenchHolidays.cs` (algorithme de Pâques). Zéro appel API externe.
+- **Shopping Cart** — panneau droit global via `RightPanelState` (service scoped). `ShoppingCart.razor` agrège les items par `ItemId`, calcule `ceil(qty / PackageSize)` paquets à acheter, affiche prix unitaire (1er fournisseur dispo) et total EUR.
+  - `MealSlotItemResponse` enrichi : `UnitPrice` (nullable), `PackageSize`, `Unit` — tous les services incluent `ItemSuppliers` dans les queries.
+  - DayPlan/Index pousse le contenu dans le panneau droit ; dispose à la sortie de page.
 - **MudIconButton** n'accepte pas Title/Tooltip → toujours envelopper dans `<MudTooltip>` (règle MUD0002).
 
 ## Signatures de service

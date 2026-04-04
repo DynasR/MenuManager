@@ -96,7 +96,8 @@ public class MealSlotService : IMealSlotService
     private IQueryable<MealSlot> QueryWithIncludes() =>
         _db.MealSlots
             .Include(ms => ms.MealSlotItems)
-                .ThenInclude(msi => msi.Item);
+                .ThenInclude(msi => msi.Item)
+                    .ThenInclude(i => i.ItemSuppliers);
 
     private static MealSlotResponse MapToResponse(MealSlot ms) => new()
     {
@@ -113,6 +114,14 @@ public class MealSlotService : IMealSlotService
         ItemName = msi.Item?.Name ?? "",
         Quantity = msi.Quantity,
         Notes = msi.Notes,
-        MealSlotId = msi.MealSlotId
+        Order = msi.Order,
+        MealSlotId = msi.MealSlotId,
+        UnitPrice = msi.Item?.ItemSuppliers
+            .Where(s => s.IsAvailable)
+            .OrderBy(s => s.SupplierId)
+            .Select(s => (decimal?)s.UnitPrice)
+            .FirstOrDefault(),
+        PackageSize = msi.Item?.PackageSize ?? 1,
+        Unit = msi.Item?.Unit ?? default
     };
 }

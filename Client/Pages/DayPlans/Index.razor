@@ -6,6 +6,8 @@
 @inject MealSlotItemService MealSlotItemSvc
 @inject ItemService ItemSvc
 @inject ISnackbar Snackbar
+@inject RightPanelState RightPanel
+@implements IDisposable
 
 <PageTitle>Day Plans</PageTitle>
 
@@ -184,6 +186,9 @@ else if (_parent is not null)
     private HashSet<DateOnly> _holidays = [];
     private Dictionary<DateOnly, string> _holidayNames = new();
 
+    // Shopping cart
+    private List<MealSlotItemResponse> _allMealSlotItems = [];
+
     // Pending changes (deferred until Save All)
     private Dictionary<int, List<int>> _pendingReorders = new();
     private List<PendingMove> _pendingMoves = [];
@@ -232,10 +237,28 @@ else if (_parent is not null)
 
         var existing = await DayPlanSvc.GetByMenuPlanAsync(MenuPlanId);
         _dayPlanByDate = existing.ToDictionary(dp => dp.Date);
+
+        UpdateShoppingCart();
+    }
+
+    private void UpdateShoppingCart()
+    {
+        _allMealSlotItems = _dayPlanByDate.Values
+            .SelectMany(dp => dp.MealSlots)
+            .SelectMany(ms => ms.MealSlotItems)
+            .ToList();
+
+        RightPanel.SetContent(builder =>
+        {
+            builder.OpenComponent<ShoppingCart>(0);
+            builder.AddAttribute(1, nameof(ShoppingCart.Items), (IEnumerable<MealSlotItemResponse>)_allMealSlotItems);
+            builder.CloseComponent();
+        });
     }
 
     private void OpenDrawer((DateOnly date, MealType mealType) args)
     {
+        RightPanel.Close();
         _selectedDate = args.date;
         _selectedMealType = args.mealType;
         _itemSearch = "";
@@ -408,5 +431,11 @@ else if (_parent is not null)
         }
 
         await LoadAsync();
+    }
+
+    public void Dispose()
+    {
+        RightPanel.Close();
+        RightPanel.SetContent(null);
     }
 }

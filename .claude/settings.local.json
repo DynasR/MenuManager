@@ -5,7 +5,8 @@
       "Bash(dotnet test:*)",
       "Bash(dotnet tool:*)",
       "Bash(ls:*)",
-      "Bash(dotnet ef:*)"
+      "Bash(dotnet ef:*)",
+      "Bash(taskkill //F //PID 30644)"
     ]
   }
 }
