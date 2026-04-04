@@ -1,44 +1,139 @@
 @page "/customers"
 @inject CustomerService CustomerSvc
-@inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
-<PageTitle>Clients</PageTitle>
+<PageTitle>Customers</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Clients</MudText>
+<MudText Typo="Typo.h4" Class="mb-4">Customers</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="@(() => Nav.NavigateTo("/customers/create"))" Class="mb-4">
-    Nouveau
+<MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PlaylistAdd"
+           OnClick="AddRow" Class="mb-4">
+    Add row
 </MudButton>
 
-<MudTable Items="_customers" Hover="true" Striped="true" Loading="_loading">
-    <HeaderContent>
-        <MudTh>Nom</MudTh>
-        <MudTh>Telephone</MudTh>
-        <MudTh>Email</MudTh>
-        <MudTh>Ville</MudTh>
-        <MudTh>Pays</MudTh>
-        <MudTh>Actions</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="Nom">@context.Name</MudTd>
-        <MudTd DataLabel="Telephone">@context.Phone</MudTd>
-        <MudTd DataLabel="Email">@context.Email</MudTd>
-        <MudTd DataLabel="Ville">@context.City</MudTd>
-        <MudTd DataLabel="Pays">@context.Country</MudTd>
-        <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                           OnClick="@(() => Nav.NavigateTo($"/customers/edit/{context.Id}"))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => DeleteAsync(context))" />
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+@if (_pendingRows.Count > 0)
+{
+    <MudDataGrid T="CustomerDraft" Items="_pendingRows" ReadOnly="false"
+                 EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
+                 Class="mb-0">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                                  RequiredError="Name is required." Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Phone" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Email" Title="Email" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Email" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.City" Title="City" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.City" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Country" Title="Country" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Country" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   OnClick="@(() => ValidateRow(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => RemoveRow(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+<MudDataGrid T="CustomerResponse" Items="_customers" ReadOnly="false"
+             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
+             Loading="_loading" Hover="true" Striped="true" Dense="true">
+    <Columns>
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                              RequiredError="Name is required." Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Phone" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Email" Title="Email" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Email" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.City" Title="City" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.City" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Country" Title="Country" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Country" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context.Item))" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
 
 @code {
     private List<CustomerResponse> _customers = [];
     private bool _loading = true;
+    private List<CustomerDraft> _pendingRows = [];
+
+    private class CustomerDraft
+    {
+        public string Name { get; set; } = "";
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? City { get; set; }
+        public string? Country { get; set; }
+    }
+
+    private void AddRow() => _pendingRows.Add(new CustomerDraft());
+
+    private void RemoveRow(CustomerDraft draft) => _pendingRows.Remove(draft);
+
+    private async Task ValidateRow(CustomerDraft draft)
+    {
+        var result = await CustomerSvc.CreateAsync(new CreateCustomerRequest
+        {
+            Name = draft.Name,
+            Phone = draft.Phone,
+            Email = draft.Email,
+            City = draft.City,
+            Country = draft.Country
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Customer \"{draft.Name}\" created.", Severity.Success);
+            _pendingRows.Remove(draft);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to create customer.", Severity.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -52,17 +147,41 @@
         _loading = false;
     }
 
+    private async Task<DataGridEditFormAction> OnCommittedItemChanges(CustomerResponse item)
+    {
+        var result = await CustomerSvc.UpdateAsync(item.Id, new UpdateCustomerRequest
+        {
+            Name = item.Name,
+            Phone = item.Phone,
+            Email = item.Email,
+            City = item.City,
+            Country = item.Country
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Customer \"{item.Name}\" updated.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update customer.", Severity.Error);
+            await LoadAsync();
+        }
+
+        return DataGridEditFormAction.Close;
+    }
+
     private async Task DeleteAsync(CustomerResponse customer)
     {
         var deleted = await CustomerSvc.DeleteAsync(customer.Id);
         if (deleted)
         {
-            Snackbar.Add($"Client \"{customer.Name}\" supprime.", Severity.Success);
+            Snackbar.Add($"Customer \"{customer.Name}\" deleted.", Severity.Success);
             await LoadAsync();
         }
         else
         {
-            Snackbar.Add("Impossible de supprimer ce client.", Severity.Error);
+            Snackbar.Add("Failed to delete customer.", Severity.Error);
         }
     }
 }

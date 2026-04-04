@@ -1,46 +1,151 @@
 @page "/suppliers"
 @inject SupplierService SupplierSvc
-@inject NavigationManager Nav
 @inject ISnackbar Snackbar
 
-<PageTitle>Fournisseurs</PageTitle>
+<PageTitle>Suppliers</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Fournisseurs</MudText>
+<MudText Typo="Typo.h4" Class="mb-4">Suppliers</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="@(() => Nav.NavigateTo("/suppliers/create"))" Class="mb-4">
-    Nouveau
+<MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PlaylistAdd"
+           OnClick="AddRow" Class="mb-4">
+    Add row
 </MudButton>
 
-<MudTable Items="_suppliers" Hover="true" Striped="true" Loading="_loading">
-    <HeaderContent>
-        <MudTh>Nom</MudTh>
-        <MudTh>Societe</MudTh>
-        <MudTh>Siret</MudTh>
-        <MudTh>Telephone</MudTh>
-        <MudTh>Email</MudTh>
-        <MudTh>Ville</MudTh>
-        <MudTh>Actions</MudTh>
-    </HeaderContent>
-    <RowTemplate>
-        <MudTd DataLabel="Nom">@context.Name</MudTd>
-        <MudTd DataLabel="Societe">@context.CompanyName</MudTd>
-        <MudTd DataLabel="Siret">@context.Siret</MudTd>
-        <MudTd DataLabel="Telephone">@context.Phone</MudTd>
-        <MudTd DataLabel="Email">@context.Email</MudTd>
-        <MudTd DataLabel="Ville">@context.City</MudTd>
-        <MudTd>
-            <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                           OnClick="@(() => Nav.NavigateTo($"/suppliers/edit/{context.Id}"))" />
-            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
-                           OnClick="@(() => DeleteAsync(context))" />
-        </MudTd>
-    </RowTemplate>
-</MudTable>
+@if (_pendingRows.Count > 0)
+{
+    <MudDataGrid T="SupplierDraft" Items="_pendingRows" ReadOnly="false"
+                 EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
+                 Class="mb-0">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                                  RequiredError="Name is required." Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.CompanyName" Title="Company" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.CompanyName" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Siret" Title="Siret" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Siret" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Phone" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Email" Title="Email" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Email" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.City" Title="City" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.City" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   OnClick="@(() => ValidateRow(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => RemoveRow(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
+
+<MudDataGrid T="SupplierResponse" Items="_suppliers" ReadOnly="false"
+             EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
+             Loading="_loading" Hover="true" Striped="true" Dense="true">
+    <Columns>
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                              RequiredError="Name is required." Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.CompanyName" Title="Company" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.CompanyName" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Siret" Title="Siret" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Siret" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Phone" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.Email" Title="Email" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.Email" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.City" Title="City" Editable="true">
+            <EditTemplate>
+                <MudTextField T="string" @bind-Value="context.Item.City" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+            <CellTemplate>
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                               OnClick="@(() => DeleteAsync(context.Item))" />
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+</MudDataGrid>
 
 @code {
     private List<SupplierResponse> _suppliers = [];
     private bool _loading = true;
+    private List<SupplierDraft> _pendingRows = [];
+
+    private class SupplierDraft
+    {
+        public string Name { get; set; } = "";
+        public string? CompanyName { get; set; }
+        public string? Siret { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? City { get; set; }
+    }
+
+    private void AddRow() => _pendingRows.Add(new SupplierDraft());
+
+    private void RemoveRow(SupplierDraft draft) => _pendingRows.Remove(draft);
+
+    private async Task ValidateRow(SupplierDraft draft)
+    {
+        var result = await SupplierSvc.CreateAsync(new CreateSupplierRequest
+        {
+            Name = draft.Name,
+            CompanyName = draft.CompanyName,
+            Siret = draft.Siret,
+            Phone = draft.Phone,
+            Email = draft.Email,
+            City = draft.City
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Supplier \"{draft.Name}\" created.", Severity.Success);
+            _pendingRows.Remove(draft);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to create supplier.", Severity.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -54,17 +159,42 @@
         _loading = false;
     }
 
+    private async Task<DataGridEditFormAction> OnCommittedItemChanges(SupplierResponse item)
+    {
+        var result = await SupplierSvc.UpdateAsync(item.Id, new UpdateSupplierRequest
+        {
+            Name = item.Name,
+            CompanyName = item.CompanyName,
+            Siret = item.Siret,
+            Phone = item.Phone,
+            Email = item.Email,
+            City = item.City
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Supplier \"{item.Name}\" updated.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add("Failed to update supplier.", Severity.Error);
+            await LoadAsync();
+        }
+
+        return DataGridEditFormAction.Close;
+    }
+
     private async Task DeleteAsync(SupplierResponse supplier)
     {
         var deleted = await SupplierSvc.DeleteAsync(supplier.Id);
         if (deleted)
         {
-            Snackbar.Add($"Fournisseur \"{supplier.Name}\" supprime.", Severity.Success);
+            Snackbar.Add($"Supplier \"{supplier.Name}\" deleted.", Severity.Success);
             await LoadAsync();
         }
         else
         {
-            Snackbar.Add("Impossible de supprimer ce fournisseur.", Severity.Error);
+            Snackbar.Add("Failed to delete supplier.", Severity.Error);
         }
     }
 }

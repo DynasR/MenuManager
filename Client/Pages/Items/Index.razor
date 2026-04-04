@@ -2,17 +2,76 @@
 @inject ItemService ItemSvc
 @inject CategoryService CategorySvc
 @inject ISnackbar Snackbar
-@inject NavigationManager Nav
 @using MenuManager.Shared.Enums
 
 <PageTitle>Items</PageTitle>
 
 <MudText Typo="Typo.h4" Class="mb-4">Items</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="@(() => Nav.NavigateTo("/items/create"))" Class="mb-4">
-    New
+<MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PlaylistAdd"
+           OnClick="AddRow" Class="mb-4">
+    Add row
 </MudButton>
+
+@if (_pendingRows.Count > 0)
+{
+    <MudDataGrid T="ItemDraft" Items="_pendingRows" ReadOnly="false"
+                 EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
+                 Class="mb-0">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                                  RequiredError="Name is required." Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Description" Title="Description" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Description" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Unit" Title="Unit" Editable="true">
+                <EditTemplate>
+                    <MudSelect T="MeasurementUnit" @bind-Value="context.Item.Unit"
+                               Immediate="true" Margin="Margin.Dense">
+                        @foreach (var u in Enum.GetValues<MeasurementUnit>())
+                        {
+                            <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
+                        }
+                    </MudSelect>
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.PackageSize" Title="Package Size" Editable="true">
+                <EditTemplate>
+                    <MudNumericField T="decimal" @bind-Value="context.Item.PackageSize"
+                                     Min="0.001m" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.CategoryId" Title="Category" Editable="true">
+                <CellTemplate>
+                    @CategoryName(context.Item.CategoryId)
+                </CellTemplate>
+                <EditTemplate>
+                    <MudSelect T="int" @bind-Value="context.Item.CategoryId"
+                               Immediate="true" Margin="Margin.Dense">
+                        @foreach (var cat in _categories)
+                        {
+                            <MudSelectItem T="int" Value="cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </EditTemplate>
+            </PropertyColumn>
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   OnClick="@(() => ValidateRow(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => RemoveRow(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
 
 <MudDataGrid T="ItemResponse" Items="_items" ReadOnly="false"
              EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
@@ -60,8 +119,6 @@
         </PropertyColumn>
         <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
             <CellTemplate>
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                               OnClick="@(() => Nav.NavigateTo($"/items/edit/{context.Item.Id}"))" />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => DeleteAsync(context.Item))" />
             </CellTemplate>
@@ -73,6 +130,43 @@
     private List<ItemResponse> _items = [];
     private List<CategoryResponse> _categories = [];
     private bool _loading = true;
+    private List<ItemDraft> _pendingRows = [];
+
+    private class ItemDraft
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public MeasurementUnit Unit { get; set; }
+        public decimal PackageSize { get; set; } = 1;
+        public int CategoryId { get; set; }
+    }
+
+    private void AddRow() => _pendingRows.Add(new ItemDraft());
+
+    private void RemoveRow(ItemDraft draft) => _pendingRows.Remove(draft);
+
+    private async Task ValidateRow(ItemDraft draft)
+    {
+        var result = await ItemSvc.CreateAsync(new CreateItemRequest
+        {
+            Name = draft.Name,
+            Description = draft.Description,
+            Unit = draft.Unit,
+            PackageSize = draft.PackageSize,
+            CategoryId = draft.CategoryId
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Item \"{draft.Name}\" created.", Severity.Success);
+            _pendingRows.Remove(draft);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to create item.", Severity.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {

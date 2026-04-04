@@ -1,16 +1,59 @@
 @page "/categories"
 @inject CategoryService CategorySvc
 @inject ISnackbar Snackbar
-@inject NavigationManager Nav
 
 <PageTitle>Categories</PageTitle>
 
 <MudText Typo="Typo.h4" Class="mb-4">Categories</MudText>
 
-<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add"
-           OnClick="@(() => Nav.NavigateTo("/category/create"))" Class="mb-4">
-    New
+<MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PlaylistAdd"
+           OnClick="AddRow" Class="mb-4">
+    Add row
 </MudButton>
+
+@if (_pendingRows.Count > 0)
+{
+    <MudDataGrid T="CategoryDraft" Items="_pendingRows" ReadOnly="false"
+                 EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
+                 Class="mb-0">
+        <Columns>
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
+                                  RequiredError="Name is required." Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.Description" Title="Description" Editable="true">
+                <EditTemplate>
+                    <MudTextField T="string" @bind-Value="context.Item.Description" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.ParentCategoryId" Title="Parent" Editable="true">
+                <CellTemplate>
+                    @ParentName(context.Item.ParentCategoryId)
+                </CellTemplate>
+                <EditTemplate>
+                    <MudSelect T="int?" @bind-Value="context.Item.ParentCategoryId"
+                               Immediate="true" Margin="Margin.Dense">
+                        <MudSelectItem T="int?" Value="@((int?)null)">— None —</MudSelectItem>
+                        @foreach (var cat in _categories)
+                        {
+                            <MudSelectItem T="int?" Value="cat.Id">@cat.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </EditTemplate>
+            </PropertyColumn>
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
+                <CellTemplate>
+                    <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
+                                   OnClick="@(() => ValidateRow(context.Item))" />
+                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => RemoveRow(context.Item))" />
+                </CellTemplate>
+            </TemplateColumn>
+        </Columns>
+    </MudDataGrid>
+}
 
 <MudDataGrid T="CategoryResponse" Items="_categories" ReadOnly="false"
              EditMode="DataGridEditMode.Cell" CommittedItemChanges="OnCommittedItemChanges"
@@ -27,15 +70,23 @@
                 <MudTextField T="string" @bind-Value="context.Item.Description" Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.ParentCategoryId" Title="Parent" Editable="false">
+        <PropertyColumn Property="x => x.ParentCategoryId" Title="Parent" Editable="true">
             <CellTemplate>
                 @ParentName(context.Item.ParentCategoryId)
             </CellTemplate>
+            <EditTemplate>
+                <MudSelect T="int?" @bind-Value="context.Item.ParentCategoryId"
+                           Immediate="true" Margin="Margin.Dense">
+                    <MudSelectItem T="int?" Value="@((int?)null)">— None —</MudSelectItem>
+                    @foreach (var cat in _categories.Where(c => c.Id != context.Item.Id))
+                    {
+                        <MudSelectItem T="int?" Value="cat.Id">@cat.Name</MudSelectItem>
+                    }
+                </MudSelect>
+            </EditTemplate>
         </PropertyColumn>
         <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false">
             <CellTemplate>
-                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small"
-                               OnClick="@(() => Nav.NavigateTo($"/category/edit/{context.Item.Id}"))" />
                 <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
                                OnClick="@(() => DeleteAsync(context.Item))" />
             </CellTemplate>
@@ -46,6 +97,39 @@
 @code {
     private List<CategoryResponse> _categories = [];
     private bool _loading = true;
+    private List<CategoryDraft> _pendingRows = [];
+
+    private class CategoryDraft
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public int? ParentCategoryId { get; set; }
+    }
+
+    private void AddRow() => _pendingRows.Add(new CategoryDraft());
+
+    private void RemoveRow(CategoryDraft draft) => _pendingRows.Remove(draft);
+
+    private async Task ValidateRow(CategoryDraft draft)
+    {
+        var result = await CategorySvc.CreateAsync(new CreateCategoryRequest
+        {
+            Name = draft.Name,
+            Description = draft.Description,
+            ParentCategoryId = draft.ParentCategoryId
+        });
+
+        if (result is not null)
+        {
+            Snackbar.Add($"Category \"{draft.Name}\" created.", Severity.Success);
+            _pendingRows.Remove(draft);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to create category.", Severity.Error);
+        }
+    }
 
     protected override async Task OnInitializedAsync()
     {
