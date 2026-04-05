@@ -6,6 +6,7 @@
 @inject MealSlotItemService MealSlotItemSvc
 @inject ItemService ItemSvc
 @inject ISnackbar Snackbar
+@inject IJSRuntime JS
 @inject RightPanelState RightPanel
 @inject NavigationManager Nav
 @implements IDisposable
@@ -46,17 +47,7 @@ else if (_parent is not null)
                    Style="visibility: hidden;" Disabled="true">
             Save All
         </MudButton>
-        <div style="flex: 1; display: flex; justify-content: center;">
-            @if (_pendingAction is not null)
-            {
-                var actionLabel = _pendingAction.IsCopy ? "Copier" : "Déplacer";
-                var scopeLabel = _pendingAction.ItemId.HasValue ? "item" : "cellule";
-                <MudChip T="string" Color="@(_pendingAction.IsCopy ? Color.Info : Color.Secondary)"
-                         OnClose="@(() => _pendingAction = null)">
-                    @actionLabel @scopeLabel — cliquez sur la cellule cible
-                </MudChip>
-            }
-        </div>
+        <div style="flex: 1;"></div>
         <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Save"
                    Disabled="@(_pendingMoves.Count == 0 && _pendingReorders.Count == 0)"
                    OnClick="SaveAllAsync">
@@ -64,17 +55,23 @@ else if (_parent is not null)
         </MudButton>
     </MudToolBar>
 
+    <div class="dayplan-grid-wrapper">
     <div class="dayplan-grid">
-        @* Header row *@
-        <div class="dayplan-grid-header">
+        @* Header row — delete zone during drag *@
+        <div class="dayplan-grid-header @(_isDragging ? "dayplan-delete-zone" : "")"
+             @ondrop="HandleTrashDropAsync">
             <MudText Typo="Typo.subtitle2">Date</MudText>
         </div>
         @foreach (var mt in _mealTypes)
         {
-            <div class="dayplan-grid-header">
+            <div class="dayplan-grid-header @(_isDragging ? "dayplan-delete-zone" : "")"
+                 @ondrop="HandleTrashDropAsync">
                 <MudText Typo="Typo.subtitle2">@mt</MudText>
             </div>
         }
+        <div class="dayplan-grid-header @(_isDragging ? "dayplan-delete-zone" : "")"
+             @ondrop="HandleTrashDropAsync">
+        </div>
 
         @* Day rows *@
         @foreach (var date in _dates)
@@ -86,7 +83,8 @@ else if (_parent is not null)
             var cellCssClass = isHoliday ? "dayplan-grid-cell dayplan-holiday" : isWeekend ? "dayplan-grid-cell dayplan-weekend" : "dayplan-grid-cell";
             var holidayName = isHoliday ? GetHolidayName(date) : null;
 
-            <div class="dayplan-grid-date @dateCssClass">
+            <div class="dayplan-grid-date @dateCssClass @(_isDragging ? "dayplan-delete-zone" : "")"
+                 @ondrop="HandleTrashDropAsync">
                 @if (isHoliday)
                 {
                     <MudTooltip Text="@holidayName" Placement="Placement.Right">
@@ -110,30 +108,30 @@ else if (_parent is not null)
                 var slot = dp?.MealSlots.FirstOrDefault(ms => ms.MealType == mt);
                 var capturedDate = date;
                 var capturedMt = mt;
-                var isSource = _pendingAction is not null
-                    && _pendingAction.SourceDate == capturedDate
-                    && _pendingAction.SourceMealType == capturedMt;
                 <div class="@cellCssClass">
                     <MealCell Date="capturedDate"
                               MealType="capturedMt"
                               MealSlotId="slot?.Id"
                               Items="@(slot?.MealSlotItems ?? [])"
-                              HasPendingAction="_pendingAction is not null"
-                              IsSource="isSource"
-                              IsCopyMode="@(_pendingAction?.IsCopy ?? false)"
-                              PendingSourceItemId="@(isSource ? _pendingAction!.ItemId : null)"
                               OnAddRequested="OpenDrawer"
                               OnItemRemoved="RemoveItemAsync"
                               OnItemMoved="HandleMoveItem"
                               OnOrderChanged="HandleOrderChanged"
-                              OnCopyCellRequested="@(() => HandleSourceSelected(capturedDate, capturedMt, null, true))"
-                              OnMoveCellRequested="@(() => HandleSourceSelected(capturedDate, capturedMt, null, false))"
-                              OnCopyItemRequested="@(itemId => HandleSourceSelected(capturedDate, capturedMt, itemId, true))"
-                              OnMoveItemRequested="@(itemId => HandleSourceSelected(capturedDate, capturedMt, itemId, false))"
-                              OnTargetSelected="@(() => HandleTargetSelectedAsync(capturedDate, capturedMt))" />
+                              OnCellFooterDrop="@(async args => await HandleCellDragDropAsync(args.fromDate, args.fromMealType, args.isCopy, capturedDate, capturedMt))"
+                              OnItemCloneRequested="CloneItemAsync"
+                              OnDragStarted="@(() => { _isDragging = true; StateHasChanged(); })"
+                              OnDragEnded="@(() => { _isDragging = false; StateHasChanged(); })"
+                              OnCellClearRequested="ClearCellAsync" />
                 </div>
             }
+            <div class="dayplan-grid-date-right @dateCssClass @(_isDragging ? "dayplan-delete-zone" : "")"
+                 @ondrop="HandleTrashDropAsync">
+                <MudText Typo="Typo.body2" Style="@(isHoliday ? "font-weight: 600;" : isWeekend ? "font-weight: 500;" : "")">
+                    @date.ToString("ddd dd MMM", _frCulture)
+                </MudText>
+            </div>
         }
+    </div>
     </div>
 }
 
@@ -192,13 +190,26 @@ else if (_parent is not null)
         width: 54px;
         height: 54px !important;
         font-size: 0.8rem !important;
-        background-color: #1B5E20 !important;
-        color: #fff !important;
+        background-color: var(--mud-palette-success) !important;
+        color: white !important;
+    }
+
+    .dayplan-grid-wrapper {
+        display: flex;
+        align-items: stretch;
+    }
+
+    .dayplan-delete-zone {
+        background: color-mix(in srgb, var(--mud-palette-error) 10%, var(--mud-palette-surface)) !important;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-error) 30%, transparent);
+        cursor: crosshair;
     }
 
     .dayplan-grid {
+        flex: 1;
+        min-width: 0;
         display: grid;
-        grid-template-columns: 120px repeat(5, 1fr);
+        grid-template-columns: 120px repeat(5, 1fr) 120px;
         gap: 1px;
         background: var(--mud-palette-table-lines);
         border: 1px solid var(--mud-palette-table-lines);
@@ -218,9 +229,16 @@ else if (_parent is not null)
         align-items: flex-start;
     }
 
+    .dayplan-grid-date-right {
+        background: var(--mud-palette-surface);
+        padding: 8px;
+        display: flex;
+        align-items: flex-start;
+        transition: background 0.25s ease, box-shadow 0.25s ease;
+    }
+
     .dayplan-grid-cell {
         background: var(--mud-palette-surface);
-        padding: 5px 6px;
         min-height: 60px;
         min-width: 0;
         display: flex;
@@ -231,6 +249,7 @@ else if (_parent is not null)
     .meal-cell {
         flex: 1;
         min-width: 0;
+        min-height: 68px;
         display: flex;
         flex-direction: column;
         position: relative;
@@ -239,31 +258,18 @@ else if (_parent is not null)
         transition: box-shadow 0.2s, background 0.2s;
     }
 
-    .meal-cell:hover:not(.meal-cell-source-copy):not(.meal-cell-source-move):not(.meal-cell-target-copy):not(.meal-cell-target-move) {
+    .meal-cell:not(.meal-cell-empty) {
+        background: color-mix(in srgb, var(--mud-palette-success) 6%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-success) 35%, transparent);
+    }
+
+    .meal-cell:hover:not(.meal-cell-drag-copy):not(.meal-cell-drag-move) {
         background: color-mix(in srgb, var(--mud-palette-success) 6%, var(--mud-palette-surface));
         box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-success) 30%, transparent),
                     inset 0 0 14px color-mix(in srgb, var(--mud-palette-success) 10%, transparent);
     }
 
-    .meal-cell-add-icon {
-        opacity: 0;
-        background: color-mix(in srgb, #1B5E20 10%, white) !important;
-        border-radius: 50% !important;
-        box-shadow: 0 2px 8px color-mix(in srgb, #1B5E20 15%, transparent);
-        transition: opacity 0.15s, transform 0.15s, box-shadow 0.15s !important;
-    }
-
-    .meal-cell:hover .meal-cell-add-icon {
-        opacity: 0.45;
-    }
-
-    .meal-cell:hover .meal-cell-add-icon:hover {
-        opacity: 0.9;
-        box-shadow: 0 4px 14px color-mix(in srgb, #1B5E20 30%, transparent);
-        transform: scale(1.18);
-    }
-
-    .dayplan-weekend {
+.dayplan-weekend {
         background: var(--mud-palette-background-grey);
     }
 
@@ -271,61 +277,43 @@ else if (_parent is not null)
         background: color-mix(in srgb, var(--mud-palette-warning) 15%, var(--mud-palette-surface));
     }
 
+    .meal-cell-empty {
+        cursor: pointer;
+    }
+
     .meal-cell-list {
+        flex: 1;
         list-style: none;
         padding: 0 2px;
         margin: 0;
+        position: relative;
+        z-index: 1;
     }
 
     .meal-cell-item {
         display: grid;
-        grid-template-columns: 1fr 56px auto auto auto;
+        grid-template-columns: 1fr 56px;
         align-items: center;
         gap: 2px;
-        padding: 2px 5px;
+        padding: 0;
         font-size: 0.8rem;
         min-width: 0;
         border-radius: 4px;
-        transition: background 0.15s;
+        background: color-mix(in srgb, var(--mud-palette-info) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--mud-palette-info) 25%, transparent);
+        transition: background 0.15s ease;
     }
 
     .meal-cell-item:hover {
-        background: color-mix(in srgb, var(--mud-palette-success) 7%, transparent);
+        background: color-mix(in srgb, var(--mud-palette-info) 22%, transparent);
+        border-color: color-mix(in srgb, var(--mud-palette-info) 45%, transparent);
     }
 
-    .meal-cell-item:hover .meal-cell-item-name {
-        text-shadow: 0 0 10px color-mix(in srgb, #1B5E20 50%, transparent),
-                     0 0 3px  color-mix(in srgb, #1B5E20 25%, transparent);
-        color: color-mix(in srgb, #1B5E20 65%, var(--mud-palette-text-primary));
-    }
-
-    .meal-cell-source-copy {
+    .meal-cell-drag-copy,
+    .meal-cell-drag-move {
         border-radius: 8px;
-        background: color-mix(in srgb, var(--mud-palette-info) 8%, var(--mud-palette-surface));
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-info) 28%, transparent),
-                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-info) 10%, transparent);
-    }
-    .meal-cell-source-move {
-        border-radius: 8px;
-        background: color-mix(in srgb, var(--mud-palette-secondary) 8%, var(--mud-palette-surface));
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-secondary) 28%, transparent),
-                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-secondary) 10%, transparent);
-    }
-    .meal-cell-target-copy {
-        border-radius: 8px;
-        background: color-mix(in srgb, var(--mud-palette-info) 8%, var(--mud-palette-surface)) !important;
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-info) 28%, transparent),
-                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-info) 10%, transparent);
-    }
-    .meal-cell-target-move {
-        border-radius: 8px;
-        background: color-mix(in srgb, var(--mud-palette-secondary) 8%, var(--mud-palette-surface)) !important;
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-secondary) 28%, transparent),
-                    inset 0 0 12px color-mix(in srgb, var(--mud-palette-secondary) 10%, transparent);
-    }
-
-    .meal-cell-item-source {
-        background: color-mix(in srgb, var(--mud-palette-info) 20%, #d0f0ff) !important;
+        background: color-mix(in srgb, var(--mud-palette-info) 15%, transparent) !important;
+        box-shadow: inset 0 0 0 1px var(--mud-palette-info) !important;
     }
 
     .meal-cell-item-name {
@@ -342,10 +330,39 @@ else if (_parent is not null)
     }
 
     .meal-cell-footer {
-        flex: 1;
+        flex: 0 0 auto;
         display: flex;
         align-items: center;
         padding: 1px 4px;
+        position: relative;
+        z-index: 1;
+    }
+
+
+    .footer-drag-icon {
+        display: none;
+        align-items: center;
+        opacity: 0.55;
+        color: var(--mud-palette-text-secondary);
+        padding-right: 2px;
+        pointer-events: none;
+    }
+
+    .footer-drag-icon-copy {
+        color: var(--mud-palette-info);
+        opacity: 0.8;
+    }
+
+    .meal-cell-footer.footer-drag-active .footer-drag-icon-move {
+        display: inline-flex;
+    }
+
+    .meal-cell-footer.footer-drag-active.footer-copy-mode .footer-drag-icon-move {
+        display: none;
+    }
+
+    .meal-cell-footer.footer-drag-active.footer-copy-mode .footer-drag-icon-copy {
+        display: inline-flex;
     }
 
     .meal-cell-slot-total {
@@ -355,6 +372,7 @@ else if (_parent is not null)
         color: var(--mud-palette-text-primary);
         text-align: center;
         white-space: nowrap;
+        padding: 1px;
     }
 </style>
 
@@ -367,6 +385,7 @@ else if (_parent is not null)
 
     private MenuPlanResponse? _parent;
     private bool _parentNotFound;
+    private bool _isDragging;
     private List<DateOnly> _dates = [];
     private Dictionary<DateOnly, DayPlanResponse> _dayPlanByDate = new();
     private List<ItemResponse> _allItems = [];
@@ -386,12 +405,8 @@ else if (_parent is not null)
     private Dictionary<int, List<int>> _pendingReorders = new();
     private List<PendingMove> _pendingMoves = [];
 
-    // Copy/move action state
-    private CellPendingAction? _pendingAction;
-
     private sealed record PendingMove(int ItemId, DateOnly TargetDate, MealType TargetMealType, int NewOrder);
     private sealed record MonthNavItem(int Month, int Year, string Label, string Short, int? MenuPlanId, bool HasData);
-    private sealed record CellPendingAction(DateOnly SourceDate, MealType SourceMealType, int? ItemId, bool IsCopy);
 
     // Drawer state
     private bool _drawerOpen;
@@ -474,7 +489,7 @@ else if (_parent is not null)
     private async Task AddItemAsync(ItemResponse item)
     {
         var success = await AddItemToSlotAsync(_selectedDate, _selectedMealType, item.Id, 1);
-        Snackbar.Add(success ? $"{item.Name} added." : "Failed to add item.", success ? Severity.Success : Severity.Error);
+        if (!success) Snackbar.Add("Failed to add item.", Severity.Error);
         await LoadAsync();
     }
 
@@ -501,32 +516,10 @@ else if (_parent is not null)
         return result is not null;
     }
 
-    private void HandleSourceSelected(DateOnly date, MealType mt, int? itemId, bool isCopy)
+    private async Task HandleCellDragDropAsync(DateOnly fromDate, MealType fromMealType, bool isCopy, DateOnly targetDate, MealType targetMealType)
     {
-        // Second click on same source → cancel
-        if (_pendingAction?.SourceDate == date && _pendingAction?.SourceMealType == mt && _pendingAction?.ItemId == itemId)
-            _pendingAction = null;
-        else
-            _pendingAction = new(date, mt, itemId, isCopy);
-    }
-
-    private async Task HandleTargetSelectedAsync(DateOnly targetDate, MealType targetMealType)
-    {
-        if (_pendingAction is null) return;
-        // Click on source cell → cancel
-        if (_pendingAction.SourceDate == targetDate && _pendingAction.SourceMealType == targetMealType)
-        {
-            _pendingAction = null;
-            return;
-        }
-
-        var action = _pendingAction;
-        _pendingAction = null;
-
-        if (action.ItemId is null)
-            await ExecuteCellActionAsync(action.SourceDate, action.SourceMealType, targetDate, targetMealType, action.IsCopy);
-        else
-            await ExecuteItemActionAsync(action.SourceDate, action.SourceMealType, action.ItemId.Value, targetDate, targetMealType, action.IsCopy);
+        if (fromDate == targetDate && fromMealType == targetMealType) return;
+        await ExecuteCellActionAsync(fromDate, fromMealType, targetDate, targetMealType, isCopy);
     }
 
     private async Task ExecuteCellActionAsync(DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, bool isCopy)
@@ -550,30 +543,6 @@ else if (_parent is not null)
         }
 
         Snackbar.Add($"{done} item(s) {(isCopy ? "copiés" : "déplacés")}.", Severity.Success);
-        await LoadAsync();
-    }
-
-    private async Task ExecuteItemActionAsync(DateOnly fromDate, MealType fromMealType, int mealSlotItemId, DateOnly toDate, MealType toMealType, bool isCopy)
-    {
-        MealSlotItemResponse? srcItem = null;
-        if (_dayPlanByDate.TryGetValue(fromDate, out var srcDp))
-        {
-            var srcSlot = srcDp.MealSlots.FirstOrDefault(ms => ms.MealType == fromMealType);
-            srcItem = srcSlot?.MealSlotItems.FirstOrDefault(i => i.Id == mealSlotItemId);
-        }
-        if (srcItem is null) return;
-
-        var success = await AddItemToSlotAsync(toDate, toMealType, srcItem.ItemId, srcItem.Quantity);
-        if (!success)
-        {
-            Snackbar.Add("Échec de l'ajout.", Severity.Error);
-            return;
-        }
-
-        if (!isCopy)
-            await MealSlotItemSvc.DeleteAsync(mealSlotItemId);
-
-        Snackbar.Add(isCopy ? "Item copié." : "Item déplacé.", Severity.Success);
         await LoadAsync();
     }
 
@@ -681,6 +650,39 @@ else if (_parent is not null)
         {
             Snackbar.Add("Failed to remove item.", Severity.Error);
         }
+    }
+
+    private async Task CloneItemAsync((DateOnly date, MealType mealType, int mealSlotItemId) args)
+    {
+        var slot = _dayPlanByDate.GetValueOrDefault(args.date)
+            ?.MealSlots.FirstOrDefault(ms => ms.MealType == args.mealType);
+        var source = slot?.MealSlotItems.FirstOrDefault(i => i.Id == args.mealSlotItemId);
+        if (source is null) return;
+        var success = await AddItemToSlotAsync(args.date, args.mealType, source.ItemId, source.Quantity);
+        Snackbar.Add(success ? $"{source.ItemName} cloned." : "Failed to clone item.", success ? Severity.Success : Severity.Error);
+        if (success) await LoadAsync();
+    }
+
+    private async Task ClearCellAsync((DateOnly date, MealType mealType) args)
+    {
+        var slot = _dayPlanByDate.GetValueOrDefault(args.date)
+            ?.MealSlots.FirstOrDefault(ms => ms.MealType == args.mealType);
+        if (slot is null || slot.MealSlotItems.Count == 0) return;
+        foreach (var item in slot.MealSlotItems.ToList())
+            await MealSlotItemSvc.DeleteAsync(item.Id);
+        Snackbar.Add("Slot cleared.", Severity.Success);
+        await LoadAsync();
+    }
+
+    private async Task HandleTrashDropAsync(DragEventArgs _)
+    {
+        var raw = await JS.InvokeAsync<string?>("getAndClearFooterDragSource");
+        if (raw is null) return;
+        var parts = raw.Split('|');
+        if (parts.Length != 3) return;
+        if (!DateOnly.TryParse(parts[0], out var fromDate)) return;
+        if (!Enum.TryParse<MealType>(parts[1], out var fromMealType)) return;
+        await ClearCellAsync((fromDate, fromMealType));
     }
 
     private void BuildMonthNav()

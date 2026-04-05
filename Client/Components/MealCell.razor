@@ -1,57 +1,38 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 
-<div class="meal-cell @(Items.Count == 0 ? "meal-cell-empty" : "") @CellCssClass"
-     style="@(IsActionTarget ? "cursor:pointer;" : "")"
-     @onclick="HandleTargetClick">
-    <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list" style="background:#fff3cd">
+<div @ref="_cellRef"
+     class="meal-cell @(Items.Count == 0 ? "meal-cell-empty" : "")"
+     @ondrop="HandleCellDropAsync"
+     @onclick="HandleCellClick">
+    <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list">
         @foreach (var item in Items)
         {
-            var isItemSrc = IsSource && PendingSourceItemId == item.Id;
-            <li @key="item.Id" data-item-id="@item.Id"
-                class="meal-cell-item @(isItemSrc ? "meal-cell-item-source" : "")">
-                <span class="meal-cell-item-name" style="background:#d8f5d8">@item.ItemName</span>
-                <span class="meal-cell-item-price" style="background:#f5d8f5">@FormatItemPrice(item)</span>
-                <span @onclick:stopPropagation="true">
-                    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Color="Color.Info" Size="Size.Small"
-                                   Style="@(IsActionTarget ? "visibility:hidden" : "")"
-                                   OnClick="@(() => OnCopyItemRequested.InvokeAsync(item.Id))" />
-                </span>
-                <span @onclick:stopPropagation="true">
-                    <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove" Color="Color.Secondary" Size="Size.Small"
-                                   Style="@(IsActionTarget ? "visibility:hidden" : "")"
-                                   OnClick="@(() => OnMoveItemRequested.InvokeAsync(item.Id))" />
-                </span>
-                <span @onclick:stopPropagation="true">
-                    <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error" Size="Size.Small"
-                                   Style="background:#ffd8b0"
-                                   OnClick="@(() => OnItemRemoved.InvokeAsync(item.Id))" />
-                </span>
+            var capturedItem = item;
+            <li @key="item.Id" data-item-id="@item.Id" class="meal-cell-item"
+                @onclick="@(e => HandleItemClick(e, capturedItem.Id))"
+                @onclick:stopPropagation="true"
+                @ondblclick="@(() => OnItemRemoved.InvokeAsync(capturedItem.Id))"
+                @ondblclick:stopPropagation="true">
+                <span class="meal-cell-item-name">@item.ItemName</span>
+                <span class="meal-cell-item-price">@FormatItemPrice(item)</span>
             </li>
         }
     </ul>
-    <div class="meal-cell-footer" style="cursor:pointer;" @onclick:stopPropagation="true" @onclick="HandleFooterClick">
-        <span @onclick:stopPropagation="true">
-            <MudIconButton Icon="@Icons.Material.Filled.FileCopy" Color="Color.Info" Size="Size.Small"
-                           Style="@(IsActionTarget || Items.Count == 0 ? "visibility:hidden" : "background:#b0d8ff")"
-                           OnClick="@(() => OnCopyCellRequested.InvokeAsync())" />
+    <div class="meal-cell-footer" @ref="_footerRef" draggable="true"
+         @ondragstart="HandleFooterDragStart"
+         @ondragend="HandleFooterDragEnd"
+         @onclick:stopPropagation="true" @onclick="HandleFooterClick">
+        <span class="footer-drag-icon footer-drag-icon-move">
+            <MudIcon Icon="@Icons.Material.Outlined.OpenWith" Size="Size.Small" />
         </span>
-        <span @onclick:stopPropagation="true">
-            <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove" Color="Color.Secondary" Size="Size.Small"
-                           Style="@(IsActionTarget || Items.Count == 0 ? "visibility:hidden" : "")"
-                           OnClick="@(() => OnMoveCellRequested.InvokeAsync())" />
+        <span class="footer-drag-icon footer-drag-icon-copy">
+            <MudIcon Icon="@Icons.Material.Outlined.ContentCopy" Size="Size.Small" />
         </span>
-        <span class="meal-cell-slot-total" style="flex:1; text-align:center; position:relative;">
+        <span class="meal-cell-slot-total" style="flex:1; text-align:center;"
+              @ondblclick="@(() => { if (Items.Count > 0) OnCellClearRequested.InvokeAsync((Date, MealType)); })"
+              @ondblclick:stopPropagation="true">
             @(SlotTotal > 0 ? SlotTotal.ToString("C", _fr) : "")
-            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Success" Size="Size.Small"
-                           Class="meal-cell-add-icon"
-                           Style="@AddIconStyle" />
-        </span>
-        <span style="visibility:hidden; pointer-events:none;">
-            <MudIconButton Icon="@Icons.Material.Filled.FileCopy" Size="Size.Small" />
-        </span>
-        <span style="visibility:hidden; pointer-events:none;">
-            <MudIconButton Icon="@Icons.Material.Filled.DriveFileMove" Size="Size.Small" />
         </span>
     </div>
 </div>
@@ -63,19 +44,7 @@
     [Parameter, EditorRequired] public MealType MealType { get; set; }
     [Parameter] public int? MealSlotId { get; set; }
     [Parameter] public List<MealSlotItemResponse> Items { get; set; } = [];
-
-    [Parameter] public bool HasPendingAction { get; set; }
-    [Parameter] public bool IsSource { get; set; }
-    [Parameter] public bool IsCopyMode { get; set; }
-    [Parameter] public int? PendingSourceItemId { get; set; }
-
-    private bool IsActionTarget => HasPendingAction && !IsSource;
-    private string AddIconStyle => "position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); pointer-events:none;" +
-        (IsActionTarget ? " visibility:hidden;" : "");
-
-    private string CellCssClass => IsSource
-        ? (IsCopyMode ? "meal-cell-source-copy" : "meal-cell-source-move")
-        : IsActionTarget ? (IsCopyMode ? "meal-cell-target-copy" : "meal-cell-target-move") : "";
+    [Parameter] public bool IsActionTarget { get; set; }
 
     private decimal SlotTotal => Items
         .Where(i => i.UnitPrice.HasValue)
@@ -92,35 +61,59 @@
     [Parameter] public EventCallback<int> OnItemRemoved { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnAddRequested { get; set; }
     [Parameter] public EventCallback<(int? mealSlotId, List<int> orderedIds)> OnOrderChanged { get; set; }
-    [Parameter] public EventCallback OnCopyCellRequested { get; set; }
-    [Parameter] public EventCallback OnMoveCellRequested { get; set; }
-    [Parameter] public EventCallback<int> OnCopyItemRequested { get; set; }
-    [Parameter] public EventCallback<int> OnMoveItemRequested { get; set; }
-    [Parameter] public EventCallback OnTargetSelected { get; set; }
+    [Parameter] public EventCallback<(DateOnly fromDate, MealType fromMealType, bool isCopy)> OnCellFooterDrop { get; set; }
+    [Parameter] public EventCallback<(DateOnly date, MealType mealType, int mealSlotItemId)> OnItemCloneRequested { get; set; }
+    [Parameter] public EventCallback OnDragStarted { get; set; }
+    [Parameter] public EventCallback OnDragEnded { get; set; }
+    [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnCellClearRequested { get; set; }
+
+    private async Task HandleCellClick()
+    {
+        if (Items.Count == 0 && !IsActionTarget)
+            await OnAddRequested.InvokeAsync((Date, MealType));
+    }
+
+    private async Task HandleItemClick(MouseEventArgs e, int mealSlotItemId)
+    {
+        if (e.CtrlKey)
+            await OnItemCloneRequested.InvokeAsync((Date, MealType, mealSlotItemId));
+    }
+
+    private async Task HandleFooterDragStart(DragEventArgs e)
+    {
+        var isCopy = e.ShiftKey || e.CtrlKey;
+        await JS.InvokeVoidAsync("setFooterDragSource", _footerRef, Date.ToString("yyyy-MM-dd"), MealType.ToString(), isCopy);
+        await OnDragStarted.InvokeAsync();
+    }
+
+    private async Task HandleFooterDragEnd(DragEventArgs _)
+        => await OnDragEnded.InvokeAsync();
+
+    private async Task HandleCellDropAsync(DragEventArgs e)
+    {
+        var raw = await JS.InvokeAsync<string?>("getAndClearFooterDragSource");
+        if (raw is null) return;
+        var parts = raw.Split('|');
+        if (parts.Length != 3) return;
+        if (!DateOnly.TryParse(parts[0], out var fromDate)) return;
+        if (!Enum.TryParse<MealType>(parts[1], out var fromMealType)) return;
+        var isCopy = parts[2] == "true" || e.CtrlKey;
+        await OnCellFooterDrop.InvokeAsync((fromDate, fromMealType, isCopy));
+    }
 
     private async Task HandleFooterClick()
-    {
-        if (IsActionTarget)
-            await OnTargetSelected.InvokeAsync();
-        else
-            await OnAddRequested.InvokeAsync((Date, MealType));
-    }
+        => await OnAddRequested.InvokeAsync((Date, MealType));
 
-    private async Task HandleTargetClick()
-    {
-        if (IsActionTarget)
-            await OnTargetSelected.InvokeAsync();
-        else if (Items.Count == 0)
-            await OnAddRequested.InvokeAsync((Date, MealType));
-    }
-
+    private ElementReference _cellRef;
     private ElementReference _listRef;
+    private ElementReference _footerRef;
     private DotNetObjectReference<MealCell>? _dotNetRef;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            await JS.InvokeVoidAsync("addCellDragOverHandler", _cellRef);
             await JS.InvokeVoidAsync("initSortable", _listRef, "mealslots");
             _dotNetRef = DotNetObjectReference.Create(this);
             await JS.InvokeVoidAsync("observeSortable", _listRef, _dotNetRef);
@@ -147,6 +140,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        await JS.InvokeVoidAsync("removeCellDragOverHandler", _cellRef);
         if (_dotNetRef is not null)
         {
             await JS.InvokeVoidAsync("destroySortable", _listRef);

@@ -19,7 +19,7 @@ Blazor WASM (PWA) + MudBlazor · ASP.NET Core Web API (.NET 9) · EF Core 9 + Po
 
 ---
 
-## État du projet (2026-04-04)
+## État du projet (2026-04-05)
 
 ### Backend — complet
 9 slices : Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, MealSlotItem.
@@ -35,7 +35,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Bouton CalendarMonth → MenuPlan                                                  |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan     | 3 ans de cards groupées par année, HasData, MonthlyCost, bouton unifié           |
-| DayPlan      | Calendrier, barre nav mois (±6), drag & drop, panier, copy/move item+cellule, hover glow cell+item — **voir `context_dayplan.md`** pour analyse détaillée (couleurs debug, bugs CSS hover, quirks UX) |
+| DayPlan      | Calendrier, barre nav mois (±6), SortableJS reorder/move, panier, **footer-drag copy/move cellule** (Ctrl=copie, défaut=déplace), **Ctrl+clic clone item** (même slot), **dbl-clic item=suppr**, **dbl-clic total=vider cellule**, trash-zone sur colonnes date/header pendant drag, grille 7 colonnes |
 | Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
 
 ---
@@ -46,7 +46,7 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **Shared** pur (zéro EF), pas de repository, on-demand DayPlan/MealSlot.
 - **Deferred drag & drop**, **Shopping Cart** (panneau droit global).
 - **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
-- **Copy/Move item+cellule** — immédiat (non différé), 2 étapes : source → target. `CellPendingAction` record dans DayPlan/Index.
+- **Copy/Move cellule** — HTML5 drag-and-drop natif (footer draggable). Ctrl tenu = copie, défaut = déplace. Drop sur trash-zone = clear. Plus de `CellPendingAction`, plus de boutons par item.
 - **Tests** — SQLite in-memory uniquement.
 
 ---

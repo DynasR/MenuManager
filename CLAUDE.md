@@ -150,7 +150,7 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 | Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
 | MenuPlan     | ✅      | ✅ cards        | 3-year cards, HasData coloring, MonthlyCost, unified button        |
-| DayPlan      | ✅      | ✅ calendar     | Month nav bar, drag & drop, shopping cart, copy/move cell+item, hover polish |
+| DayPlan      | ✅      | ✅ calendar     | Month nav bar, SortableJS reorder/move, shopping cart, footer-drag copy/move cell, Ctrl+click clone item, dbl-click delete, trash-zone clear, 7-col grid |
 | MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 | MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
@@ -172,7 +172,7 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 ## DayPlan/Index — monthly calendar view
 
 ### Layout
-- CSS grid: 7 columns — Date + 5 MealTypes.
+- CSS grid: 7 columns — Date + 5 MealTypes + Date-right label (repeats date on right for readability). Wrapped in `.dayplan-grid-wrapper` (flex).
 - One row per day of the month, FR locale, weekend/holiday coloring.
 - `FrenchHolidays.cs` helper for public holidays (fixed + Easter-based).
 
@@ -185,32 +185,39 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
 ### MealCell component (`Client/Components/MealCell.razor`)
 - One cell per `(DateOnly date, MealType mealType)`.
-- Ordered list of items, SortableJS drag & drop, delete button per item.
-- `meal-cell-empty` class applied when no items.
+- Ordered list of items (SortableJS drag & drop for reorder within/across slots).
+- `meal-cell-empty` class when no items; `.meal-cell:not(.meal-cell-empty)` gets subtle green tint.
 - Displays price per item + slot total (EUR, FR locale, `ceil(qty/PackageSize)*UnitPrice`).
-- **Footer**: fully clickable (`HandleFooterClick`); copy/move cell buttons + slot total span with floating Add icon (`.meal-cell-add-icon`) centered, fades in on cell hover. Empty cell click also opens add drawer.
-- **Hover states**: `.meal-cell:hover` green glow (inset box-shadow, excludes source/target classes); `.meal-cell-item:hover` green wash; `.meal-cell-item:hover .meal-cell-item-name` text-shadow glow.
-- **Copy/move parameters**: `HasPendingAction`, `IsSource`, `IsCopyMode`, `PendingSourceItemId`.
-- **CSS visual states**: `meal-cell-source-copy/move`, `meal-cell-target-copy/move` applied on cell; `meal-cell-item-source` on source item.
-- **Callbacks**: `OnItemMoved`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCopyCellRequested`, `OnMoveCellRequested`, `OnCopyItemRequested`, `OnMoveItemRequested`, `OnTargetSelected`.
+- **Footer**: `draggable="true"` — drag to copy/move cell (Ctrl held during drag = copy, default = move). Slot total displayed; double-click slot total = clear all items (`OnCellClearRequested`). Click footer = open add drawer.
+- **Item interactions**: click item with Ctrl = clone in same slot (`OnItemCloneRequested`); double-click item = delete (`OnItemRemoved`).
+- **Hover states**: `.meal-cell:hover` green glow (inset box-shadow, excludes drag-source/target classes); `.meal-cell-item:hover` blue wash.
+- **Parameters**: `IsActionTarget` (bool, simplest — set externally when cell is a drop target).
+- **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `footer-drag-active`, `footer-copy-mode` on footer during drag.
+- **Callbacks**: `OnItemMoved`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted`, `OnDragEnded`, `OnCellClearRequested`.
 
 ### AddItemToSlotAsync — on-demand creation (shared helper)
 - Private `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)`.
 - DayPlan → MealSlot → MealSlotItem created lazily. Returns `false` on any API failure.
-- Called by: AddItemAsync (drawer), ExecuteCellActionAsync, ExecuteItemActionAsync.
+- Called by: AddItemAsync (drawer), ExecuteCellActionAsync, CloneItemAsync.
 
-### Copy/Move feature (DayPlan/Index — fully implemented)
+### Cell drag-and-drop (DayPlan/Index — fully implemented)
 
-2-step interaction, immediate (not deferred):
-1. User clicks Copy or Move button on an item or cell footer → `HandleSourceSelected` sets `_pendingAction` (`CellPendingAction` record).
-2. A chip appears in the toolbar center; all other cells become clickable targets.
-3. User clicks a target cell → `HandleTargetSelectedAsync` dispatches to `ExecuteCellActionAsync` or `ExecuteItemActionAsync`.
-4. Click on same source → cancel. `_pendingAction = null` to reset.
+Footer-drag UX — immediate (not deferred):
+- Drag a cell footer to another cell → `HandleCellDragDropAsync` → `ExecuteCellActionAsync` (move by default, Ctrl held = copy).
+- Drag a cell footer to a trash zone (date col, header row) → `HandleTrashDropAsync` → `ClearCellAsync` (deletes all items in slot).
+- `_isDragging` bool → trash zones (`.dayplan-delete-zone`) shown on all date/header cells during drag.
+- No `CellPendingAction` record — no click-based 2-step flow.
 
-- **Item-level**: copies/moves a single `MealSlotItem` (preserves Quantity).
-- **Cell-level**: copies/moves all items in a slot. On move, deletes originals.
-- Both use `AddItemToSlotAsync` for destination, then delete source on move.
-- State: `private CellPendingAction? _pendingAction` — `sealed record(SourceDate, SourceMealType, ItemId?, IsCopy)`.
+**Item-level operations (within same slot):**
+- `Ctrl+Click` on item → `CloneItemAsync` (adds duplicate with same quantity in same slot).
+- `Double-click` on item → delete (`OnItemRemoved`).
+- Cross-cell item move is deferred (SortableJS) — see Drag & drop section.
+
+**JS interop (`sortable-interop.js`):**
+- `setFooterDragSource(element, date, mealType, isCopy)` — registers drag source, attaches keydown/keyup for live copy-mode toggle.
+- `getAndClearFooterDragSource()` → `"date|mealType|isCopy"` string or `null`.
+- `addCellDragOverHandler(element)` / `removeCellDragOverHandler(element)` — native `dragover/enter/leave/drop` handlers; adds `meal-cell-drag-copy` or `meal-cell-drag-move` CSS class on hover.
+- Global `document.dragover` listener allows drop on `.dayplan-delete-zone` (Blazor WASM's `@ondragover:preventDefault` is not reliably synchronous).
 
 ---
 
