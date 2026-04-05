@@ -1,4 +1,5 @@
 @page "/suppliers"
+@using MenuManager.Shared.Enums
 @inject SupplierService SupplierSvc
 @inject ISnackbar Snackbar
 
@@ -24,38 +25,38 @@
                  EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
                  Class="mb-0" Style="table-layout: fixed; width: 100%">
         <Columns>
-            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 12%">
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 11%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
                                   RequiredError="Name is required." Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.CompanyName" Title="Company" Editable="true" Style="width: 15%">
+            <PropertyColumn Property="x => x.CompanyName" Title="Company" Editable="true" Style="width: 13%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.CompanyName" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Siret" Title="Siret" Editable="true" Style="width: 10%">
+            <PropertyColumn Property="x => x.Siret" Title="Siret" Editable="true" Style="width: 9%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Siret" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true" Style="width: 10%">
+            <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true" Style="width: 9%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Phone" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Email" Title="Email" Editable="true" Style="width: 15%">
+            <PropertyColumn Property="x => x.Email" Title="Email" Editable="true" Style="width: 14%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Email" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Address" Title="Address" Editable="true" Style="width: 13%">
+            <PropertyColumn Property="x => x.Address" Title="Address" Editable="true" Style="width: 12%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Address" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.City" Title="City" Editable="true" Style="width: 10%">
+            <PropertyColumn Property="x => x.City" Title="City" Editable="true" Style="width: 9%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.City" Immediate="true" />
                 </EditTemplate>
@@ -70,6 +71,19 @@
                     <MudTextField T="string" @bind-Value="context.Item.Country" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
+            <TemplateColumn Title="Payment" Editable="true" Style="width: 8%">
+                <EditTemplate>
+                    <MudSelect T="PaymentType" @bind-Value="context.Item.PaymentType" Dense="true">
+                        @foreach (var pt in Enum.GetValues<PaymentType>())
+                        {
+                            <MudSelectItem Value="@pt">@pt.ToString()</MudSelectItem>
+                        }
+                    </MudSelect>
+                </EditTemplate>
+                <CellTemplate>
+                    @context.Item.PaymentType
+                </CellTemplate>
+            </TemplateColumn>
             <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 5%">
                 <CellTemplate>
                     <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
@@ -88,7 +102,7 @@
              Loading="_loading" Hover="true" Striped="true" Dense="true"
              Style="table-layout: fixed; width: 100%">
     <Columns>
-        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 12%">
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 11%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.Name"
@@ -96,7 +110,7 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.CompanyName" Title="Company" Editable="true" Style="width: 15%">
+        <PropertyColumn Property="x => x.CompanyName" Title="Company" Editable="true" Style="width: 13%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.CompanyName"
@@ -104,7 +118,7 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Siret" Title="Siret" Editable="true" Style="width: 10%">
+        <PropertyColumn Property="x => x.Siret" Title="Siret" Editable="true" Style="width: 9%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.Siret"
@@ -112,7 +126,7 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true" Style="width: 10%">
+        <PropertyColumn Property="x => x.Phone" Title="Phone" Editable="true" Style="width: 9%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.Phone"
@@ -120,7 +134,7 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Email" Title="Email" Editable="true" Style="width: 15%">
+        <PropertyColumn Property="x => x.Email" Title="Email" Editable="true" Style="width: 14%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.Email"
@@ -128,7 +142,7 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Address" Title="Address" Editable="true" Style="width: 13%">
+        <PropertyColumn Property="x => x.Address" Title="Address" Editable="true" Style="width: 12%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.Address"
@@ -136,7 +150,7 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.City" Title="City" Editable="true" Style="width: 10%">
+        <PropertyColumn Property="x => x.City" Title="City" Editable="true" Style="width: 9%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.City"
@@ -160,6 +174,22 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
+        <TemplateColumn Title="Payment" Editable="true" Style="width: 8%">
+            <EditTemplate>
+                <MudSelect T="PaymentType"
+                           Value="@context.Item.PaymentType"
+                           ValueChanged="@((PaymentType val) => { context.Item.PaymentType = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                           Dense="true">
+                    @foreach (var pt in Enum.GetValues<PaymentType>())
+                    {
+                        <MudSelectItem Value="@pt">@pt.ToString()</MudSelectItem>
+                    }
+                </MudSelect>
+            </EditTemplate>
+            <CellTemplate>
+                @context.Item.PaymentType
+            </CellTemplate>
+        </TemplateColumn>
         <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 5%">
             <CellTemplate>
                 <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" Size="Size.Small"
@@ -190,6 +220,7 @@
         public string? City { get; set; }
         public string? PostalCode { get; set; }
         public string? Country { get; set; }
+        public PaymentType PaymentType { get; set; } = PaymentType.TR;
     }
 
     private void AddRow() => _pendingRows.Add(new SupplierDraft());
@@ -208,7 +239,8 @@
             Address = draft.Address,
             City = draft.City,
             PostalCode = draft.PostalCode,
-            Country = draft.Country
+            Country = draft.Country,
+            PaymentType = draft.PaymentType
         });
 
         if (result is not null)
@@ -246,7 +278,8 @@
             Address = item.Address,
             City = item.City,
             PostalCode = item.PostalCode,
-            Country = item.Country
+            Country = item.Country,
+            PaymentType = item.PaymentType
         };
         var updated = await SupplierSvc.UpdateAsync(item.Id, request);
         if (updated == null)
@@ -285,7 +318,8 @@
                 Address = item.Address,
                 City = item.City,
                 PostalCode = item.PostalCode,
-                Country = item.Country
+                Country = item.Country,
+                PaymentType = item.PaymentType
             };
             var result = await SupplierSvc.UpdateAsync(item.Id, request);
             if (result != null)

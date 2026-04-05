@@ -1,5 +1,7 @@
+@using MenuManager.Shared.Enums
 @implements IAsyncDisposable
 @inject IJSRuntime JS
+@inject ItemSupplierCache Cache
 
 <div @ref="_cellRef"
      draggable="true"
@@ -25,7 +27,16 @@
                     }
                     @(item.RecipeId.HasValue ? item.RecipeName : item.ItemName)
                 </span>
-                <span class="meal-cell-item-price">@FormatItemPrice(item)</span>
+                <span class="meal-cell-item-price">
+                    @{
+                        var payBadge = !capturedItem.RecipeId.HasValue ? Cache.GetBestSupplier(capturedItem.ItemId) : null;
+                    }
+                    @if (payBadge is not null)
+                    {
+                        <span class="payment-badge payment-badge-@(payBadge.PaymentType == PaymentType.TR ? "tr" : "cb")">@payBadge.PaymentType</span>
+                    }
+                    @FormatItemPrice(item)
+                </span>
             </li>
         }
     </ul>
@@ -100,6 +111,7 @@
     private bool _renderedIsBeingDragged;
     private bool _renderedIsActionTarget;
     private bool _renderedClearPrimed;
+    private Dictionary<int, PaymentType?> _renderedPaymentTypes = new();
 
     protected override bool ShouldRender()
     {
@@ -107,7 +119,8 @@
             || _renderedIsBeingDragged != IsBeingDragged
             || _renderedIsActionTarget != IsActionTarget
             || _renderedMealId != MealId
-            || !ItemsEqual(_renderedItems, Items);
+            || !ItemsEqual(_renderedItems, Items)
+            || !PaymentTypesEqual(_renderedPaymentTypes, GetCurrentPaymentTypes());
         return should;
     }
 
@@ -119,6 +132,19 @@
         for (var i = 0; i < a.Count; i++)
             if (a[i].Id != b[i].Id || a[i].Quantity != b[i].Quantity || a[i].Order != b[i].Order)
                 return false;
+        return true;
+    }
+
+    private Dictionary<int, PaymentType?> GetCurrentPaymentTypes() =>
+        Items.Where(i => !i.RecipeId.HasValue)
+             .DistinctBy(i => i.ItemId)
+             .ToDictionary(i => i.ItemId, i => Cache.GetBestSupplier(i.ItemId)?.PaymentType);
+
+    private static bool PaymentTypesEqual(Dictionary<int, PaymentType?> a, Dictionary<int, PaymentType?> b)
+    {
+        if (a.Count != b.Count) return false;
+        foreach (var (key, val) in a)
+            if (!b.TryGetValue(key, out var bVal) || bVal != val) return false;
         return true;
     }
     // ---
@@ -190,6 +216,7 @@
         _renderedIsBeingDragged = IsBeingDragged;
         _renderedIsActionTarget = IsActionTarget;
         _renderedClearPrimed = _clearPrimed;
+        _renderedPaymentTypes = GetCurrentPaymentTypes();
 
         if (firstRender)
         {

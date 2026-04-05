@@ -55,6 +55,7 @@ public class SupplierService : ISupplierService
             City = request.City,
             PostalCode = request.PostalCode,
             Country = request.Country,
+            PaymentType = request.PaymentType,
             CreatedAt = now,
             UpdatedAt = now
         };
@@ -79,6 +80,7 @@ public class SupplierService : ISupplierService
         supplier.City = request.City;
         supplier.PostalCode = request.PostalCode;
         supplier.Country = request.Country;
+        supplier.PaymentType = request.PaymentType;
         supplier.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync();
@@ -113,6 +115,7 @@ public class SupplierService : ISupplierService
         City = s.City,
         PostalCode = s.PostalCode,
         Country = s.Country,
+        PaymentType = s.PaymentType,
         CreatedAt = s.CreatedAt,
         UpdatedAt = s.UpdatedAt
     };

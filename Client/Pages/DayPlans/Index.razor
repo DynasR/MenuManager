@@ -11,6 +11,7 @@
 @inject RightPanelState RightPanel
 @inject NavigationManager Nav
 @inject ThemeState ThemeState
+@inject ItemSupplierCache ItemSupplierCache
 @implements IDisposable
 
 <PageTitle>Day Plans</PageTitle>
@@ -496,10 +497,37 @@ else
     }
 
     .meal-cell-item-price {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 3px;
         font-size: 0.75rem;
         color: var(--mud-palette-text-secondary);
-        text-align: right;
         white-space: nowrap;
+    }
+
+    .payment-badge {
+        font-size: 0.6rem;
+        font-weight: 600;
+        opacity: 0.6;
+        border-radius: 3px;
+        padding: 0 3px;
+        line-height: 1.5;
+        border: 1px solid;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .payment-badge-tr {
+        color: #1565C0;
+        border-color: #1565C0;
+        background: rgba(21, 101, 192, 0.07);
+    }
+
+    .payment-badge-cb {
+        color: #6A1B9A;
+        border-color: #6A1B9A;
+        background: rgba(106, 27, 154, 0.07);
     }
 
     .meal-cell-footer {
@@ -612,10 +640,10 @@ else
             .Where(r => r.Name.Contains(_recipeSearch, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-    protected override Task OnInitializedAsync()
+    protected override async Task OnInitializedAsync()
     {
         ThemeState.OnChange += OnThemeChanged;
-        return Task.CompletedTask;
+        await ItemSupplierCache.EnsureLoadedAsync();
     }
 
     private void OnThemeChanged() => InvokeAsync(StateHasChanged);

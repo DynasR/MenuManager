@@ -11,6 +11,7 @@ public interface IItemSupplierService
     Task<List<ItemSupplierResponse>> GetByItemAsync(int itemId);
     Task<ItemSupplierResponse?> GetByIdAsync(int itemId, int supplierId);
     Task<List<ItemPricingResponse>> GetByItemsAsync(List<int> itemIds);
+    Task<Dictionary<int, BestSupplierInfo>> GetBestByItemAsync();
     Task<CreateItemSupplierResult> CreateAsync(CreateItemSupplierRequest request);
     Task<ItemSupplierResponse?> UpdateAsync(int itemId, int supplierId, UpdateItemSupplierRequest request);
     Task<bool> DeleteAsync(int itemId, int supplierId);
@@ -82,6 +83,27 @@ public class ItemSupplierService : IItemSupplierService
                 PaymentType = isp.Supplier.PaymentType
             }
         }).ToList();
+    }
+
+    public async Task<Dictionary<int, BestSupplierInfo>> GetBestByItemAsync()
+    {
+        var rows = await _db.ItemSuppliers
+            .AsNoTracking()
+            .Include(isp => isp.Item)
+            .Include(isp => isp.Supplier)
+            .Where(isp => isp.IsAvailable)
+            .ToListAsync();
+
+        return rows
+            .GroupBy(isp => isp.ItemId)
+            .Select(g => g.MinBy(isp => isp.UnitPrice)!)
+            .ToDictionary(isp => isp.ItemId, isp => new BestSupplierInfo
+            {
+                ItemId = isp.ItemId,
+                PaymentType = isp.Supplier.PaymentType,
+                UnitPrice = isp.UnitPrice,
+                SupplierName = isp.Supplier.CompanyName ?? isp.Supplier.Name
+            });
     }
 
     public async Task<CreateItemSupplierResult> CreateAsync(CreateItemSupplierRequest request)

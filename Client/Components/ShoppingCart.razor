@@ -1,6 +1,6 @@
 @using MenuManager.Shared.Enums
 @using MenuManager.Shared.DTOs
-@inject ItemSupplierService ItemSupplierSvc
+@inject ItemSupplierCache ItemSupplierCache
 @inject RightPanelState RightPanel
 @implements IDisposable
 
@@ -113,18 +113,6 @@ else
                     @_bestTotal.ToString("C2", _frCulture)
                 </MudText>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <MudText Typo="Typo.body2">🔴 Au pire</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Error" Style="font-weight: 600;">
-                    @_worstTotal.ToString("C2", _frCulture)
-                </MudText>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <MudText Typo="Typo.body2">⚖️ Moyenne</MudText>
-                <MudText Typo="Typo.body2" Color="Color.Info" Style="font-weight: 600;">
-                    @_avgTotal.ToString("C2", _frCulture)
-                </MudText>
-            </div>
         </div>
     }
     else if (_hasMissingPrices)
@@ -147,14 +135,11 @@ else
     private bool _hasMissingPrices;
 
     // Enriched supplier data
-    private List<ItemPricingResponse> _pricingData = [];
     private bool _supplierDataLoaded;
     private HashSet<int> _loadedItemIds = [];
     private List<EnrichedShoppingLine> _enrichedLines = [];
     private IEnumerable<IGrouping<(PaymentType PaymentType, string CompanyName), EnrichedShoppingLine>> _groupedLines = [];
     private decimal _bestTotal;
-    private decimal _worstTotal;
-    private decimal _avgTotal;
 
     protected override void OnInitialized()
     {
@@ -190,7 +175,7 @@ else
 
     private async Task LoadSupplierDataAsync()
     {
-        _pricingData = await ItemSupplierSvc.GetByItemsAsync(_loadedItemIds.ToList());
+        await ItemSupplierCache.EnsureLoadedAsync();
         ComputeEnrichedLines();
         _supplierDataLoaded = true;
         await InvokeAsync(StateHasChanged);
@@ -199,7 +184,6 @@ else
     private void ComputeEnrichedLines()
     {
         var itemMealItems = Items.Where(i => !i.RecipeId.HasValue).ToList();
-        var pricingByItem = _pricingData.GroupBy(p => p.ItemId).ToDictionary(g => g.Key, g => g.ToList());
 
         _enrichedLines = itemMealItems
             .GroupBy(i => i.ItemId)
@@ -208,29 +192,21 @@ else
                 var first = g.First();
                 var totalQty = g.Sum(i => i.Quantity);
 
-                if (!pricingByItem.TryGetValue(first.ItemId, out var suppliers) || suppliers.Count == 0)
-                    return null;
+                var best = ItemSupplierCache.GetBestSupplier(first.ItemId);
+                if (best is null) return null;
 
-                var costs = suppliers.Select(s =>
-                    (cost: Math.Ceiling(totalQty / s.ContentQuantity) * s.UnitPrice, supplier: s)).ToList();
-
-                var best = costs.MinBy(x => x.cost);
-                var worst = costs.MaxBy(x => x.cost);
-                var avg = costs.Average(x => x.cost);
-                var packages = (int)Math.Ceiling(totalQty / best.supplier.ContentQuantity);
+                var packages = (int)Math.Ceiling(totalQty / first.ContentQuantity);
+                var cost = (decimal)Math.Ceiling(totalQty / first.ContentQuantity) * best.UnitPrice;
 
                 return new EnrichedShoppingLine(
                     first.ItemName,
                     totalQty,
                     first.Unit,
-                    best.supplier.ContentQuantity,
+                    first.ContentQuantity,
                     packages,
-                    best.cost,
-                    worst.cost,
-                    avg,
-                    best.supplier.Supplier.Id,
-                    best.supplier.Supplier.CompanyName,
-                    best.supplier.Supplier.PaymentType);
+                    cost,
+                    best.SupplierName,
+                    best.PaymentType);
             })
             .OfType<EnrichedShoppingLine>()
             .OrderBy(l => l.Name)
@@ -242,8 +218,6 @@ else
             .ThenBy(g => g.Key.RetainedSupplierName);
 
         _bestTotal = _enrichedLines.Sum(l => l.BestCost) + _recipeLines.Sum(l => l.LineTotal);
-        _worstTotal = _enrichedLines.Sum(l => l.WorstCost) + _recipeLines.Sum(l => l.LineTotal);
-        _avgTotal = _enrichedLines.Sum(l => l.AvgCost) + _recipeLines.Sum(l => l.LineTotal);
     }
 
     public void Dispose()
@@ -322,9 +296,6 @@ else
         decimal ContentQuantity,
         int PackagesToBuy,
         decimal BestCost,
-        decimal WorstCost,
-        decimal AvgCost,
-        int RetainedSupplierId,
         string RetainedSupplierName,
         PaymentType RetainedPaymentType);
 }

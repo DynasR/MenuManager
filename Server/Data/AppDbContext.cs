@@ -25,6 +25,12 @@ public class AppDbContext : DbContext
         // TPT — Table Per Type inheritance
         modelBuilder.Entity<Party>().UseTptMappingStrategy();
 
+        // PaymentType CHECK constraints on derived tables
+        modelBuilder.Entity<Supplier>().ToTable(t =>
+            t.HasCheckConstraint("CK_Supplier_PaymentType", "\"PaymentType\" IN (0, 1)"));
+        modelBuilder.Entity<Customer>().ToTable(t =>
+            t.HasCheckConstraint("CK_Customer_PaymentType", "\"PaymentType\" IN (0, 1)"));
+
         // ItemSupplier — composite key
         modelBuilder.Entity<ItemSupplier>()
             .HasKey(isp => new { isp.ItemId, isp.SupplierId });

@@ -292,4 +292,69 @@ public class ItemSupplierServiceTests : IDisposable
         cheapest!.UnitPrice.Should().Be(1.50m);
         cheapest.Supplier.PaymentType.Should().Be(PaymentType.CB);
     }
+
+    [Fact]
+    public async Task GetBestByItemAsync_ReturnsCheapestAvailableSupplierPerItem()
+    {
+        var item = await SeedItemAsync("Multi-supplier Item");
+        var cheap = await SeedSupplierAsync("Cheap Co", PaymentType.TR);
+        var expensive = await SeedSupplierAsync("Expensive Co", PaymentType.CB);
+        var unavailable = await SeedSupplierAsync("Unavailable Co", PaymentType.TR);
+
+        _db.ItemSuppliers.AddRange(
+            new ItemSupplier { ItemId = item.Id, SupplierId = cheap.Id, UnitPrice = 1.00m, IsAvailable = true, UpdatedAt = DateTime.UtcNow },
+            new ItemSupplier { ItemId = item.Id, SupplierId = expensive.Id, UnitPrice = 5.00m, IsAvailable = true, UpdatedAt = DateTime.UtcNow },
+            new ItemSupplier { ItemId = item.Id, SupplierId = unavailable.Id, UnitPrice = 0.10m, IsAvailable = false, UpdatedAt = DateTime.UtcNow }
+        );
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetBestByItemAsync();
+
+        result.Should().ContainKey(item.Id);
+        var best = result[item.Id];
+        best.UnitPrice.Should().Be(1.00m);
+        best.PaymentType.Should().Be(PaymentType.TR);
+        best.SupplierName.Should().Be(cheap.CompanyName);
+    }
+
+    [Fact]
+    public async Task GetBestByItemAsync_OneEntryPerItem_WhenMultipleItemsExist()
+    {
+        var item1 = await SeedItemAsync("Item One");
+        var item2 = await SeedItemAsync("Item Two");
+        var supplier = await SeedSupplierAsync("Supplier A");
+
+        _db.ItemSuppliers.AddRange(
+            new ItemSupplier { ItemId = item1.Id, SupplierId = supplier.Id, UnitPrice = 2.00m, IsAvailable = true, UpdatedAt = DateTime.UtcNow },
+            new ItemSupplier { ItemId = item2.Id, SupplierId = supplier.Id, UnitPrice = 3.50m, IsAvailable = true, UpdatedAt = DateTime.UtcNow }
+        );
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetBestByItemAsync();
+
+        result.Should().HaveCount(2);
+        result.Should().ContainKey(item1.Id);
+        result.Should().ContainKey(item2.Id);
+    }
+
+    [Fact]
+    public async Task GetBestByItemAsync_ExcludesUnavailableSuppliers()
+    {
+        var item = await SeedItemAsync("Unavailable Only");
+        var supplier = await SeedSupplierAsync("Offline Co");
+
+        _db.ItemSuppliers.Add(new ItemSupplier
+        {
+            ItemId = item.Id,
+            SupplierId = supplier.Id,
+            UnitPrice = 1.00m,
+            IsAvailable = false,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetBestByItemAsync();
+
+        result.Should().NotContainKey(item.Id);
+    }
 }

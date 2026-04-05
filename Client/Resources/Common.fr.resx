@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- Common actions -->
+  <data name="Save" xml:space="preserve">
+    <value>Enregistrer</value>
+  </data>
+  <data name="Cancel" xml:space="preserve">
+    <value>Annuler</value>
+  </data>
+  <data name="Delete" xml:space="preserve">
+    <value>Supprimer</value>
+  </data>
+  <data name="Edit" xml:space="preserve">
+    <value>Modifier</value>
+  </data>
+  <data name="Add" xml:space="preserve">
+    <value>Ajouter</value>
+  </data>
+  <data name="Search" xml:space="preserve">
+    <value>Rechercher…</value>
+  </data>
+
+  <!-- Navigation -->
+  <data name="MealBudget" xml:space="preserve">
+    <value>Budget Repas</value>
+  </data>
+  <data name="Customers" xml:space="preserve">
+    <value>Clients</value>
+  </data>
+  <data name="Suppliers" xml:space="preserve">
+    <value>Fournisseurs</value>
+  </data>
+  <data name="Recipes" xml:space="preserve">
+    <value>Recettes</value>
+  </data>
+
+  <!-- Form field labels -->
+  <data name="Name" xml:space="preserve">
+    <value>Nom</value>
+  </data>
+  <data name="Category" xml:space="preserve">
+    <value>Catégorie</value>
+  </data>
+  <data name="Phone" xml:space="preserve">
+    <value>Téléphone</value>
+  </data>
+  <data name="Address" xml:space="preserve">
+    <value>Adresse</value>
+  </data>
+  <data name="City" xml:space="preserve">
+    <value>Ville</value>
+  </data>
+  <data name="PostalCode" xml:space="preserve">
+    <value>Code postal</value>
+  </data>
+  <data name="Country" xml:space="preserve">
+    <value>Pays</value>
+  </data>
+  <data name="Company" xml:space="preserve">
+    <value>Société</value>
+  </data>
+  <data name="NameRequired" xml:space="preserve">
+    <value>Le nom est obligatoire.</value>
+  </data>
+
+  <!-- Page titles -->
+  <data name="EditItem" xml:space="preserve">
+    <value>Modifier l'item</value>
+  </data>
+  <data name="EditCustomer" xml:space="preserve">
+    <value>Modifier le client</value>
+  </data>
+  <data name="EditSupplier" xml:space="preserve">
+    <value>Modifier le fournisseur</value>
+  </data>
+  <data name="EditItemSupplierLink" xml:space="preserve">
+    <value>Modifier la liaison Item-Supplier</value>
+  </data>
+  <data name="NewItemSupplierLink" xml:space="preserve">
+    <value>Nouvelle liaison Item-Supplier</value>
+  </data>
+
+  <!-- Day plan actions -->
+  <data name="ClearMonth" xml:space="preserve">
+    <value>Vider le mois</value>
+  </data>
+  <data name="RandomFill" xml:space="preserve">
+    <value>Remplissage aléatoire</value>
+  </data>
+
+  <!-- Shopping cart -->
+  <data name="BestCost" xml:space="preserve">
+    <value>Au mieux</value>
+  </data>
+  <data name="WorstCost" xml:space="preserve">
+    <value>Au pire</value>
+  </data>
+  <data name="AvgCost" xml:space="preserve">
+    <value>Moyenne</value>
+  </data>
+
+  <!-- Success messages -->
+  <data name="ItemUpdated" xml:space="preserve">
+    <value>Item mis à jour.</value>
+  </data>
+  <data name="ItemSupplierCreated" xml:space="preserve">
+    <value>Liaison Item-Supplier créée.</value>
+  </data>
+  <data name="ItemSupplierUpdated" xml:space="preserve">
+    <value>Liaison Item-Supplier mise à jour.</value>
+  </data>
+  <data name="CustomerUpdated" xml:space="preserve">
+    <value>Client mis à jour.</value>
+  </data>
+  <data name="SupplierUpdated" xml:space="preserve">
+    <value>Fournisseur mis à jour.</value>
+  </data>
+
+  <!-- Error messages -->
+  <data name="UpdateFailed" xml:space="preserve">
+    <value>Erreur lors de la mise à jour.</value>
+  </data>
+  <data name="CreationFailed" xml:space="preserve">
+    <value>Erreur lors de la création.</value>
+  </data>
+  <data name="ItemNotFound" xml:space="preserve">
+    <value>Item introuvable.</value>
+  </data>
+  <data name="ItemSupplierNotFound" xml:space="preserve">
+    <value>Liaison Item-Supplier introuvable.</value>
+  </data>
+  <data name="CustomerNotFound" xml:space="preserve">
+    <value>Client introuvable.</value>
+  </data>
+  <data name="SupplierNotFound" xml:space="preserve">
+    <value>Fournisseur introuvable.</value>
+  </data>
+  <data name="FailedToAddRecipe" xml:space="preserve">
+    <value>Échec de l'ajout de la recette.</value>
+  </data>
+  <data name="CopyFailed" xml:space="preserve">
+    <value>Échec de la copie.</value>
+  </data>
+  <data name="MoveFailed" xml:space="preserve">
+    <value>Déplacement échoué.</value>
+  </data>
+  <data name="ReorderFailed" xml:space="preserve">
+    <value>Réordonnancement échoué.</value>
+  </data>
+  <data name="DeleteFailed" xml:space="preserve">
+    <value>Suppression échouée.</value>
+  </data>
+  <data name="DuplicateFailed" xml:space="preserve">
+    <value>Duplication échouée.</value>
+  </data>
+  <data name="DeleteColumnFailed" xml:space="preserve">
+    <value>Suppression de la colonne échouée.</value>
+  </data>
+  <data name="DeleteRowFailed" xml:space="preserve">
+    <value>Suppression de la ligne échouée.</value>
+  </data>
+  <data name="DeleteMonthFailed" xml:space="preserve">
+    <value>Suppression du mois échouée.</value>
+  </data>
+  <data name="RandomFillFailed" xml:space="preserve">
+    <value>Remplissage aléatoire échoué.</value>
+  </data>
+  <data name="ItemsNotCopied" xml:space="preserve">
+    <value>{0} item(s) non copiés.</value>
+  </data>
+  <data name="ItemsNotMoved" xml:space="preserve">
+    <value>{0} item(s) non déplacés.</value>
+  </data>
+</root>

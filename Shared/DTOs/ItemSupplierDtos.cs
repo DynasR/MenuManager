@@ -56,3 +56,11 @@ public class ItemPricingResponse
     public decimal ContentQuantity { get; set; }
     public SupplierPricingInfo Supplier { get; set; } = null!;
 }
+
+public class BestSupplierInfo
+{
+    public int ItemId { get; set; }
+    public PaymentType PaymentType { get; set; }
+    public decimal UnitPrice { get; set; }
+    public string SupplierName { get; set; } = "";
+}

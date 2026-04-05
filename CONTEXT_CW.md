@@ -19,7 +19,7 @@ Blazor WASM (PWA) + MudBlazor · ASP.NET Core Web API (.NET 9) · EF Core 9 + Po
 
 ---
 
-## État du projet (2026-04-05)
+## État du projet (2026-04-06)
 
 ### Backend — complet
 8 slices : Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem.
@@ -35,11 +35,11 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Party + **PaymentType** (TR/CB) — CalendarMonth → `/menuplan/{id}`               |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards sur 3 ans. Données via `GET /api/dailymenus/{customerId}/monthly-summary` (HasMeals, MonthlyCost). Bouton "Voir le planning" → navigation directe `dayplans?customerId=X&year=Y&month=M`, pas de création serveur. |
-| DayPlan/Index | Calendrier mensuel. Tiroir d'ajout à **2 onglets (Items / Recettes)**. Recettes ajoutables dans les slots (`AddRecipeToSlotAsync`). Calcul coût via `ComputeItemCost` (gère items et recettes). Copy/clone/cell-drag recipe-aware. Dark mode chips inline via `ThemeState`. CSS `.meal-cell-item-recipe` (teinte violet). |
-| MealCell | **`ShouldRender()` override** — compare items (id/qty/order), MealId, IsBeingDragged, IsActionTarget, _clearPrimed ; snapshot dans `OnAfterRenderAsync`. JS drag fire-and-forget. |
+| DayPlan/Index | Calendrier mensuel. Tiroir d'ajout à **2 onglets (Items / Recettes)**. Recettes ajoutables dans les slots. Calcul coût via `ComputeItemCost`. Copy/clone/cell-drag recipe-aware. Dark mode chips inline via `ThemeState`. Charge `ItemSupplierCache` sur `OnInitializedAsync`. |
+| MealCell | **`ShouldRender()` override** — compare items (id/qty/order), MealId, IsBeingDragged, IsActionTarget, _clearPrimed, paymentTypes snapshot ; JS drag fire-and-forget. **Badge TR/CB** inline à côté du prix de chaque item. |
 | Recipe       | ✅ `/recipes` — MudDataGrid + HierarchyColumn (ingrédients inline), RecipeDialog (create/edit), coût estimé par recette |
 | Layout       | **3 thèmes** : Light (palette chaude), Dark (navy), Custom (noir pur). `ThemeState` + bouton CycleTheme dans AppBar. Persisté localStorage. AppBar dégradé marine fixe. |
-| Shopping Cart | **Enrichissement fournisseur** : s'ouvre → appel `POST /api/itemsuppliers/by-items` → items groupés par meilleur fournisseur (TR bleu / CB violet). Affiche best/worst/avg totals. Fallback si données non chargées. |
+| Shopping Cart | **`ItemSupplierCache`** : chargé une fois au démarrage de DayPlan (`GET /api/itemsuppliers/best-by-item`). Items groupés par meilleur fournisseur (TR bleu / CB violet). Affiche **best total uniquement** (worst/avg supprimés). Fallback si non chargé. Partagé avec `MealCell` pour les badges TR/CB. |
 
 ---
 
@@ -52,7 +52,8 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **MonthlyCost** calculé serveur-side (`ceil(qty / ContentQuantity) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
 - **Recettes dans les slots** — `MealItem` peut référencer un `Item` ou une `Recipe` (champs `ItemId?` / `RecipeId?`). Coût recette = `RecipeEstimatedCost * Quantity`. Shopping Cart distingue les deux sections.
 - **PaymentType** — enum `TR | CB` ajouté sur `Supplier` et `Customer`. Deux migrations séparées. Seed : Carrefour=TR, Leclerc=CB, Dynas=TR, Marlène=CB.
-- **Shopping Cart enrichi** — chargement lazy au premier affichage du panneau. Par item : tous les fournisseurs disponibles → best/worst/avg. Items groupés par fournisseur retenu (= le moins cher). Endpoint dédié : `POST /api/itemsuppliers/by-items`.
+- **Shopping Cart enrichi** — `ItemSupplierCache` (service scoped) chargé une fois sur `OnInitializedAsync` de DayPlan (`GET /api/itemsuppliers/best-by-item`). Meilleur fournisseur par item en mémoire → partagé avec `MealCell` (badge TR/CB). Shopping Cart groupe par fournisseur retenu, affiche best total. Endpoint `POST /api/itemsuppliers/by-items` conservé mais n'est plus utilisé par le panier.
+- **CHECK constraints PaymentType** — migration `AddPaymentTypeCheckConstraints` : `PaymentType IN (0, 1)` sur Suppliers et Customers.
 - **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
 - **Bulk clear** — `DELETE /api/meals/batch` (body JSON, toujours 204). Vider-ligne, vider-colonne, vider-mois utilisent tous ce même endpoint. Pattern confirm-intent : prime (mousedown rouge) + dbl-clic exécute.
 - **Random fill** — `POST /api/meals/random-fill`. Remplit les jours vides du mois avec des items disponibles aléatoires. Skip les jours qui ont déjà des repas.

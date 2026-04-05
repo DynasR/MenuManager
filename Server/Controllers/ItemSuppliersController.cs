@@ -31,6 +31,12 @@ public class ItemSuppliersController : ControllerBase
         return result is null ? NotFound() : Ok(result);
     }
 
+    [HttpGet("best-by-item")]
+    public async Task<ActionResult<Dictionary<int, BestSupplierInfo>>> GetBestByItem()
+    {
+        return Ok(await _service.GetBestByItemAsync());
+    }
+
     [HttpPost("by-items")]
     public async Task<ActionResult<List<ItemPricingResponse>>> GetByItems(ByItemsRequest request)
     {

@@ -83,6 +83,7 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 | AddUnitAndOrderToRecipeIngredient          | RecipeIngredient: add Unit(MeasurementUnit) + Order(int)                       |
 | AddPaymentTypeToSupplier                   | Supplier: add PaymentType(int)                                                 |
 | AddPaymentTypeToCustomer                   | Customer: add PaymentType(int)                                                 |
+| AddPaymentTypeCheckConstraints             | CHECK constraints `PaymentType IN (0, 1)` on Suppliers and Customers tables    |
 
 ---
 
@@ -154,7 +155,9 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 
 **MealItemService**: `CreateAsync` accepts `ItemId?` or `RecipeId?` (exactly one must be set). Response maps `RecipeName`, `RecipeEstimatedCost` (via `RecipeService.ComputeRecipeCost`), `Unit`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`.
 
-**New endpoint**: `POST /api/itemsuppliers/by-items` — body: `ByItemsRequest { List<int> ItemIds }` → `List<ItemPricingResponse>`. Returns all **available** `ItemSupplier` rows for the requested item IDs, with `ContentQuantity` and `Supplier` info (`Id`, `CompanyName`, `PaymentType`). Used by Shopping Cart to compute per-supplier price ranges.
+**New endpoint**: `POST /api/itemsuppliers/by-items` — body: `ByItemsRequest { List<int> ItemIds }` → `List<ItemPricingResponse>`. Returns all **available** `ItemSupplier` rows for the requested item IDs, with `ContentQuantity` and `Supplier` info (`Id`, `CompanyName`, `PaymentType`).
+
+**New endpoint**: `GET /api/itemsuppliers/best-by-item` → `Dictionary<int, BestSupplierInfo>`. Returns the cheapest available supplier per item (globally, not filtered by item list). `BestSupplierInfo` DTO (`Shared/DTOs/ItemSupplierDtos.cs`): `ItemId`, `PaymentType`, `UnitPrice`, `SupplierName`. Used by `ItemSupplierCache` on DayPlan load.
 
 ### Frontend (Client)
 
@@ -163,7 +166,7 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 | Layout       | —       | —               | ThemeState (Light/Dark/Custom), AppBar dark navy gradient, NavMenu split, RightPanelState, CycleTheme button (persisted to localStorage) |
 | Category     | ✅      | ✅              | Reference implementation — new Save pattern applied                |
 | Item         | ✅      | ✅              | FK CategoryId, PurchaseUnit + ContentQuantity + ContentUnit (3 cols) |
-| Supplier     | ✅      | ✅              | Party fields + CompanyName, Siret, PaymentType                     |
+| Supplier     | ✅      | ✅              | Party fields + CompanyName, Siret, PaymentType (editable in grid + Edit page) |
 | Customer     | ✅      | ✅              | Party fields + PaymentType — CalendarMonth button → `/menuplan/{id}` |
 | ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409                 |
 | DailyMenu    | ✅      | ✅ via MenuPlan/Index | Route `/menuplan/{CustomerId}` — cards from `monthly-summary` endpoint |
@@ -232,7 +235,8 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Parameters**: `MealId` (int?), `Items` (List\<MealItemResponse\>), `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
 - **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `cell-drag-source` on source cell; `cell-drag-copy-mode` on source cell when Ctrl held.
 - **Callbacks**: `OnItemMoved(itemId, fromDate, fromMealType, toDate, toMealType, newIndex, isCopy)`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted(date, mealType)`, `OnDragEnded`, `OnCellClearRequested`.
-- **ShouldRender() optimisation**: MealCell overrides `ShouldRender()` — compares `_renderedItems` (via `ItemsEqual`: id/quantity/order), `_renderedMealId`, `_renderedIsBeingDragged`, `_renderedIsActionTarget`, `_renderedClearPrimed` against current params. Snapshot updated in `OnAfterRenderAsync`. Skips re-render when parent rebuilds but cell data hasn't changed.
+- **Payment badge**: each item line shows a small TR/CB badge (`.payment-badge-tr` blue / `.payment-badge-cb` purple) from `ItemSupplierCache.GetBestSupplier(itemId)`. CSS defined in `DayPlan/Index.razor` `<style>`.
+- **ShouldRender() optimisation**: MealCell overrides `ShouldRender()` — compares `_renderedItems` (via `ItemsEqual`: id/quantity/order), `_renderedMealId`, `_renderedIsBeingDragged`, `_renderedIsActionTarget`, `_renderedClearPrimed`, `_renderedPaymentTypes` (snapshot of `GetCurrentPaymentTypes()`) against current params. Snapshot updated in `OnAfterRenderAsync`. Skips re-render when parent rebuilds but cell data hasn't changed.
 - **Fire-and-forget JS drag calls**: `setFooterDragSource` and `clearFooterDragSource` use `_ = JS.InvokeVoidAsync(...)` (non-blocking) — drag start/end must not block Blazor's event thread.
 
 ### Add drawer (DayPlan/Index)
@@ -305,11 +309,11 @@ All operations use `_saving` overlay. Implemented as immediate API calls (no con
 
 - `RightPanelState` — scoped service, global `MudDrawer` in `MainLayout`. Any page can push content.
 - `ShoppingCart.razor` — fed by DayPlan/Index on every `LoadAsync()`. Implements `IDisposable`; unsubscribes from `RightPanel.OnChange` on dispose.
-- **Lazy supplier enrichment**: when the panel opens (`RightPanel.OnChange`), calls `ItemSupplierSvc.GetByItemsAsync` with the current item IDs. If item set changed since last load, `_supplierDataLoaded = false` first.
+- **`ItemSupplierCache`** (`Client/Services/ItemSupplierCache.cs`) — scoped service. Calls `GET /api/itemsuppliers/best-by-item` once per DayPlan load (`EnsureLoadedAsync()`), caches `Dictionary<int, BestSupplierInfo>`. `GetBestSupplier(itemId)` returns cheapest available supplier info. Shared by `ShoppingCart` and `MealCell`.
 - **Enriched display** (`_supplierDataLoaded = true`):
   - Items grouped by `(PaymentType, CompanyName)` of the **cheapest available supplier** per item. Group header color: TR = blue `#1565C0`, CB = purple `#6A1B9A`.
-  - `EnrichedShoppingLine` (private record): Name, TotalQuantity, Unit, ContentQuantity, PackagesToBuy, BestCost, WorstCost, AvgCost, RetainedSupplierId, RetainedSupplierName, RetainedPaymentType.
-  - Footer shows three totals (items + recipes combined): best, worst, avg.
+  - `EnrichedShoppingLine` (private record): Name, TotalQuantity, Unit, ContentQuantity, PackagesToBuy, BestCost, RetainedSupplierName, RetainedPaymentType.
+  - Footer shows **best total** only (items + recipes combined). Worst/avg removed.
 - **Fallback display** (`_supplierDataLoaded = false`): classic flat list with `_hasMissingPrices` warning.
 - **Recettes** section unchanged: aggregated by `RecipeId`, line total = `RecipeEstimatedCost * totalQty`.
 

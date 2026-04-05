@@ -1,3 +1,5 @@
+using MenuManager.Shared.Enums;
+
 namespace MenuManager.Shared.DTOs;
 
 public class SupplierResponse
@@ -12,6 +14,7 @@ public class SupplierResponse
     public string? City { get; set; }
     public string? PostalCode { get; set; }
     public string? Country { get; set; }
+    public PaymentType PaymentType { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
@@ -27,6 +30,7 @@ public class CreateSupplierRequest
     public string? City { get; set; }
     public string? PostalCode { get; set; }
     public string? Country { get; set; }
+    public PaymentType PaymentType { get; set; }
 }
 
 public class UpdateSupplierRequest
@@ -40,4 +44,5 @@ public class UpdateSupplierRequest
     public string? City { get; set; }
     public string? PostalCode { get; set; }
     public string? Country { get; set; }
+    public PaymentType PaymentType { get; set; }
 }

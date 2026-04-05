@@ -26,7 +26,7 @@ else
                         <MudCardHeader>
                             <CardHeaderContent>
                                 <MudText Typo="Typo.h6">@slot.Title</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Dark">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
                                     @slot.StartDate — @slot.EndDate
                                 </MudText>
                             </CardHeaderContent>
@@ -66,7 +66,7 @@ else
     }
     .monthly-cost {
         font-family: monospace;
-        color: rgba(0, 0, 0, 0.6);
+        color: var(--mud-palette-text-secondary);
         font-size: 0.85rem;
     }
 </style>

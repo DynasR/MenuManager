@@ -15,6 +15,7 @@ builder.Services.AddScoped<ItemService>();
 builder.Services.AddScoped<SupplierService>();
 builder.Services.AddScoped<CustomerService>();
 builder.Services.AddScoped<ItemSupplierService>();
+builder.Services.AddScoped<ItemSupplierCache>();
 builder.Services.AddScoped<DailyMenuService>();
 builder.Services.AddScoped<MealService>();
 builder.Services.AddScoped<MealItemService>();
