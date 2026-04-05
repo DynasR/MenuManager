@@ -62,9 +62,11 @@ public class RecipesController : ControllerBase
 
     [HttpPut("{recipeId:int}/ingredients/{itemId:int}")]
     public async Task<ActionResult<RecipeIngredientResponse>> UpdateIngredient(
-        int recipeId, int itemId, [FromBody] decimal quantity)
+        int recipeId, int itemId, RecipeIngredientRequest request)
     {
-        var result = await _ingredientService.UpdateQuantityAsync(recipeId, itemId, quantity);
+        request.RecipeId = recipeId;
+        request.ItemId = itemId;
+        var result = await _ingredientService.UpdateAsync(recipeId, itemId, request);
         return result is null ? NotFound() : Ok(result);
     }
 

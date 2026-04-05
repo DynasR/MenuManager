@@ -64,7 +64,7 @@ public class DailyMenuServiceTests : IDisposable
         return dailyMenu;
     }
 
-    private async Task<Item> SeedItemAsync(string name = "Rice", decimal packageSize = 1, decimal unitPrice = 2.00m)
+    private async Task<Item> SeedItemAsync(string name = "Rice", decimal contentQuantity = 1, decimal unitPrice = 2.00m)
     {
         var cat = new Category { Name = "Food" };
         _db.Categories.Add(cat);
@@ -73,8 +73,9 @@ public class DailyMenuServiceTests : IDisposable
         var item = new Item
         {
             Name = name,
-            Unit = MeasurementUnit.Piece,
-            PackageSize = packageSize,
+            PurchaseUnit = MeasurementUnit.Piece,
+            ContentQuantity = contentQuantity,
+            ContentUnit = MeasurementUnit.Piece,
             CategoryId = cat.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -310,10 +311,10 @@ public class DailyMenuServiceTests : IDisposable
     [Fact]
     public async Task GetMonthlySummaryAsync_ComputesMonthlyCostCorrectly()
     {
-        // Item: PackageSize=6, UnitPrice=3.00 → 7 qty → ceil(7/6)=2 packages → cost=6.00
+        // Item: ContentQuantity=6, UnitPrice=3.00 → 7 qty → ceil(7/6)=2 packages → cost=6.00
         var customer = await SeedCustomerAsync();
         var dm = await SeedDailyMenuAsync(customer);
-        var item = await SeedItemAsync("IceCream", packageSize: 6, unitPrice: 3.00m);
+        var item = await SeedItemAsync("IceCream", contentQuantity: 6, unitPrice: 3.00m);
 
         var meal = new Meal { MealType = MealType.Lunch, DailyMenuId = dm.Id };
         _db.Meals.Add(meal);
@@ -333,9 +334,9 @@ public class DailyMenuServiceTests : IDisposable
     public async Task GetMonthlySummaryAsync_SumsQuantitiesAcrossDaysForSameItem()
     {
         // Same item on 2 different days in the same month:
-        // Day1: qty=3, Day2: qty=4 → total=7, PackageSize=6 → ceil(7/6)=2 → 2*3.00=6.00
+        // Day1: qty=3, Day2: qty=4 → ceil(3/6)+ceil(4/6) = 1+1 = 2 packages → 2*3.00=6.00
         var customer = await SeedCustomerAsync();
-        var item = await SeedItemAsync("Yogurt", packageSize: 6, unitPrice: 3.00m);
+        var item = await SeedItemAsync("Yogurt", contentQuantity: 6, unitPrice: 3.00m);
 
         var dm1 = await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 5));
         var meal1 = new Meal { MealType = MealType.Breakfast, DailyMenuId = dm1.Id };
@@ -355,5 +356,34 @@ public class DailyMenuServiceTests : IDisposable
 
         result.Should().HaveCount(1);
         result[0].MonthlyCost.Should().Be(6.00m);
+    }
+
+    [Fact]
+    public async Task GetMonthlySummaryAsync_AppliesCeilPerLine_NotPerGroup()
+    {
+        // Same item on 2 days, qty=2 each, ContentQuantity=6, UnitPrice=3.00
+        // Per-line:  ceil(2/6) + ceil(2/6) = 1 + 1 = 2 packages → 6.00
+        // If grouped: ceil(4/6) = 1 package → 3.00  ← would be wrong
+        var customer = await SeedCustomerAsync();
+        var item = await SeedItemAsync("Yogurt", contentQuantity: 6, unitPrice: 3.00m);
+
+        var dm1 = await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 5));
+        var meal1 = new Meal { MealType = MealType.Breakfast, DailyMenuId = dm1.Id };
+        _db.Meals.Add(meal1);
+        await _db.SaveChangesAsync();
+        _db.MealItems.Add(new MealItem { MealId = meal1.Id, ItemId = item.Id, Quantity = 2 });
+
+        var dm2 = await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 15));
+        var meal2 = new Meal { MealType = MealType.Lunch, DailyMenuId = dm2.Id };
+        _db.Meals.Add(meal2);
+        await _db.SaveChangesAsync();
+        _db.MealItems.Add(new MealItem { MealId = meal2.Id, ItemId = item.Id, Quantity = 2 });
+
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetMonthlySummaryAsync(customer.Id);
+
+        result.Should().HaveCount(1);
+        result[0].MonthlyCost.Should().Be(6.00m); // 2 * ceil(2/6) * 3.00 = 2 * 1 * 3.00
     }
 }

@@ -79,7 +79,9 @@ public class RecipeServiceTests : IDisposable
         var item = new Item
         {
             Name = "Spaghetti",
-            Unit = MeasurementUnit.Gram,
+            PurchaseUnit = MeasurementUnit.Gram,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Gram,
             CategoryId = category.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -95,7 +97,9 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = recipe.Id,
             ItemId = item.Id,
-            Quantity = 200
+            Quantity = 200,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
         });
         await _db.SaveChangesAsync();
 
@@ -105,6 +109,8 @@ public class RecipeServiceTests : IDisposable
         result!.Ingredients.Should().HaveCount(1);
         result.Ingredients[0].ItemName.Should().Be("Spaghetti");
         result.Ingredients[0].Quantity.Should().Be(200);
+        result.Ingredients[0].Unit.Should().Be(MeasurementUnit.Gram);
+        result.Ingredients[0].Order.Should().Be(1);
     }
 
     [Fact]
@@ -158,7 +164,10 @@ public class RecipeServiceTests : IDisposable
 
     // ── RecipeIngredient ─────────────────────────────────────────────────
 
-    private async Task<(Recipe recipe, Item item)> SeedRecipeAndItem()
+    private async Task<(Recipe recipe, Item item)> SeedRecipeAndItem(
+        MeasurementUnit purchaseUnit = MeasurementUnit.Gram,
+        MeasurementUnit contentUnit = MeasurementUnit.Gram,
+        decimal contentQuantity = 1)
     {
         var category = new Category { Name = "Cat" };
         _db.Categories.Add(category);
@@ -167,7 +176,9 @@ public class RecipeServiceTests : IDisposable
         var item = new Item
         {
             Name = "Flour",
-            Unit = MeasurementUnit.Gram,
+            PurchaseUnit = purchaseUnit,
+            ContentQuantity = contentQuantity,
+            ContentUnit = contentUnit,
             CategoryId = category.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -190,7 +201,9 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = recipe.Id,
             ItemId = item.Id,
-            Quantity = 500
+            Quantity = 500,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
         });
 
         result.Should().NotBeNull();
@@ -198,6 +211,8 @@ public class RecipeServiceTests : IDisposable
         result.ItemId.Should().Be(item.Id);
         result.ItemName.Should().Be("Flour");
         result.Quantity.Should().Be(500);
+        result.Unit.Should().Be(MeasurementUnit.Gram);
+        result.Order.Should().Be(1);
     }
 
     [Fact]
@@ -210,7 +225,9 @@ public class RecipeServiceTests : IDisposable
         var item = new Item
         {
             Name = "Flour",
-            Unit = MeasurementUnit.Gram,
+            PurchaseUnit = MeasurementUnit.Gram,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Gram,
             CategoryId = category.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -222,7 +239,9 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = 999,
             ItemId = item.Id,
-            Quantity = 100
+            Quantity = 100,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
         });
 
         result.Should().BeNull();
@@ -239,7 +258,9 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = recipe.Id,
             ItemId = 999,
-            Quantity = 100
+            Quantity = 100,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
         });
 
         result.Should().BeNull();
@@ -254,7 +275,9 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = recipe.Id,
             ItemId = item.Id,
-            Quantity = 100
+            Quantity = 100,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
         });
         await _db.SaveChangesAsync();
 
@@ -262,7 +285,9 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = recipe.Id,
             ItemId = item.Id,
-            Quantity = 200
+            Quantity = 200,
+            Unit = MeasurementUnit.Gram,
+            Order = 2
         });
 
         result.Should().BeNull();
@@ -277,7 +302,9 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = recipe.Id,
             ItemId = item.Id,
-            Quantity = 100
+            Quantity = 100,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
         });
         await _db.SaveChangesAsync();
 
@@ -296,7 +323,7 @@ public class RecipeServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateQuantityAsync_UpdatesAndReturns()
+    public async Task UpdateAsync_UpdatesAndReturns()
     {
         var (recipe, item) = await SeedRecipeAndItem();
 
@@ -304,21 +331,135 @@ public class RecipeServiceTests : IDisposable
         {
             RecipeId = recipe.Id,
             ItemId = item.Id,
-            Quantity = 100
+            Quantity = 100,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
         });
         await _db.SaveChangesAsync();
 
-        var result = await _ingredientService.UpdateQuantityAsync(recipe.Id, item.Id, 300);
+        var result = await _ingredientService.UpdateAsync(recipe.Id, item.Id, new RecipeIngredientRequest
+        {
+            RecipeId = recipe.Id,
+            ItemId = item.Id,
+            Quantity = 300,
+            Unit = MeasurementUnit.Gram,
+            Order = 2
+        });
 
         result.Should().NotBeNull();
         result!.Quantity.Should().Be(300);
+        result.Unit.Should().Be(MeasurementUnit.Gram);
+        result.Order.Should().Be(2);
     }
 
     [Fact]
-    public async Task UpdateQuantityAsync_ReturnsNull_WhenNotFound()
+    public async Task UpdateAsync_ReturnsNull_WhenNotFound()
     {
-        var result = await _ingredientService.UpdateQuantityAsync(999, 999, 100);
+        var result = await _ingredientService.UpdateAsync(999, 999, new RecipeIngredientRequest
+        {
+            RecipeId = 999,
+            ItemId = 999,
+            Quantity = 100,
+            Unit = MeasurementUnit.Gram,
+            Order = 1
+        });
 
         result.Should().BeNull();
+    }
+
+    // ── ComputeRecipeCost ────────────────────────────────────────────────
+
+    [Fact]
+    public async Task ComputeRecipeCost_PurchaseUnit_DirectCost()
+    {
+        // Item: PurchaseUnit = Gram, ContentUnit = Gram, ContentQuantity = 500
+        // Ingredient: Unit = Gram (= PurchaseUnit), Quantity = 3
+        // UnitPrice = 2.00
+        // Expected: 3 * 2.00 = 6.00
+        var (recipe, item) = await SeedRecipeAndItem(
+            purchaseUnit: MeasurementUnit.Gram,
+            contentUnit: MeasurementUnit.Gram,
+            contentQuantity: 500);
+
+        var supplier = new Supplier
+        {
+            Name = "S",
+            CompanyName = "S",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Suppliers.Add(supplier);
+        await _db.SaveChangesAsync();
+
+        _db.ItemSuppliers.Add(new ItemSupplier
+        {
+            ItemId = item.Id,
+            SupplierId = supplier.Id,
+            UnitPrice = 2.00m,
+            IsAvailable = true,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        _db.RecipeIngredients.Add(new RecipeIngredient
+        {
+            RecipeId = recipe.Id,
+            ItemId = item.Id,
+            Quantity = 3,
+            Unit = MeasurementUnit.Gram, // == PurchaseUnit
+            Order = 1
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetByIdAsync(recipe.Id);
+
+        result.Should().NotBeNull();
+        result!.EstimatedCost.Should().Be(6.00m);
+    }
+
+    [Fact]
+    public async Task ComputeRecipeCost_ContentUnit_CeilCost()
+    {
+        // Item: PurchaseUnit = Piece, ContentUnit = Gram, ContentQuantity = 100
+        // Ingredient: Unit = Gram (= ContentUnit), Quantity = 250
+        // UnitPrice = 1.50
+        // Expected: ceil(250 / 100) * 1.50 = 3 * 1.50 = 4.50
+        var (recipe, item) = await SeedRecipeAndItem(
+            purchaseUnit: MeasurementUnit.Piece,
+            contentUnit: MeasurementUnit.Gram,
+            contentQuantity: 100);
+
+        var supplier = new Supplier
+        {
+            Name = "S",
+            CompanyName = "S",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Suppliers.Add(supplier);
+        await _db.SaveChangesAsync();
+
+        _db.ItemSuppliers.Add(new ItemSupplier
+        {
+            ItemId = item.Id,
+            SupplierId = supplier.Id,
+            UnitPrice = 1.50m,
+            IsAvailable = true,
+            UpdatedAt = DateTime.UtcNow
+        });
+
+        _db.RecipeIngredients.Add(new RecipeIngredient
+        {
+            RecipeId = recipe.Id,
+            ItemId = item.Id,
+            Quantity = 250,
+            Unit = MeasurementUnit.Gram, // == ContentUnit (not PurchaseUnit)
+            Order = 1
+        });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetByIdAsync(recipe.Id);
+
+        result.Should().NotBeNull();
+        result!.EstimatedCost.Should().Be(4.50m);
     }
 }

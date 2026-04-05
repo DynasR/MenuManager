@@ -48,52 +48,52 @@ public static class SeedData
         // --- Items ---
         var now = DateTime.UtcNow;
         db.Items.AddRange(
-            new Item { Id = 1,  Name = "Pims Orange",                  Unit = MeasurementUnit.Piece,       PackageSize = 1,    CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 2,  Name = "Pims Fraise",                  Unit = MeasurementUnit.Piece,       PackageSize = 1,    CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 3,  Name = "Glace Fraise",                 Unit = MeasurementUnit.Piece,       PackageSize = 6,    CategoryId = 2,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 4,  Name = "Jambon x4",                    Unit = MeasurementUnit.Piece,       PackageSize = 4,    CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 5,  Name = "Jambon x10",                   Unit = MeasurementUnit.Piece,       PackageSize = 10,   CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 6,  Name = "Lardons 100g",                 Unit = MeasurementUnit.Gram,        PackageSize = 100,  CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 7,  Name = "Lardons 200g",                 Unit = MeasurementUnit.Gram,        PackageSize = 200,  CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 8,  Name = "Curly Donuts",                 Unit = MeasurementUnit.Piece,       PackageSize = 1,    CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 9,  Name = "Jus d'orange Andros",          Unit = MeasurementUnit.Liter,       PackageSize = 1.5m, CategoryId = 5,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 10, Name = "Jus d'orange Sanguine Andros", Unit = MeasurementUnit.Liter,       PackageSize = 1.5m, CategoryId = 5,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 11, Name = "Jus de pomme Andros",          Unit = MeasurementUnit.Liter,       PackageSize = 1.5m, CategoryId = 5,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 12, Name = "Côte de porc échine 300g",     Unit = MeasurementUnit.Gram,        PackageSize = 300,  CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 13, Name = "Côte de porc échine 680g",     Unit = MeasurementUnit.Gram,        PackageSize = 680,  CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 14, Name = "Steak Haché 5%mg Férial",      Unit = MeasurementUnit.Gram,        PackageSize = 250,  CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 15, Name = "Saumon Fumé",                  Unit = MeasurementUnit.Piece,       PackageSize = 8,    CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 16, Name = "Citron vert",                  Unit = MeasurementUnit.Piece,       PackageSize = 1,    CategoryId = 6,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 17, Name = "Raviolis 4 fromages Turini",   Unit = MeasurementUnit.Gram,        PackageSize = 300,  CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 18, Name = "Sauce Tomate Heintz 420g",     Unit = MeasurementUnit.Gram,        PackageSize = 420,  CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 19, Name = "Sauce Tomate Heintz 500g",     Unit = MeasurementUnit.Gram,        PackageSize = 500,  CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 20, Name = "Smacks",                       Unit = MeasurementUnit.Gram,        PackageSize = 400,  CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 21, Name = "Brioches",                     Unit = MeasurementUnit.Piece,       PackageSize = 20,   CategoryId = 10, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 22, Name = "Chocolat Daims",               Unit = MeasurementUnit.Piece,       PackageSize = 3,    CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 23, Name = "Sucre Morceaux Daddy",         Unit = MeasurementUnit.Kilogram,    PackageSize = 1,    CategoryId = 13, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 24, Name = "Poulet (morceaux)",            Unit = MeasurementUnit.Piece,       PackageSize = 20,   CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 25, Name = "Viande hachée",                Unit = MeasurementUnit.Kilogram,    PackageSize = 1,    CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 26, Name = "Oignons",                     Unit = MeasurementUnit.Piece,       PackageSize = 6,    CategoryId = 6,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 27, Name = "Tomates",                     Unit = MeasurementUnit.Piece,       PackageSize = 3,    CategoryId = 6,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 28, Name = "Spaghetti",                   Unit = MeasurementUnit.Gram,        PackageSize = 500,  CategoryId = 8,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 29, Name = "Riz",                         Unit = MeasurementUnit.Gram,        PackageSize = 1000, CategoryId = 8,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 30, Name = "Œufs",                        Unit = MeasurementUnit.Piece,       PackageSize = 6,    CategoryId = 9,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 31, Name = "Petits pois surgelés",        Unit = MeasurementUnit.Gram,        PackageSize = 400,  CategoryId = 2,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 32, Name = "Sauce soja",                  Unit = MeasurementUnit.Milliliter,   PackageSize = 150,  CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 33, Name = "Nouilles chinoises",          Unit = MeasurementUnit.Gram,        PackageSize = 250,  CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 34, Name = "Bouillon volaille",           Unit = MeasurementUnit.Piece,       PackageSize = 8,    CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 35, Name = "Roquefort",                   Unit = MeasurementUnit.Gram,        PackageSize = 150,  CategoryId = 9,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 36, Name = "Bloc WC",                     Unit = MeasurementUnit.Piece,       PackageSize = 1,    CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 37, Name = "Papier toilette",             Unit = MeasurementUnit.Piece,       PackageSize = 6,    CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 38, Name = "Lingette WC",                 Unit = MeasurementUnit.Piece,       PackageSize = 70,   CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 39, Name = "Sopalin",                     Unit = MeasurementUnit.Piece,       PackageSize = 2,    CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 40, Name = "Liquide Vaisselle",           Unit = MeasurementUnit.Milliliter,   PackageSize = 500,  CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 41, Name = "Éponge vaisselle",            Unit = MeasurementUnit.Piece,       PackageSize = 2,    CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 42, Name = "Éponge carrée",               Unit = MeasurementUnit.Piece,       PackageSize = 2,    CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 43, Name = "Lingette entretien",          Unit = MeasurementUnit.Piece,       PackageSize = 72,   CategoryId = 12, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 44, Name = "Huile tournesol",             Unit = MeasurementUnit.Liter,       PackageSize = 1,    CategoryId = 11, IsStaple = true, MonthlyEstimate = 1,    CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 45, Name = "Huile d'olive",               Unit = MeasurementUnit.Liter,       PackageSize = 0.75m,CategoryId = 11, IsStaple = true, MonthlyEstimate = 0.5m, CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 46, Name = "Huile de friture",            Unit = MeasurementUnit.Liter,       PackageSize = 2,    CategoryId = 11, IsStaple = true, MonthlyEstimate = 1,    CreatedAt = now, UpdatedAt = now }
+            new Item { Id = 1,  Name = "Pims Orange",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 2,  Name = "Pims Fraise",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 3,  Name = "Glace Fraise",                 PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 6,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 2,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 4,  Name = "Jambon x4",                    PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 4,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 5,  Name = "Jambon x10",                   PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 10,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 6,  Name = "Lardons 100g",                 PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 100,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 7,  Name = "Lardons 200g",                 PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 200,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 8,  Name = "Curly Donuts",                 PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 9,  Name = "Jus d'orange Andros",          PurchaseUnit = MeasurementUnit.Liter,       ContentQuantity = 1.5m, ContentUnit = MeasurementUnit.Liter,       CategoryId = 5,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 10, Name = "Jus d'orange Sanguine Andros", PurchaseUnit = MeasurementUnit.Liter,       ContentQuantity = 1.5m, ContentUnit = MeasurementUnit.Liter,       CategoryId = 5,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 11, Name = "Jus de pomme Andros",          PurchaseUnit = MeasurementUnit.Liter,       ContentQuantity = 1.5m, ContentUnit = MeasurementUnit.Liter,       CategoryId = 5,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 12, Name = "Côte de porc échine 300g",     PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 300,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 13, Name = "Côte de porc échine 680g",     PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 680,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 14, Name = "Steak Haché 5%mg Férial",      PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 250,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 15, Name = "Saumon Fumé",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 8,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 16, Name = "Citron vert",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 6,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 17, Name = "Raviolis 4 fromages Turini",   PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 300,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 18, Name = "Sauce Tomate Heintz 420g",     PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 420,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 19, Name = "Sauce Tomate Heintz 500g",     PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 500,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 20, Name = "Smacks",                       PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 400,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 21, Name = "Brioches",                     PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 20,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 10, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 22, Name = "Chocolat Daims",               PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 3,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 23, Name = "Sucre Morceaux Daddy",         PurchaseUnit = MeasurementUnit.Kilogram,    ContentQuantity = 1,    ContentUnit = MeasurementUnit.Kilogram,    CategoryId = 13, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 24, Name = "Poulet (morceaux)",            PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 20,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 25, Name = "Viande hachée",                PurchaseUnit = MeasurementUnit.Kilogram,    ContentQuantity = 1,    ContentUnit = MeasurementUnit.Kilogram,    CategoryId = 4,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 26, Name = "Oignons",                     PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 6,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 6,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 27, Name = "Tomates",                     PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 3,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 6,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 28, Name = "Spaghetti",                   PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 500,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 8,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 29, Name = "Riz",                         PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 1000, ContentUnit = MeasurementUnit.Gram,        CategoryId = 8,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 30, Name = "Œufs",                        PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 6,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 9,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 31, Name = "Petits pois surgelés",        PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 400,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 2,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 32, Name = "Sauce soja",                  PurchaseUnit = MeasurementUnit.Milliliter,  ContentQuantity = 150,  ContentUnit = MeasurementUnit.Milliliter,  CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 33, Name = "Nouilles chinoises",          PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 250,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 34, Name = "Bouillon volaille",           PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 8,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 7,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 35, Name = "Roquefort",                   PurchaseUnit = MeasurementUnit.Gram,        ContentQuantity = 150,  ContentUnit = MeasurementUnit.Gram,        CategoryId = 9,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 36, Name = "Bloc WC",                     PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 37, Name = "Papier toilette",             PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 6,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 38, Name = "Lingette WC",                 PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 70,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 39, Name = "Sopalin",                     PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 2,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 40, Name = "Liquide Vaisselle",           PurchaseUnit = MeasurementUnit.Milliliter,  ContentQuantity = 500,  ContentUnit = MeasurementUnit.Milliliter,  CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 41, Name = "Éponge vaisselle",            PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 2,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 42, Name = "Éponge carrée",               PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 2,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 43, Name = "Lingette entretien",          PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 72,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 12, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 44, Name = "Huile tournesol",             PurchaseUnit = MeasurementUnit.Liter,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Liter,       CategoryId = 11, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 45, Name = "Huile d'olive",               PurchaseUnit = MeasurementUnit.Liter,       ContentQuantity = 0.75m,ContentUnit = MeasurementUnit.Liter,       CategoryId = 11, CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 46, Name = "Huile de friture",            PurchaseUnit = MeasurementUnit.Liter,       ContentQuantity = 2,    ContentUnit = MeasurementUnit.Liter,       CategoryId = 11, CreatedAt = now, UpdatedAt = now }
         );
         db.SaveChanges();
 
@@ -166,34 +166,34 @@ public static class SeedData
             new Recipe { Id = 2, Name = "Riz cantonnais",                  BaseServings = 4 },
             new Recipe { Id = 3, Name = "Soupe chinoise",                  BaseServings = 4 },
             new Recipe { Id = 4, Name = "Raviolis sauce tomate",           BaseServings = 2 },
-            new Recipe { Id = 5, Name = "Sandwich Roquefort Jambon",       BaseServings = 1 }
+            new Recipe { Id = 5, Name = "Sandwich Roquefort Jambon",       BaseServings = 4 }
         );
         db.SaveChanges();
 
         // --- RecipeIngredients ---
         db.RecipeIngredients.AddRange(
             // Spaghetti Bolognaise
-            new RecipeIngredient { RecipeId = 1, ItemId = 28, Quantity = 400 },   // Spaghetti 400g
-            new RecipeIngredient { RecipeId = 1, ItemId = 25, Quantity = 0.4m },  // Viande hachée 0.4kg
-            new RecipeIngredient { RecipeId = 1, ItemId = 19, Quantity = 500 },   // Sauce Tomate 500g
-            new RecipeIngredient { RecipeId = 1, ItemId = 26, Quantity = 1 },     // Oignons 1pc
+            new RecipeIngredient { RecipeId = 1, ItemId = 28, Quantity = 400,   Unit = MeasurementUnit.Gram,       Order = 1 },  // Spaghetti 400g
+            new RecipeIngredient { RecipeId = 1, ItemId = 25, Quantity = 0.4m,  Unit = MeasurementUnit.Kilogram,   Order = 2 },  // Viande hachée 0.4kg
+            new RecipeIngredient { RecipeId = 1, ItemId = 19, Quantity = 500,   Unit = MeasurementUnit.Gram,       Order = 3 },  // Sauce Tomate 500g
+            new RecipeIngredient { RecipeId = 1, ItemId = 26, Quantity = 1,     Unit = MeasurementUnit.Piece,      Order = 4 },  // Oignons 1pc
             // Riz cantonnais
-            new RecipeIngredient { RecipeId = 2, ItemId = 29, Quantity = 400 },   // Riz 400g
-            new RecipeIngredient { RecipeId = 2, ItemId = 7,  Quantity = 200 },   // Lardons 200g
-            new RecipeIngredient { RecipeId = 2, ItemId = 30, Quantity = 3 },     // Œufs 3pc
-            new RecipeIngredient { RecipeId = 2, ItemId = 31, Quantity = 150 },   // Petits pois 150g
-            new RecipeIngredient { RecipeId = 2, ItemId = 32, Quantity = 50 },    // Sauce soja 50ml
+            new RecipeIngredient { RecipeId = 2, ItemId = 29, Quantity = 400,   Unit = MeasurementUnit.Gram,       Order = 1 },  // Riz 400g
+            new RecipeIngredient { RecipeId = 2, ItemId = 7,  Quantity = 200,   Unit = MeasurementUnit.Gram,       Order = 2 },  // Lardons 200g
+            new RecipeIngredient { RecipeId = 2, ItemId = 30, Quantity = 3,     Unit = MeasurementUnit.Piece,      Order = 3 },  // Œufs 3pc
+            new RecipeIngredient { RecipeId = 2, ItemId = 31, Quantity = 150,   Unit = MeasurementUnit.Gram,       Order = 4 },  // Petits pois 150g
+            new RecipeIngredient { RecipeId = 2, ItemId = 32, Quantity = 50,    Unit = MeasurementUnit.Milliliter, Order = 5 },  // Sauce soja 50ml
             // Soupe chinoise
-            new RecipeIngredient { RecipeId = 3, ItemId = 33, Quantity = 250 },   // Nouilles chinoises 250g
-            new RecipeIngredient { RecipeId = 3, ItemId = 34, Quantity = 2 },     // Bouillon volaille 2pc
-            new RecipeIngredient { RecipeId = 3, ItemId = 32, Quantity = 30 },    // Sauce soja 30ml
+            new RecipeIngredient { RecipeId = 3, ItemId = 33, Quantity = 250,   Unit = MeasurementUnit.Gram,       Order = 1 },  // Nouilles chinoises 250g
+            new RecipeIngredient { RecipeId = 3, ItemId = 34, Quantity = 2,     Unit = MeasurementUnit.Piece,      Order = 2 },  // Bouillon volaille 2pc
+            new RecipeIngredient { RecipeId = 3, ItemId = 32, Quantity = 30,    Unit = MeasurementUnit.Milliliter, Order = 3 },  // Sauce soja 30ml
             // Raviolis sauce tomate
-            new RecipeIngredient { RecipeId = 4, ItemId = 17, Quantity = 300 },   // Raviolis 300g
-            new RecipeIngredient { RecipeId = 4, ItemId = 18, Quantity = 200 },   // Sauce Tomate 420g → 200g
-            // Sandwich Roquefort Jambon
-            new RecipeIngredient { RecipeId = 5, ItemId = 21, Quantity = 2 },     // Brioches 2pc
-            new RecipeIngredient { RecipeId = 5, ItemId = 35, Quantity = 25 },    // Roquefort 25g
-            new RecipeIngredient { RecipeId = 5, ItemId = 4,  Quantity = 1 }      // Jambon x4 1pc
+            new RecipeIngredient { RecipeId = 4, ItemId = 17, Quantity = 300,   Unit = MeasurementUnit.Gram,       Order = 1 },  // Raviolis 300g
+            new RecipeIngredient { RecipeId = 4, ItemId = 18, Quantity = 200,   Unit = MeasurementUnit.Gram,       Order = 2 },  // Sauce Tomate 420g → 200g
+            // Sandwich Roquefort Jambon (4 portions : 2 brioches + 25g roquefort + 1 tranche jambon par sandwich)
+            new RecipeIngredient { RecipeId = 5, ItemId = 21, Quantity = 8,     Unit = MeasurementUnit.Piece,      Order = 1 },  // Brioches 8pc (4×2)
+            new RecipeIngredient { RecipeId = 5, ItemId = 35, Quantity = 100,   Unit = MeasurementUnit.Gram,       Order = 2 },  // Roquefort 100g (4×25g)
+            new RecipeIngredient { RecipeId = 5, ItemId = 4,  Quantity = 4,     Unit = MeasurementUnit.Piece,      Order = 3 }   // Jambon x4 4pc (1 pack entier)
         );
         db.SaveChanges();
 
@@ -230,18 +230,18 @@ public static class SeedData
 
         // --- MealItems (Recipe → RecipeId set, Item → ItemId set) ---
         db.MealItems.AddRange(
-            new MealItem { Id = 1,  MealId = 1,  RecipeId = 1,  Quantity = 1, Servings = 4 },  // Spaghetti Bolognaise
-            new MealItem { Id = 2,  MealId = 2,  ItemId = 3,   Quantity = 2, Servings = 1 },   // Glace Fraise x2
-            new MealItem { Id = 3,  MealId = 3,  RecipeId = 4,  Quantity = 1, Servings = 2 },  // Raviolis
-            new MealItem { Id = 4,  MealId = 4,  ItemId = 1,   Quantity = 3, Servings = 1 },   // Pims Orange x3
-            new MealItem { Id = 5,  MealId = 4,  ItemId = 9,   Quantity = 1, Servings = 1 },   // Jus d'orange Andros x1
-            new MealItem { Id = 6,  MealId = 5,  RecipeId = 2,  Quantity = 1, Servings = 4 },  // Riz cantonnais
-            new MealItem { Id = 7,  MealId = 6,  RecipeId = 3,  Quantity = 1, Servings = 4 },  // Soupe chinoise
-            new MealItem { Id = 8,  MealId = 7,  ItemId = 20,  Quantity = 1, Servings = 1 },   // Smacks x1
-            new MealItem { Id = 9,  MealId = 8,  RecipeId = 5,  Quantity = 1, Servings = 2 },  // Sandwich Roquefort Jambon
-            new MealItem { Id = 10, MealId = 9,  RecipeId = 1,  Quantity = 1, Servings = 4 },  // Spaghetti Bolognaise
-            new MealItem { Id = 11, MealId = 10, ItemId = 22,  Quantity = 1, Servings = 1 },   // Chocolat Daims x1
-            new MealItem { Id = 12, MealId = 11, RecipeId = 2,  Quantity = 1, Servings = 4 }   // Riz cantonnais
+            new MealItem { Id = 1,  MealId = 1,  RecipeId = 1, Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 },  // Spaghetti Bolognaise
+            new MealItem { Id = 2,  MealId = 2,  ItemId = 3,   Quantity = 2, Unit = MeasurementUnit.Piece,  Order = 1 },  // Glace Fraise x2
+            new MealItem { Id = 3,  MealId = 3,  RecipeId = 4, Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 },  // Raviolis
+            new MealItem { Id = 4,  MealId = 4,  ItemId = 1,   Quantity = 3, Unit = MeasurementUnit.Piece,  Order = 1 },  // Pims Orange x3
+            new MealItem { Id = 5,  MealId = 4,  ItemId = 9,   Quantity = 1, Unit = MeasurementUnit.Liter,  Order = 2 },  // Jus d'orange Andros x1
+            new MealItem { Id = 6,  MealId = 5,  RecipeId = 2, Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 },  // Riz cantonnais
+            new MealItem { Id = 7,  MealId = 6,  RecipeId = 3, Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 },  // Soupe chinoise
+            new MealItem { Id = 8,  MealId = 7,  ItemId = 20,  Quantity = 1, Unit = MeasurementUnit.Gram,   Order = 1 },  // Smacks x1
+            new MealItem { Id = 9,  MealId = 8,  RecipeId = 5, Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 },  // Sandwich Roquefort Jambon
+            new MealItem { Id = 10, MealId = 9,  RecipeId = 1, Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 },  // Spaghetti Bolognaise
+            new MealItem { Id = 11, MealId = 10, ItemId = 22,  Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 },  // Chocolat Daims x1
+            new MealItem { Id = 12, MealId = 11, RecipeId = 2, Quantity = 1, Unit = MeasurementUnit.Piece,  Order = 1 }   // Riz cantonnais
         );
         db.SaveChanges();
 

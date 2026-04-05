@@ -7,10 +7,14 @@ public class CreateMealItemRequestValidator : AbstractValidator<CreateMealItemRe
 {
     public CreateMealItemRequestValidator()
     {
-        RuleFor(x => x.ItemId)
-            .GreaterThan(0);
+        RuleFor(x => x)
+            .Must(x => (x.ItemId.HasValue && x.ItemId > 0) || (x.RecipeId.HasValue && x.RecipeId > 0))
+            .WithMessage("Either ItemId or RecipeId must be provided.");
 
         RuleFor(x => x.Quantity)
             .GreaterThanOrEqualTo(0);
+
+        RuleFor(x => x.Unit)
+            .IsInEnum();
     }
 }

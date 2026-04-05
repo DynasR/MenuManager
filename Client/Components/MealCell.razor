@@ -13,12 +13,18 @@
         @foreach (var item in Items)
         {
             var capturedItem = item;
-            <li @key="item.Id" data-item-id="@item.Id" class="meal-cell-item @(item.Id == 0 ? "meal-cell-item-no-id" : "")"
+            <li @key="item.Id" data-item-id="@item.Id" class="meal-cell-item @(item.Id == 0 ? "meal-cell-item-no-id" : "") @(capturedItem.RecipeId.HasValue ? "meal-cell-item-recipe" : "")"
                 @onclick="@(e => HandleItemClick(e, capturedItem.Id))"
                 @onclick:stopPropagation="true"
                 @ondblclick="@(() => OnItemRemoved.InvokeAsync(capturedItem.Id))"
                 @ondblclick:stopPropagation="true">
-                <span class="meal-cell-item-name">@item.ItemName</span>
+                <span class="meal-cell-item-name">
+                    @if (item.RecipeId.HasValue)
+                    {
+                        <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" Style="font-size:0.75rem;vertical-align:middle;margin-right:2px;" />
+                    }
+                    @(item.RecipeId.HasValue ? item.RecipeName : item.ItemName)
+                </span>
                 <span class="meal-cell-item-price">@FormatItemPrice(item)</span>
             </li>
         }
@@ -59,15 +65,21 @@
     [Parameter] public bool IsActionTarget { get; set; }
     [Parameter] public bool IsBeingDragged { get; set; }
 
-    private decimal SlotTotal => Items
-        .Where(i => i.UnitPrice.HasValue)
-        .Sum(i => Math.Ceiling(i.Quantity / i.PackageSize) * i.UnitPrice!.Value);
+    private decimal SlotTotal => Items.Sum(ComputeItemCost);
+
+    private static decimal ComputeItemCost(MealItemResponse item)
+    {
+        if (item.RecipeId.HasValue && item.RecipeEstimatedCost.HasValue)
+            return item.RecipeEstimatedCost.Value * item.Quantity;
+        if (item.UnitPrice.HasValue)
+            return (decimal)Math.Ceiling(item.Quantity / item.ContentQuantity) * item.UnitPrice.Value;
+        return 0m;
+    }
 
     private string FormatItemPrice(MealItemResponse item)
     {
-        if (!item.UnitPrice.HasValue) return "";
-        var cost = Math.Ceiling(item.Quantity / item.PackageSize) * item.UnitPrice.Value;
-        return cost.ToString("C", _fr);
+        var cost = ComputeItemCost(item);
+        return cost > 0 ? cost.ToString("C", _fr) : "";
     }
 
     [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex, bool isCopy)> OnItemMoved { get; set; }

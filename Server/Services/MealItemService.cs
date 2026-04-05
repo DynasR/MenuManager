@@ -30,6 +30,10 @@ public class MealItemService : IMealItemService
         var items = await _db.MealItems
             .Include(mi => mi.Item)
                 .ThenInclude(i => i.ItemSuppliers)
+            .Include(mi => mi.Recipe)
+                .ThenInclude(r => r!.RecipeIngredients)
+                    .ThenInclude(ri => ri.Item)
+                        .ThenInclude(i => i!.ItemSuppliers)
             .AsNoTracking()
             .ToListAsync();
 
@@ -41,6 +45,10 @@ public class MealItemService : IMealItemService
         var item = await _db.MealItems
             .Include(mi => mi.Item)
                 .ThenInclude(i => i.ItemSuppliers)
+            .Include(mi => mi.Recipe)
+                .ThenInclude(r => r!.RecipeIngredients)
+                    .ThenInclude(ri => ri.Item)
+                        .ThenInclude(i => i!.ItemSuppliers)
             .AsNoTracking()
             .FirstOrDefaultAsync(mi => mi.Id == id);
 
@@ -52,8 +60,20 @@ public class MealItemService : IMealItemService
         var mealExists = await _db.Meals.AnyAsync(m => m.Id == request.MealId);
         if (!mealExists) return null;
 
-        var itemExists = await _db.Items.AnyAsync(i => i.Id == request.ItemId);
-        if (!itemExists) return null;
+        if (request.ItemId.HasValue)
+        {
+            var itemExists = await _db.Items.AnyAsync(i => i.Id == request.ItemId.Value);
+            if (!itemExists) return null;
+        }
+        else if (request.RecipeId.HasValue)
+        {
+            var recipeExists = await _db.Recipes.AnyAsync(r => r.Id == request.RecipeId.Value);
+            if (!recipeExists) return null;
+        }
+        else
+        {
+            return null;
+        }
 
         var currentCount = await _db.MealItems.CountAsync(mi => mi.MealId == request.MealId);
 
@@ -63,6 +83,8 @@ public class MealItemService : IMealItemService
             Notes = request.Notes,
             MealId = request.MealId,
             ItemId = request.ItemId,
+            RecipeId = request.RecipeId,
+            Unit = request.Unit,
             Order = currentCount + 1
         };
 
@@ -87,6 +109,7 @@ public class MealItemService : IMealItemService
         mealItem.Notes = request.Notes;
         mealItem.MealId = request.MealId;
         mealItem.ItemId = request.ItemId;
+        mealItem.Unit = request.Unit;
 
         await _db.SaveChangesAsync();
 
@@ -207,16 +230,21 @@ public class MealItemService : IMealItemService
         Id = mi.Id,
         ItemId = mi.ItemId ?? 0,
         ItemName = mi.Item?.Name ?? "",
+        RecipeId = mi.RecipeId,
+        RecipeName = mi.Recipe?.Name,
+        RecipeEstimatedCost = mi.Recipe != null ? RecipeService.ComputeRecipeCost(mi.Recipe) : null,
         Quantity = mi.Quantity,
         Notes = mi.Notes,
         Order = mi.Order,
+        Unit = mi.Unit,
         MealId = mi.MealId,
         UnitPrice = mi.Item?.ItemSuppliers
             .Where(s => s.IsAvailable)
             .OrderBy(s => s.SupplierId)
             .Select(s => (decimal?)s.UnitPrice)
             .FirstOrDefault(),
-        PackageSize = mi.Item?.PackageSize ?? 1,
-        Unit = mi.Item?.Unit ?? default
+        ContentQuantity = mi.Item?.ContentQuantity ?? 1,
+        PurchaseUnit = mi.Item?.PurchaseUnit ?? default,
+        ContentUnit = mi.Item?.ContentUnit ?? default
     };
 }

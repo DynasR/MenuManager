@@ -46,8 +46,9 @@ public class MealItemServiceTests : IDisposable
         var item = new Item
         {
             Name = name,
-            Unit = MeasurementUnit.Piece,
-            PackageSize = 1,
+            PurchaseUnit = MeasurementUnit.Piece,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Piece,
             CategoryId = cat.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -95,7 +96,8 @@ public class MealItemServiceTests : IDisposable
             Quantity = 2.5m,
             Notes = "test note",
             MealId = meal.Id,
-            ItemId = item.Id
+            ItemId = item.Id,
+            Unit = MeasurementUnit.Piece
         };
         _db.MealItems.Add(mi);
         await _db.SaveChangesAsync();
@@ -116,8 +118,8 @@ public class MealItemServiceTests : IDisposable
         result.Should().HaveCount(1);
         result[0].ItemName.Should().Be(item.Name);
         result[0].Quantity.Should().Be(2.5m);
-        result[0].PackageSize.Should().Be(1);
-        result[0].Unit.Should().Be(MeasurementUnit.Piece);
+        result[0].ContentQuantity.Should().Be(1);
+        result[0].PurchaseUnit.Should().Be(MeasurementUnit.Piece);
         result[0].UnitPrice.Should().BeNull();
     }
 
@@ -144,8 +146,8 @@ public class MealItemServiceTests : IDisposable
         result!.ItemName.Should().Be(item.Name);
         result.Quantity.Should().Be(2.5m);
         result.Notes.Should().Be("test note");
-        result.PackageSize.Should().Be(1);
-        result.Unit.Should().Be(MeasurementUnit.Piece);
+        result.ContentQuantity.Should().Be(1);
+        result.PurchaseUnit.Should().Be(MeasurementUnit.Piece);
         result.UnitPrice.Should().BeNull();
     }
 
@@ -192,7 +194,8 @@ public class MealItemServiceTests : IDisposable
             MealId = meal.Id,
             ItemId = item.Id,
             Quantity = 3.5m,
-            Notes = "some notes"
+            Notes = "some notes",
+            Unit = MeasurementUnit.Piece
         });
 
         result.Should().NotBeNull();
@@ -201,8 +204,9 @@ public class MealItemServiceTests : IDisposable
         result.Quantity.Should().Be(3.5m);
         result.Notes.Should().Be("some notes");
         result.MealId.Should().Be(meal.Id);
-        result.PackageSize.Should().Be(1);
         result.Unit.Should().Be(MeasurementUnit.Piece);
+        result.ContentQuantity.Should().Be(1);
+        result.PurchaseUnit.Should().Be(MeasurementUnit.Piece);
         result.UnitPrice.Should().BeNull();
     }
 
@@ -237,7 +241,8 @@ public class MealItemServiceTests : IDisposable
         {
             MealId = meal.Id,
             ItemId = item.Id,
-            Quantity = 1m
+            Quantity = 1m,
+            Unit = MeasurementUnit.Piece
         });
 
         result.Should().NotBeNull();
@@ -339,12 +344,14 @@ public class MealItemServiceTests : IDisposable
             MealId = meal.Id,
             ItemId = item.Id,
             Quantity = 10m,
-            Notes = "updated"
+            Notes = "updated",
+            Unit = MeasurementUnit.Piece
         });
 
         result.Should().NotBeNull();
         result!.Quantity.Should().Be(10m);
         result.Notes.Should().Be("updated");
+        result.Unit.Should().Be(MeasurementUnit.Piece);
     }
 
     // ── MoveAsync ────────────────────────────────────────────────────────────

@@ -19,13 +19,19 @@ else
         <MudTextField @bind-Value="_dto.Name" Label="Nom" Required="true"
                       RequiredError="Le nom est obligatoire." MaxLength="100" Class="mb-3" />
         <MudTextField @bind-Value="_dto.Description" Label="Description" Lines="3" Class="mb-3" />
-        <MudSelect T="MeasurementUnit" @bind-Value="_dto.Unit" Label="Unit" Class="mb-3">
+        <MudSelect T="MeasurementUnit" @bind-Value="_dto.PurchaseUnit" Label="Purchase Unit" Class="mb-3">
             @foreach (var u in Enum.GetValues<MeasurementUnit>())
             {
                 <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
             }
         </MudSelect>
-        <MudNumericField @bind-Value="_dto.PackageSize" Label="Package size" Min="0.001m" Class="mb-3" />
+        <MudNumericField @bind-Value="_dto.ContentQuantity" Label="Content Quantity" Min="0.001m" Class="mb-3" />
+        <MudSelect T="MeasurementUnit" @bind-Value="_dto.ContentUnit" Label="Content Unit" Class="mb-3">
+            @foreach (var u in Enum.GetValues<MeasurementUnit>())
+            {
+                <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
+            }
+        </MudSelect>
         <MudSelect T="int" @bind-Value="_dto.CategoryId" Label="Categorie" Class="mb-3">
             @foreach (var cat in _categories)
             {
@@ -66,8 +72,9 @@ else
 
         _dto.Name = item.Name;
         _dto.Description = item.Description;
-        _dto.Unit = item.Unit;
-        _dto.PackageSize = item.PackageSize;
+        _dto.PurchaseUnit = item.PurchaseUnit;
+        _dto.ContentQuantity = item.ContentQuantity;
+        _dto.ContentUnit = item.ContentUnit;
         _dto.CategoryId = item.CategoryId;
 
         _loading = false;

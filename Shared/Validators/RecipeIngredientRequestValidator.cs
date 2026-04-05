@@ -9,5 +9,11 @@ public class RecipeIngredientRequestValidator : AbstractValidator<RecipeIngredie
     {
         RuleFor(x => x.Quantity)
             .GreaterThan(0);
+
+        RuleFor(x => x.Unit)
+            .IsInEnum();
+
+        RuleFor(x => x.Order)
+            .GreaterThan(0);
     }
 }

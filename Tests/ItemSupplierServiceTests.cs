@@ -34,8 +34,9 @@ public class ItemSupplierServiceTests : IDisposable
         var item = new Item
         {
             Name = name,
-            Unit = MeasurementUnit.Piece,
-            PackageSize = 1,
+            PurchaseUnit = MeasurementUnit.Piece,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Piece,
             CategoryId = cat.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

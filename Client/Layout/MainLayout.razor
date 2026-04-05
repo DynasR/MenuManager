@@ -1,18 +1,25 @@
 @inherits LayoutComponentBase
 @inject RightPanelState RightPanel
+@inject ThemeState ThemeState
+@inject IJSRuntime JS
 @implements IDisposable
 
-<MudThemeProvider Theme="_theme" />
+<MudThemeProvider Theme="@CurrentMudTheme" IsDarkMode="ThemeState.IsDarkMode" />
 <MudPopoverProvider />
 <MudSnackbarProvider />
 <MudDialogProvider />
 
 <MudLayout>
     <MudAppBar Elevation="2" Color="Color.Default"
-               Style="background: linear-gradient(135deg, #1565C0 0%, #7C3AED 100%); color: white;">
+               Style="@(AppBarStyle)">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
                        OnClick="ToggleDrawer" />
         <MudText Typo="Typo.h6" Class="ms-3">MenuManager</MudText>
+        <MudTooltip Text="@ThemeLabel">
+            <MudIconButton Icon="@ThemeIcon" Color="Color.Inherit"
+                           Style="opacity: 0.85; margin-left: 4px;"
+                           OnClick="CycleTheme" />
+        </MudTooltip>
         <MudSpacer />
         @if (RightPanel.Content is not null)
         {
@@ -39,34 +46,111 @@
 </MudLayout>
 
 @code {
-    private static readonly MudTheme _theme = new()
+    // ── Light theme ────────────────────────────────────────────────────────────
+    private static readonly MudTheme _lightTheme = new()
     {
         PaletteLight = new PaletteLight
         {
-            Success = "#1B5E20",
-            Secondary = "#7C3AED",
-            Info = "#1565C0"
+            Success           = "#1B5E20",
+            Secondary         = "#1565C0",
+            Info              = "#1976D2",
+            Background        = "#EDEAE6",
+            Surface           = "#E5E2DE",
+            DrawerBackground  = "#E0DDD9",
+            AppbarBackground  = "#E0DDD9"
         }
+    };
+
+    // ── Dark theme ─────────────────────────────────────────────────────────────
+    private static readonly MudTheme _darkTheme = new()
+    {
+        PaletteDark = new PaletteDark
+        {
+            Success           = "#66BB6A",
+            Secondary         = "#82B4FF",
+            Info              = "#42A5F5",
+            Primary           = "#5C9CF5",
+            AppbarBackground  = "#1C1C2E",
+            DrawerBackground  = "#1C1C2E",
+            Background        = "#121212",
+            Surface           = "#1E1E2E"
+        }
+    };
+
+    // ── Custom (black) theme ───────────────────────────────────────────────────
+    private static readonly MudTheme _customTheme = new()
+    {
+        PaletteDark = new PaletteDark
+        {
+            Success           = "#66BB6A",
+            Secondary         = "#82B4FF",
+            Info              = "#42A5F5",
+            Primary           = "#5C9CF5",
+            AppbarBackground  = "#000000",
+            DrawerBackground  = "#050505",
+            Background        = "#000000",
+            Surface           = "#0D0D0D",
+            TextPrimary       = "#E0E0E0",
+            TextSecondary     = "#AAAAAA"
+        }
+    };
+
+    private MudTheme CurrentMudTheme => ThemeState.Theme switch
+    {
+        AppTheme.Dark   => _darkTheme,
+        AppTheme.Custom => _customTheme,
+        _               => _lightTheme
+    };
+
+    private const string AppBarStyle =
+        "background: linear-gradient(135deg, #06091A 0%, #0C1228 60%, #050A1C 100%); color: white;";
+
+    private string ThemeIcon => ThemeState.Theme switch
+    {
+        AppTheme.Light  => Icons.Material.Filled.LightMode,
+        AppTheme.Dark   => Icons.Material.Filled.DarkMode,
+        AppTheme.Custom => Icons.Material.Filled.Contrast,
+        _               => Icons.Material.Filled.LightMode
+    };
+
+    private string ThemeLabel => ThemeState.Theme switch
+    {
+        AppTheme.Light  => "Thème clair",
+        AppTheme.Dark   => "Thème sombre",
+        AppTheme.Custom => "Thème noir",
+        _               => ""
     };
 
     private bool _drawerOpen = true;
     private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 
-    protected override void OnInitialized()
+    private async Task CycleTheme()
+    {
+        ThemeState.Cycle();
+        await JS.InvokeVoidAsync("localStorage.setItem", "theme", ThemeState.Theme.ToString().ToLower());
+    }
+
+    protected override async Task OnInitializedAsync()
     {
         RightPanel.OnChange += OnRightPanelChanged;
+        ThemeState.OnChange += OnThemeChanged;
+
+        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "theme");
+        if (stored == "dark")   ThemeState.Set(AppTheme.Dark);
+        if (stored == "custom") ThemeState.Set(AppTheme.Custom);
     }
 
     private void OnRightPanelChanged() => InvokeAsync(StateHasChanged);
+    private void OnThemeChanged()      => InvokeAsync(StateHasChanged);
 
     private void OnRightPanelOpenChanged(bool open)
     {
-        if (!open)
-            RightPanel.Close();
+        if (!open) RightPanel.Close();
     }
 
     public void Dispose()
     {
         RightPanel.OnChange -= OnRightPanelChanged;
+        ThemeState.OnChange -= OnThemeChanged;
     }
 }

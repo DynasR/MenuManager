@@ -18,7 +18,9 @@ builder.Services.AddScoped<ItemSupplierService>();
 builder.Services.AddScoped<DailyMenuService>();
 builder.Services.AddScoped<MealService>();
 builder.Services.AddScoped<MealItemService>();
+builder.Services.AddScoped<RecipeService>();
 builder.Services.AddScoped<RightPanelState>();
+builder.Services.AddScoped<ThemeState>();
 builder.Services.AddMudServices(config =>
 {
     config.SnackbarConfiguration.PositionClass = MudBlazor.Defaults.Classes.Position.BottomCenter;

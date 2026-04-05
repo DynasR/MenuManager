@@ -93,8 +93,9 @@ public class CategoryServiceTests : IDisposable
         _db.Items.Add(new Item
         {
             Name = "Item",
-            Unit = MeasurementUnit.Piece,
-            PackageSize = 1,
+            PurchaseUnit = MeasurementUnit.Piece,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Piece,
             CategoryId = category.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

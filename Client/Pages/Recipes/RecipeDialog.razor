@@ -1,0 +1,37 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">@Title</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="Model.Name" Label="Name" Required="true"
+                      RequiredError="Name is required." Immediate="true" />
+        <MudTextField @bind-Value="Model.Description" Label="Description"
+                      Immediate="true" Class="mt-2" />
+        <MudNumericField @bind-Value="Model.BaseServings" Label="Base Servings"
+                         Min="1" Class="mt-2" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   Disabled="@string.IsNullOrWhiteSpace(Model.Name)"
+                   OnClick="Submit">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public string Title { get; set; } = "Recipe";
+    [Parameter] public RecipeFormModel Model { get; set; } = new();
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(Model));
+
+    public sealed class RecipeFormModel
+    {
+        public string Name { get; set; } = "";
+        public string? Description { get; set; }
+        public int BaseServings { get; set; } = 1;
+    }
+}

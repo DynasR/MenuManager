@@ -28,6 +28,7 @@ public class RecipeService : IRecipeService
         var recipes = await _db.Recipes
             .Include(r => r.RecipeIngredients)
                 .ThenInclude(ri => ri.Item)
+                    .ThenInclude(i => i!.ItemSuppliers)
             .AsNoTracking()
             .ToListAsync();
 
@@ -39,6 +40,7 @@ public class RecipeService : IRecipeService
         var recipe = await _db.Recipes
             .Include(r => r.RecipeIngredients)
                 .ThenInclude(ri => ri.Item)
+                    .ThenInclude(i => i!.ItemSuppliers)
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == id);
 
@@ -65,6 +67,7 @@ public class RecipeService : IRecipeService
         var recipe = await _db.Recipes
             .Include(r => r.RecipeIngredients)
                 .ThenInclude(ri => ri.Item)
+                    .ThenInclude(i => i!.ItemSuppliers)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (recipe is null) return null;
@@ -95,12 +98,49 @@ public class RecipeService : IRecipeService
         Name = r.Name,
         Description = r.Description,
         BaseServings = r.BaseServings,
-        Ingredients = r.RecipeIngredients.Select(ri => new RecipeIngredientResponse
-        {
-            RecipeId = ri.RecipeId,
-            ItemId = ri.ItemId,
-            ItemName = ri.Item?.Name ?? "",
-            Quantity = ri.Quantity
-        }).ToList()
+        EstimatedCost = ComputeRecipeCost(r),
+        Ingredients = r.RecipeIngredients
+            .OrderBy(ri => ri.Order)
+            .Select(ri => new RecipeIngredientResponse
+            {
+                RecipeId = ri.RecipeId,
+                ItemId = ri.ItemId,
+                ItemName = ri.Item?.Name ?? "",
+                Quantity = ri.Quantity,
+                Unit = ri.Unit,
+                Order = ri.Order,
+                PurchaseUnit = ri.Item?.PurchaseUnit ?? default,
+                ContentUnit = ri.Item?.ContentUnit ?? default,
+                ContentQuantity = ri.Item?.ContentQuantity ?? 1,
+                UnitPrice = ri.Item?.ItemSuppliers
+                    .Where(s => s.IsAvailable)
+                    .OrderBy(s => s.SupplierId)
+                    .Select(s => (decimal?)s.UnitPrice)
+                    .FirstOrDefault()
+            }).ToList()
     };
+
+    public static decimal ComputeRecipeCost(Recipe r)
+    {
+        decimal total = 0;
+        foreach (var ri in r.RecipeIngredients)
+        {
+            if (ri.Item is null) continue;
+
+            var unitPrice = ri.Item.ItemSuppliers
+                .Where(s => s.IsAvailable)
+                .OrderBy(s => s.SupplierId)
+                .Select(s => (decimal?)s.UnitPrice)
+                .FirstOrDefault();
+
+            if (unitPrice is null) continue;
+
+            // Purchase cost: ceil(Quantity / ContentQuantity) × price per package
+            var packs = ri.Item.ContentQuantity > 0
+                ? (decimal)Math.Ceiling((double)(ri.Quantity / ri.Item.ContentQuantity))
+                : ri.Quantity;
+            total += packs * unitPrice.Value;
+        }
+        return total;
+    }
 }

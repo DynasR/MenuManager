@@ -1,0 +1,416 @@
+@page "/recipes"
+@inject RecipeService RecipeSvc
+@inject ItemService ItemSvc
+@inject IDialogService DialogSvc
+@inject ISnackbar Snackbar
+@using MenuManager.Shared.Enums
+@using System.Globalization
+
+<PageTitle>Recipes</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Recipes</MudText>
+
+<MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+           StartIcon="@Icons.Material.Filled.PlaylistAdd"
+           OnClick="OpenCreateDialog" Class="mb-4">
+    New Recipe
+</MudButton>
+
+<MudDataGrid T="RecipeResponse" Items="_recipes"
+             Loading="_loading" Hover="true" Striped="true" Dense="true"
+             ReadOnly="true">
+    <Columns>
+        <HierarchyColumn T="RecipeResponse" />
+        <PropertyColumn Property="x => x.Name" Title="Name" />
+        <PropertyColumn Property="x => x.Description" Title="Description" />
+        <PropertyColumn Property="x => x.BaseServings" Title="Servings" />
+        <TemplateColumn Title="Est. Cost" Sortable="false" Filterable="false">
+            <CellTemplate>
+                @context.Item.EstimatedCost.ToString("C2", FrCulture)
+            </CellTemplate>
+        </TemplateColumn>
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false">
+            <CellTemplate>
+                <MudTooltip Text="Edit">
+                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small"
+                                   OnClick="@(() => OpenEditDialog(context.Item))" />
+                </MudTooltip>
+                <MudTooltip Text="Delete">
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                   OnClick="@(() => DeleteRecipeAsync(context.Item))" />
+                </MudTooltip>
+            </CellTemplate>
+        </TemplateColumn>
+    </Columns>
+    <ChildRowContent Context="row">
+        @{
+            var recipe = row.Item;
+            var draft = GetOrCreateDraft(recipe.Id);
+        }
+        <div class="pa-3">
+            <MudText Typo="Typo.subtitle2" Class="mb-2">Ingredients</MudText>
+            <MudSimpleTable Dense="true" Style="width: 100%">
+                <thead>
+                    <tr>
+                        <th style="width: 80px">Order</th>
+                        <th>Item</th>
+                        <th style="width: 130px">Quantity</th>
+                        <th style="width: 140px">Unit</th>
+                        <th style="width: 100px">Unit Price</th>
+                        <th style="width: 100px">Cost</th>
+                        <th style="width: 110px"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ing in recipe.Ingredients.OrderBy(i => i.Order))
+                    {
+                        <tr>
+                            <td>
+                                <div style="display: flex; flex-direction: column; align-items: center; gap: 0;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp"
+                                                   Size="Size.Small"
+                                                   Disabled="@(ing == recipe.Ingredients.OrderBy(i => i.Order).First())"
+                                                   OnClick="@(() => MoveIngredientAsync(recipe, ing, -1))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown"
+                                                   Size="Size.Small"
+                                                   Disabled="@(ing == recipe.Ingredients.OrderBy(i => i.Order).Last())"
+                                                   OnClick="@(() => MoveIngredientAsync(recipe, ing, 1))" />
+                                </div>
+                            </td>
+                            <td>@ing.ItemName</td>
+                            <td>
+                                <MudNumericField T="decimal"
+                                    Value="@ing.Quantity"
+                                    ValueChanged="@((decimal val) => MarkIngredientQuantityDirty(ing, val))"
+                                    Min="0.001m" Margin="Margin.Dense" />
+                            </td>
+                            <td>
+                                <MudSelect T="MeasurementUnit"
+                                    Value="@ing.Unit"
+                                    ValueChanged="@((MeasurementUnit val) => MarkIngredientUnitDirty(ing, val))"
+                                    Margin="Margin.Dense">
+                                    @foreach (var u in UnitChoices(ing.PurchaseUnit, ing.ContentUnit))
+                                    {
+                                        <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </td>
+                            <td>@(ing.UnitPrice?.ToString("C2", FrCulture) ?? "—")</td>
+                            <td>@IngredientCost(ing).ToString("C2", FrCulture)</td>
+                            <td>
+                                <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small"
+                                               Color="Color.Primary"
+                                               Disabled="@(!_dirtyIngredients.Contains((ing.RecipeId, ing.ItemId)))"
+                                               OnClick="@(() => SaveIngredientAsync(recipe, ing))" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                               Color="Color.Error"
+                                               OnClick="@(() => DeleteIngredientAsync(recipe, ing))" />
+                            </td>
+                        </tr>
+                    }
+                    <tr>
+                        <td></td>
+                        <td>
+                            <MudAutocomplete T="ItemResponse"
+                                Value="@draft.Item"
+                                ValueChanged="@((ItemResponse? item) => OnDraftItemChanged(recipe.Id, draft, item))"
+                                SearchFunc="SearchItems"
+                                ToStringFunc="@(i => i?.Name ?? "")"
+                                Margin="Margin.Dense" Placeholder="Search item..." />
+                        </td>
+                        <td>
+                            <MudNumericField T="decimal" @bind-Value="draft.Quantity"
+                                             Min="0.001m" Margin="Margin.Dense"
+                                             Disabled="@(draft.Item is null)" />
+                        </td>
+                        <td>
+                            @if (draft.Item is not null)
+                            {
+                                <MudSelect T="MeasurementUnit" @bind-Value="draft.Unit" Margin="Margin.Dense">
+                                    @foreach (var u in UnitChoices(draft.Item.PurchaseUnit, draft.Item.ContentUnit))
+                                    {
+                                        <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            }
+                        </td>
+                        <td></td>
+                        <td></td>
+                        <td>
+                            <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                           Color="Color.Success"
+                                           Disabled="@(draft.Item is null)"
+                                           OnClick="@(() => AddIngredientAsync(recipe, draft))" />
+                        </td>
+                    </tr>
+                </tbody>
+            </MudSimpleTable>
+        </div>
+    </ChildRowContent>
+</MudDataGrid>
+
+@code {
+    private static readonly CultureInfo FrCulture = new("fr-FR");
+
+    private List<RecipeResponse> _recipes = [];
+    private List<ItemResponse> _items = [];
+    private bool _loading = true;
+    private HashSet<(int, int)> _dirtyIngredients = new();
+    private Dictionary<int, IngredientDraft> _drafts = new();
+
+    private sealed class IngredientDraft
+    {
+        public ItemResponse? Item { get; set; }
+        public decimal Quantity { get; set; } = 1;
+        public MeasurementUnit Unit { get; set; }
+    }
+
+    private IngredientDraft GetOrCreateDraft(int recipeId)
+    {
+        if (!_drafts.TryGetValue(recipeId, out var draft))
+        {
+            draft = new IngredientDraft();
+            _drafts[recipeId] = draft;
+        }
+        return draft;
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _recipes = await RecipeSvc.GetAllAsync();
+        _items = await ItemSvc.GetAllAsync();
+        _dirtyIngredients.Clear();
+        _drafts.Clear();
+        _loading = false;
+    }
+
+    // ── Search ──────────────────────────────────────────────────────────────
+
+    private Task<IEnumerable<ItemResponse>> SearchItems(string? text, CancellationToken _)
+    {
+        var results = string.IsNullOrWhiteSpace(text)
+            ? _items
+            : _items.Where(i => i.Name.Contains(text, StringComparison.OrdinalIgnoreCase));
+        return Task.FromResult<IEnumerable<ItemResponse>>(results);
+    }
+
+    // ── Cost helpers ─────────────────────────────────────────────────────────
+
+    private static MeasurementUnit[] UnitChoices(MeasurementUnit purchase, MeasurementUnit content)
+        => purchase == content ? [purchase] : [purchase, content];
+
+    private static decimal IngredientCost(RecipeIngredientResponse ing)
+    {
+        if (ing.UnitPrice is null) return 0;
+        if (ing.Unit == ing.PurchaseUnit)
+            return ing.Quantity * ing.UnitPrice.Value;
+        return (decimal)Math.Ceiling((double)(ing.Quantity / ing.ContentQuantity)) * ing.UnitPrice.Value;
+    }
+
+    private static void UpdateRecipeCost(RecipeResponse recipe)
+        => recipe.EstimatedCost = recipe.Ingredients.Sum(IngredientCost);
+
+    // ── Recipe CRUD ──────────────────────────────────────────────────────────
+
+    private async Task OpenCreateDialog()
+    {
+        var model = new RecipeDialog.RecipeFormModel();
+        var parameters = new DialogParameters<RecipeDialog>
+        {
+            { x => x.Title, "New Recipe" },
+            { x => x.Model, model }
+        };
+        var dialog = await DialogSvc.ShowAsync<RecipeDialog>("New Recipe", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+
+        if (result.Data is not RecipeDialog.RecipeFormModel formModel) return;
+        var created = await RecipeSvc.CreateAsync(new CreateRecipeRequest
+        {
+            Name = formModel.Name,
+            Description = formModel.Description,
+            BaseServings = formModel.BaseServings
+        });
+        if (created is not null)
+        {
+            Snackbar.Add($"Recipe \"{created.Name}\" created.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to create recipe.", Severity.Error);
+        }
+    }
+
+    private async Task OpenEditDialog(RecipeResponse recipe)
+    {
+        var model = new RecipeDialog.RecipeFormModel
+        {
+            Name = recipe.Name,
+            Description = recipe.Description,
+            BaseServings = recipe.BaseServings
+        };
+        var parameters = new DialogParameters<RecipeDialog>
+        {
+            { x => x.Title, "Edit Recipe" },
+            { x => x.Model, model }
+        };
+        var dialog = await DialogSvc.ShowAsync<RecipeDialog>("Edit Recipe", parameters);
+        var result = await dialog.Result;
+        if (result is null || result.Canceled) return;
+
+        if (result.Data is not RecipeDialog.RecipeFormModel formModel) return;
+        var updated = await RecipeSvc.UpdateAsync(recipe.Id, new UpdateRecipeRequest
+        {
+            Name = formModel.Name,
+            Description = formModel.Description,
+            BaseServings = formModel.BaseServings
+        });
+        if (updated is not null)
+        {
+            Snackbar.Add($"Recipe \"{updated.Name}\" updated.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to update recipe.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteRecipeAsync(RecipeResponse recipe)
+    {
+        var deleted = await RecipeSvc.DeleteAsync(recipe.Id);
+        if (deleted)
+        {
+            Snackbar.Add($"Recipe \"{recipe.Name}\" deleted.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add("Failed to delete recipe.", Severity.Error);
+        }
+    }
+
+    // ── Ingredient mutations ──────────────────────────────────────────────────
+
+    private void MarkIngredientQuantityDirty(RecipeIngredientResponse ing, decimal val)
+    {
+        ing.Quantity = val;
+        _dirtyIngredients.Add((ing.RecipeId, ing.ItemId));
+        StateHasChanged();
+    }
+
+    private void MarkIngredientUnitDirty(RecipeIngredientResponse ing, MeasurementUnit val)
+    {
+        ing.Unit = val;
+        _dirtyIngredients.Add((ing.RecipeId, ing.ItemId));
+        StateHasChanged();
+    }
+
+    private void OnDraftItemChanged(int recipeId, IngredientDraft draft, ItemResponse? item)
+    {
+        draft.Item = item;
+        draft.Unit = item?.PurchaseUnit ?? default;
+        StateHasChanged();
+    }
+
+    private async Task SaveIngredientAsync(RecipeResponse recipe, RecipeIngredientResponse ing)
+    {
+        var request = new RecipeIngredientRequest
+        {
+            RecipeId = ing.RecipeId,
+            ItemId = ing.ItemId,
+            Quantity = ing.Quantity,
+            Unit = ing.Unit,
+            Order = ing.Order
+        };
+        var updated = await RecipeSvc.UpdateIngredientAsync(ing.RecipeId, ing.ItemId, request);
+        if (updated is not null)
+        {
+            var idx = recipe.Ingredients.FindIndex(i => i.ItemId == ing.ItemId);
+            if (idx >= 0) recipe.Ingredients[idx] = updated;
+            _dirtyIngredients.Remove((ing.RecipeId, ing.ItemId));
+            UpdateRecipeCost(recipe);
+            StateHasChanged();
+        }
+        else
+        {
+            Snackbar.Add("Failed to save ingredient.", Severity.Error);
+        }
+    }
+
+    private async Task DeleteIngredientAsync(RecipeResponse recipe, RecipeIngredientResponse ing)
+    {
+        var deleted = await RecipeSvc.DeleteIngredientAsync(ing.RecipeId, ing.ItemId);
+        if (deleted)
+        {
+            recipe.Ingredients.Remove(ing);
+            _dirtyIngredients.Remove((ing.RecipeId, ing.ItemId));
+            UpdateRecipeCost(recipe);
+            StateHasChanged();
+        }
+        else
+        {
+            Snackbar.Add("Failed to delete ingredient.", Severity.Error);
+        }
+    }
+
+    private async Task AddIngredientAsync(RecipeResponse recipe, IngredientDraft draft)
+    {
+        if (draft.Item is null) return;
+
+        var nextOrder = recipe.Ingredients.Count == 0
+            ? 1
+            : recipe.Ingredients.Max(i => i.Order) + 1;
+
+        var request = new RecipeIngredientRequest
+        {
+            RecipeId = recipe.Id,
+            ItemId = draft.Item.Id,
+            Quantity = draft.Quantity,
+            Unit = draft.Unit,
+            Order = nextOrder
+        };
+        var added = await RecipeSvc.AddIngredientAsync(recipe.Id, request);
+        if (added is not null)
+        {
+            recipe.Ingredients.Add(added);
+            _drafts[recipe.Id] = new IngredientDraft();
+            UpdateRecipeCost(recipe);
+            StateHasChanged();
+        }
+        else
+        {
+            Snackbar.Add("Failed to add ingredient. Item may already be in this recipe.", Severity.Error);
+        }
+    }
+
+    private async Task MoveIngredientAsync(RecipeResponse recipe, RecipeIngredientResponse ing, int direction)
+    {
+        var ordered = recipe.Ingredients.OrderBy(i => i.Order).ToList();
+        var idx = ordered.IndexOf(ing);
+        var swapIdx = idx + direction;
+        if (swapIdx < 0 || swapIdx >= ordered.Count) return;
+
+        var other = ordered[swapIdx];
+        (ing.Order, other.Order) = (other.Order, ing.Order);
+
+        var r1 = await RecipeSvc.UpdateIngredientAsync(ing.RecipeId, ing.ItemId,
+            new RecipeIngredientRequest { RecipeId = ing.RecipeId, ItemId = ing.ItemId, Quantity = ing.Quantity, Unit = ing.Unit, Order = ing.Order });
+        var r2 = await RecipeSvc.UpdateIngredientAsync(other.RecipeId, other.ItemId,
+            new RecipeIngredientRequest { RecipeId = other.RecipeId, ItemId = other.ItemId, Quantity = other.Quantity, Unit = other.Unit, Order = other.Order });
+
+        if (r1 is null || r2 is null)
+        {
+            Snackbar.Add("Failed to reorder ingredients.", Severity.Error);
+            await LoadAsync();
+        }
+        else
+        {
+            StateHasChanged();
+        }
+    }
+}

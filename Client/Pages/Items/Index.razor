@@ -26,20 +26,20 @@
                  EditMode="DataGridEditMode.Cell" Hover="true" Dense="true"
                  Class="mb-0" Style="table-layout: fixed; width: 100%">
         <Columns>
-            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 20%">
+            <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 17%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Name" Required="true"
                                   RequiredError="Name is required." Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Description" Title="Description" Editable="true" Style="width: 35%">
+            <PropertyColumn Property="x => x.Description" Title="Description" Editable="true" Style="width: 28%">
                 <EditTemplate>
                     <MudTextField T="string" @bind-Value="context.Item.Description" Immediate="true" />
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.Unit" Title="Unit" Editable="true" Style="width: 12%">
+            <PropertyColumn Property="x => x.PurchaseUnit" Title="Purchase Unit" Editable="true" Style="width: 10%">
                 <EditTemplate>
-                    <MudSelect T="MeasurementUnit" @bind-Value="context.Item.Unit"
+                    <MudSelect T="MeasurementUnit" @bind-Value="context.Item.PurchaseUnit"
                                Immediate="true" Margin="Margin.Dense">
                         @foreach (var u in Enum.GetValues<MeasurementUnit>())
                         {
@@ -48,10 +48,21 @@
                     </MudSelect>
                 </EditTemplate>
             </PropertyColumn>
-            <PropertyColumn Property="x => x.PackageSize" Title="Package Size" Editable="true" Style="width: 10%">
+            <PropertyColumn Property="x => x.ContentQuantity" Title="Content Qty" Editable="true" Style="width: 8%">
                 <EditTemplate>
-                    <MudNumericField T="decimal" @bind-Value="context.Item.PackageSize"
+                    <MudNumericField T="decimal" @bind-Value="context.Item.ContentQuantity"
                                      Min="0.001m" Immediate="true" />
+                </EditTemplate>
+            </PropertyColumn>
+            <PropertyColumn Property="x => x.ContentUnit" Title="Content Unit" Editable="true" Style="width: 10%">
+                <EditTemplate>
+                    <MudSelect T="MeasurementUnit" @bind-Value="context.Item.ContentUnit"
+                               Immediate="true" Margin="Margin.Dense">
+                        @foreach (var u in Enum.GetValues<MeasurementUnit>())
+                        {
+                            <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
+                        }
+                    </MudSelect>
                 </EditTemplate>
             </PropertyColumn>
             <PropertyColumn Property="x => x.CategoryId" Title="Category" Editable="true" Style="width: 18%">
@@ -68,7 +79,7 @@
                     </MudSelect>
                 </EditTemplate>
             </PropertyColumn>
-            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 5%">
+            <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 9%">
                 <CellTemplate>
                     <MudIconButton Icon="@Icons.Material.Filled.Check" Color="Color.Success" Size="Size.Small"
                                    Disabled="@(string.IsNullOrWhiteSpace(context.Item.Name))"
@@ -86,7 +97,7 @@
              Loading="_loading" Hover="true" Striped="true" Dense="true"
              Style="table-layout: fixed; width: 100%">
     <Columns>
-        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 20%">
+        <PropertyColumn Property="x => x.Name" Title="Name" Editable="true" Style="width: 17%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.Name"
@@ -94,7 +105,7 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Description" Title="Description" Editable="true" Style="width: 35%">
+        <PropertyColumn Property="x => x.Description" Title="Description" Editable="true" Style="width: 28%">
             <EditTemplate>
                 <MudTextField
                     Value="@context.Item.Description"
@@ -102,11 +113,11 @@
                     Immediate="true" />
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.Unit" Title="Unit" Editable="true" Style="width: 12%">
+        <PropertyColumn Property="x => x.PurchaseUnit" Title="Purchase Unit" Editable="true" Style="width: 10%">
             <EditTemplate>
                 <MudSelect
-                    Value="@context.Item.Unit"
-                    ValueChanged="@((MeasurementUnit val) => { context.Item.Unit = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Value="@context.Item.PurchaseUnit"
+                    ValueChanged="@((MeasurementUnit val) => { context.Item.PurchaseUnit = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
                     T="MeasurementUnit">
                     @foreach (var u in Enum.GetValues<MeasurementUnit>())
                     {
@@ -115,12 +126,25 @@
                 </MudSelect>
             </EditTemplate>
         </PropertyColumn>
-        <PropertyColumn Property="x => x.PackageSize" Title="Package Size" Editable="true" Style="width: 10%">
+        <PropertyColumn Property="x => x.ContentQuantity" Title="Content Qty" Editable="true" Style="width: 8%">
             <EditTemplate>
                 <MudNumericField
-                    Value="@context.Item.PackageSize"
-                    ValueChanged="@((decimal val) => { context.Item.PackageSize = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    Value="@context.Item.ContentQuantity"
+                    ValueChanged="@((decimal val) => { context.Item.ContentQuantity = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
                     Min="0.001m" Immediate="true" />
+            </EditTemplate>
+        </PropertyColumn>
+        <PropertyColumn Property="x => x.ContentUnit" Title="Content Unit" Editable="true" Style="width: 10%">
+            <EditTemplate>
+                <MudSelect
+                    Value="@context.Item.ContentUnit"
+                    ValueChanged="@((MeasurementUnit val) => { context.Item.ContentUnit = val; _dirtyRows.Add(context.Item.Id); StateHasChanged(); })"
+                    T="MeasurementUnit">
+                    @foreach (var u in Enum.GetValues<MeasurementUnit>())
+                    {
+                        <MudSelectItem T="MeasurementUnit" Value="u">@u</MudSelectItem>
+                    }
+                </MudSelect>
             </EditTemplate>
         </PropertyColumn>
         <PropertyColumn Property="x => x.CategoryId" Title="Category" Editable="true" Style="width: 18%">
@@ -139,7 +163,7 @@
                 </MudSelect>
             </EditTemplate>
         </PropertyColumn>
-        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 5%">
+        <TemplateColumn Title="Actions" Sortable="false" Filterable="false" Editable="false" Style="width: 9%">
             <CellTemplate>
                 <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Primary" Size="Size.Small"
                                Disabled="@(!_dirtyRows.Contains(context.Item.Id))"
@@ -163,8 +187,9 @@
     {
         public string Name { get; set; } = "";
         public string? Description { get; set; }
-        public MeasurementUnit Unit { get; set; }
-        public decimal PackageSize { get; set; } = 1;
+        public MeasurementUnit PurchaseUnit { get; set; }
+        public decimal ContentQuantity { get; set; } = 1;
+        public MeasurementUnit ContentUnit { get; set; }
         public int CategoryId { get; set; }
     }
 
@@ -178,8 +203,9 @@
         {
             Name = draft.Name,
             Description = draft.Description,
-            Unit = draft.Unit,
-            PackageSize = draft.PackageSize,
+            PurchaseUnit = draft.PurchaseUnit,
+            ContentQuantity = draft.ContentQuantity,
+            ContentUnit = draft.ContentUnit,
             CategoryId = draft.CategoryId
         });
 
@@ -216,8 +242,9 @@
         {
             Name = item.Name,
             Description = item.Description,
-            Unit = item.Unit,
-            PackageSize = item.PackageSize,
+            PurchaseUnit = item.PurchaseUnit,
+            ContentQuantity = item.ContentQuantity,
+            ContentUnit = item.ContentUnit,
             CategoryId = item.CategoryId
         };
         var updated = await ItemSvc.UpdateAsync(item.Id, request);
@@ -251,8 +278,9 @@
             {
                 Name = item.Name,
                 Description = item.Description,
-                Unit = item.Unit,
-                PackageSize = item.PackageSize,
+                PurchaseUnit = item.PurchaseUnit,
+                ContentQuantity = item.ContentQuantity,
+                ContentUnit = item.ContentUnit,
                 CategoryId = item.CategoryId
             };
             var result = await ItemSvc.UpdateAsync(item.Id, request);

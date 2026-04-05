@@ -42,13 +42,15 @@ Party (abstract, TPT)
   ├── Customer   — PasswordHash, PasswordSalt, ICollection<DailyMenu>
   └── Supplier   — CompanyName, Siret, ICollection<ItemSupplier>
 
-Category       — Id, Name, Description, ParentCategoryId (self-ref), SubCategories, Items
-Item           — Id, Name, Description, Unit(MeasurementUnit), PackageSize(decimal, default=1),
-                 CategoryId(int), CreatedAt, UpdatedAt, ItemSuppliers, MealItems
-ItemSupplier   — PK composite (ItemId+SupplierId), UnitPrice(10,2), SupplierRef, IsAvailable, UpdatedAt
-DailyMenu      — Id, Date(DateOnly), CustomerId, ICollection<Meal>
-Meal           — Id, MealType, DailyMenuId, unique(DailyMenuId+MealType), ICollection<MealItem>
-MealItem       — Id, Quantity(10,3), Notes, Servings(10,3), Order(int, default=0), MealId, ItemId?, RecipeId?
+Category         — Id, Name, Description, ParentCategoryId (self-ref), SubCategories, Items
+Item             — Id, Name, Description, PurchaseUnit(MeasurementUnit), ContentQuantity(decimal, default=1),
+                   ContentUnit(MeasurementUnit), CategoryId(int), CreatedAt, UpdatedAt, ItemSuppliers, MealItems
+ItemSupplier     — PK composite (ItemId+SupplierId), UnitPrice(10,2), SupplierRef, IsAvailable, UpdatedAt
+DailyMenu        — Id, Date(DateOnly), CustomerId, ICollection<Meal>
+Meal             — Id, MealType, DailyMenuId, unique(DailyMenuId+MealType), ICollection<MealItem>
+MealItem         — Id, Quantity(10,3), Notes, Order(int, default=0), Unit(MeasurementUnit), MealId, ItemId?, RecipeId?
+Recipe           — Id, Name, Description, BaseServings, ICollection<RecipeIngredient>
+RecipeIngredient — PK composite (RecipeId+ItemId), Quantity, Unit(MeasurementUnit), Order(int)
 
 MealType        (enum, Shared/Entities/) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
 MeasurementUnit (enum, Shared/Enums/) — Piece, Gram, Kilogram, Milliliter, Liter
@@ -59,22 +61,25 @@ Hierarchy: **Customer → DailyMenu → Meal → MealItem** (MenuPlan removed).
 All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 `AppDbContext.OnModelCreating()` Fluent API.
 
-### PackageSize business rule
-- `MealItem.Quantity` = quantity consumed in the recipe (e.g. 1 ice cream)
-- `Item.PackageSize` = units per package (e.g. 6)
-- Purchase calculation: `ceil(total_needed / PackageSize)`
-- Future migration to weight: add nullable `UnitWeightG` — zero breaking change.
+### ContentQuantity business rule
+- `MealItem.Quantity` = quantity consumed (e.g. 1 portion)
+- `Item.ContentQuantity` = content per package (e.g. 6 for a 6-pack)
+- `Item.PurchaseUnit` = unit of the package (e.g. Piece); `Item.ContentUnit` = unit of content (e.g. Piece)
+- Purchase calculation: `ceil(total_needed / ContentQuantity)`
+- `RecipeIngredient.Unit` = unit used in the recipe (may differ from `PurchaseUnit`/`ContentUnit`).
 
 ---
 
 ## Migrations applied
 
-| Migration name                             | Description                                            |
-|--------------------------------------------|--------------------------------------------------------|
-| InitialCreate                              | Full initial schema                                    |
-| RefactorItemUnitAndPackageSize             | Unit → enum MeasurementUnit, PackageSize added         |
-| AddMealSlotItemOrder                       | Order int default 0 added on MealSlotItem              |
-| RemoveMenuPlan_RenameDayPlan_MealSlot      | Drop MenuPlan; DailyMenu→Meal→MealItem, FK=CustomerId  |
+| Migration name                             | Description                                                                    |
+|--------------------------------------------|--------------------------------------------------------------------------------|
+| InitialCreate                              | Full initial schema                                                            |
+| RefactorItemUnitAndPackageSize             | Unit → enum MeasurementUnit, PackageSize added                                 |
+| AddMealSlotItemOrder                       | Order int default 0 added on MealSlotItem                                      |
+| RemoveMenuPlan_RenameDayPlan_MealSlot      | Drop MenuPlan; DailyMenu→Meal→MealItem, FK=CustomerId                          |
+| RefactorItemUnits                          | Item: Unit+PackageSize → PurchaseUnit+ContentQuantity+ContentUnit; drop IsStaple+MonthlyEstimate |
+| AddUnitAndOrderToRecipeIngredient          | RecipeIngredient: add Unit(MeasurementUnit) + Order(int)                       |
 
 ---
 
@@ -137,24 +142,42 @@ Stacked grids (pending + main): `table-layout: fixed; width: 100%` on both, iden
 ## Completed slices
 
 ### Backend (all complete: DTO / Validator / Service / Controller / Tests)
-Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem
+Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem, Recipe
 
 **New endpoint**: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>(Year, Month, HasMeals, MonthlyCost)`
-MonthlyCost = sum of `ceil(qty / PackageSize) * cheapest available UnitPrice` across all MealItems of the month, computed in C# after EF load.
+MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice` across all MealItems of the month, computed in C# after EF load.
+
+**RecipeService**: All queries include `ItemSuppliers` via deep `ThenInclude` chain. `ComputeRecipeCost(Recipe r)` is a public static method (reused by `MealItemService`). Recipe response includes `EstimatedCost`. Ingredients ordered by `Order`.
+
+**MealItemService**: `CreateAsync` accepts `ItemId?` or `RecipeId?` (exactly one must be set). Response maps `RecipeName`, `RecipeEstimatedCost` (via `RecipeService.ComputeRecipeCost`), `Unit`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`.
 
 ### Frontend (Client)
 
 | Slice        | Service | Index / Page    | Notes                                                              |
 |--------------|---------|-----------------|--------------------------------------------------------------------|
-| Layout       | —       | —               | MudTheme (Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0), gradient AppBar, NavMenu split (main top / admin bottom), RightPanelState |
+| Layout       | —       | —               | ThemeState (Light/Dark/Custom), AppBar dark navy gradient, NavMenu split, RightPanelState, CycleTheme button (persisted to localStorage) |
 | Category     | ✅      | ✅              | Reference implementation — new Save pattern applied                |
-| Item         | ✅      | ✅              | FK CategoryId, enum Unit, decimal PackageSize                      |
+| Item         | ✅      | ✅              | FK CategoryId, PurchaseUnit + ContentQuantity + ContentUnit (3 cols) |
 | Supplier     | ✅      | ✅              | Party fields + CompanyName, Siret                                  |
 | Customer     | ✅      | ✅              | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409                 |
 | DailyMenu    | ✅      | ✅ via MenuPlan/Index | Route `/menuplan/{CustomerId}` — cards from `monthly-summary` endpoint |
 | Meal         | ✅      | ✅ via DayPlan/Index  | FK DailyMenuId                                                |
-| MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, PackageSize, Unit                |
+| MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, ContentQuantity, Unit; ItemId? or RecipeId? |
+| Recipe       | ✅      | ✅ `/recipes`   | MudDataGrid + HierarchyColumn (inline ingredient editing per row) + RecipeDialog (create/edit) |
+
+---
+
+## Recipes/Index — recipe management
+
+Route: `/recipes`.
+
+- `MudDataGrid` read-only with `HierarchyColumn` — child row shows the ingredient list inline.
+- Ingredient editing in child row: pending draft row + dirty tracking (same pattern as Category/Index).
+- Per-ingredient fields: ItemId (dropdown), Quantity, Unit (enum select), Order (int). Ordered by `Order` in display.
+- Create/edit recipe via `RecipeDialog.razor` (MudDialog). Fields: Name, Description, BaseServings.
+- Estimated cost column: `RecipeService.ComputeRecipeCost` — `ceil(Qty / ContentQuantity) * UnitPrice` per ingredient.
+- Client service: `RecipeService` (`Client/Services/RecipeService.cs`). Methods: `GetAllAsync`, `CreateAsync`, `UpdateAsync`, `DeleteAsync`, `AddIngredientAsync`, `UpdateIngredientAsync`, `DeleteIngredientAsync`.
 
 ---
 
@@ -182,7 +205,7 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Row-primed highlight**: mousedown on either date cell (left or right) calls `addRowPrimed(date)` JS — creates a single absolutely-positioned `.primed-axis-overlay` div covering the bounding rect of all `[data-rowdate="yyyy-MM-dd"]` elements (red tint, pointer-events: none). mouseup/mouseleave calls `removeRowPrimed(date)` → removes overlay. dbl-click fires `ClearRowAsync(date)` (confirm-intent pattern). All date cells and meal cells carry `data-rowdate` attribute.
 - **Column-primed highlight**: mousedown on a MealType header calls `addColumnPrimed(mealTypeInt)` JS — same overlay mechanism over all `[data-colmealtype="X"]` elements. dbl-click fires `ClearColumnAsync(mealType)`. Row-primed and column-primed are mutually exclusive (only one `_primedOverlay` exists at a time). All meal cell wrapper divs carry `data-colmealtype` attribute.
 - **`.primed-axis-overlay`**: CSS class on the overlay div — `position: absolute; pointer-events: none; z-index: 10; background: error 12%; border: error 30%; border-radius: 4px`. Requires `.dayplan-grid { position: relative; overflow: hidden }` (already set).
-- **Row / column cost totals**: `GetRowTotal(DateOnly)` and `GetColumnTotal(MealType)` compute `ceil(qty/PackageSize)*UnitPrice` in C# from loaded data. Displayed as `.dayplan-cost-total` badge (info-colored, green-tinted border) — in the right date cell (below date label, inside `.date-right-inner`) and in each MealType header cell.
+- **Row / column cost totals**: `GetRowTotal(DateOnly)` and `GetColumnTotal(MealType)` delegate to static `ComputeItemCost(MealItemResponse)` — returns `RecipeEstimatedCost * Quantity` for recipe items, `ceil(qty/ContentQuantity)*UnitPrice` for item items. Displayed as `.dayplan-cost-total` badge (info-colored, green-tinted border) — in the right date cell (below date label, inside `.date-right-inner`) and in each MealType header cell.
 
 ### Month navigation bar
 - Horizontal strip of ±6 circular chips above the calendar (13 months total).
@@ -200,17 +223,23 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Slot total**: double-click = clear all items (`OnCellClearRequested`). `_clearPrimed` state: mousedown turns total red (`total-primed` CSS) to confirm intent.
 - **Item interactions**: click item = open add drawer; Ctrl+click = clone in same slot (`OnItemCloneRequested`); double-click = delete (`OnItemRemoved`).
 - **Click anywhere on cell** (non-item area) = open add drawer.
-- **Hover states**: `.meal-cell:hover` subtle tint; `.meal-cell:not(.meal-cell-empty):hover` green glow; `.meal-cell-item:hover` blue wash.
+- **Hover states**: `.meal-cell:hover` subtle tint; `.meal-cell:not(.meal-cell-empty):hover` green glow; `.meal-cell-item:hover` blue wash; `.meal-cell-item-recipe` purple tint (secondary) for recipe entries.
 - **Parameters**: `MealId` (int?), `Items` (List\<MealItemResponse\>), `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
 - **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `cell-drag-source` on source cell; `cell-drag-copy-mode` on source cell when Ctrl held.
 - **Callbacks**: `OnItemMoved(itemId, fromDate, fromMealType, toDate, toMealType, newIndex, isCopy)`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted(date, mealType)`, `OnDragEnded`, `OnCellClearRequested`.
 - **ShouldRender() optimisation**: MealCell overrides `ShouldRender()` — compares `_renderedItems` (via `ItemsEqual`: id/quantity/order), `_renderedMealId`, `_renderedIsBeingDragged`, `_renderedIsActionTarget`, `_renderedClearPrimed` against current params. Snapshot updated in `OnAfterRenderAsync`. Skips re-render when parent rebuilds but cell data hasn't changed.
 - **Fire-and-forget JS drag calls**: `setFooterDragSource` and `clearFooterDragSource` use `_ = JS.InvokeVoidAsync(...)` (non-blocking) — drag start/end must not block Blazor's event thread.
 
-### AddItemToSlotAsync — on-demand creation (shared helper)
-- Private `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)`.
-- DailyMenu → Meal → MealItem created lazily. Returns `false` on any API failure.
-- Called by: AddItemAsync (drawer), ExecuteCellActionAsync, CloneItemAsync.
+### Add drawer (DayPlan/Index)
+- Two tabs: **Items** (search + list) and **Recettes** (search + list with estimated cost).
+- `_drawerTab` int tracks active tab; `_recipeSearch` separate search field.
+- Tab is shared (same `_selectedDate` / `_selectedMealType`); reset on new open.
+- Month nav chips apply dark mode inline styles from `ThemeState.IsDarkMode` — current=dark green, hasData=dark blue, empty=outlined dim. `DayPlan/Index` subscribes to `ThemeState.OnChange`.
+
+### AddItemToSlotAsync / AddRecipeToSlotAsync — on-demand creation helpers
+- `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)` — creates DailyMenu → Meal → MealItem lazily.
+- `Task<bool> AddRecipeToSlotAsync(date, mealType, recipeId, quantity)` — same pattern with `RecipeId` on `CreateMealItemRequest`.
+- All copy/clone/cell-drag operations dispatch to the correct helper based on `MealItemResponse.RecipeId.HasValue`.
 
 ### Cell drag-and-drop (DayPlan/Index — fully implemented)
 
@@ -263,15 +292,29 @@ All operations use `_saving` overlay. Implemented as immediate API calls (no con
 - SortableJS cross-cell drag supports Ctrl at drop time = copy (item added to target, source untouched).
 - Backend: `PATCH /mealitems/{id}/move` (cross-cell), `PATCH /mealitems/reorder` (same-slot).
 - `MealItem.Order` — 1-based, gap-free, auto-renumbered on move.
-- `MealItemResponse` includes `Order`, `UnitPrice`, `PackageSize`, `Unit`.
+- `MealItemResponse` includes `Order`, `UnitPrice`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`, `Unit`, `RecipeId?`, `RecipeName?`, `RecipeEstimatedCost?`.
 
 ---
 
 ## Shopping Cart (right panel)
 
 - `RightPanelState` — scoped service, global `MudDrawer` in `MainLayout`. Any page can push content.
-- `ShoppingCart.razor` — aggregates items by `ItemId`, computes packages to buy (`ceil(qty / PackageSize)`), line totals, grand total (EUR, FR locale).
+- `ShoppingCart.razor` — split into two sections:
+  - **Items**: aggregated by `ItemId`, packages = `ceil(totalQty / ContentQuantity)`, line total = `packages * UnitPrice`. Grouped under "Items" heading.
+  - **Recettes**: aggregated by `RecipeId`, line total = `RecipeEstimatedCost * totalQty`. Grouped under "Recettes" heading.
+  - Grand total = sum of both. `_hasMissingPrices` only reflects missing item prices.
 - Fed by DayPlan/Index on every `LoadAsync()`. Disposed on page leave.
+
+---
+
+## Theme system
+
+- `ThemeState` — scoped service (`Client/Services/ThemeState.cs`). `AppTheme` enum: `Light`, `Dark`, `Custom` (black variant).
+- `MainLayout` subscribes to `ThemeState.OnChange`, passes `IsDarkMode` to `MudThemeProvider`.
+- **Three static `MudTheme` objects**: `_lightTheme` (custom warm palette), `_darkTheme` (dark navy/blue), `_customTheme` (pure black).
+- **CycleTheme button** in AppBar: cycles Light → Dark → Custom → Light. Persisted to `localStorage` key `"theme"`. Restored in `OnInitializedAsync`.
+- AppBar style is a fixed dark navy gradient (does not change with theme).
+- `DayPlan/Index` subscribes to `ThemeState.OnChange` to re-render dark mode chip styles inline.
 
 ---
 

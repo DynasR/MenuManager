@@ -9,7 +9,7 @@ public interface IRecipeIngredientService
 {
     Task<RecipeIngredientResponse?> AddIngredientAsync(RecipeIngredientRequest request);
     Task<bool> RemoveIngredientAsync(int recipeId, int itemId);
-    Task<RecipeIngredientResponse?> UpdateQuantityAsync(int recipeId, int itemId, decimal quantity);
+    Task<RecipeIngredientResponse?> UpdateAsync(int recipeId, int itemId, RecipeIngredientRequest request);
 }
 
 public class RecipeIngredientService : IRecipeIngredientService
@@ -37,21 +37,19 @@ public class RecipeIngredientService : IRecipeIngredientService
         {
             RecipeId = request.RecipeId,
             ItemId = request.ItemId,
-            Quantity = request.Quantity
+            Quantity = request.Quantity,
+            Unit = request.Unit,
+            Order = request.Order
         };
 
         _db.RecipeIngredients.Add(ingredient);
         await _db.SaveChangesAsync();
 
-        var item = await _db.Items.FindAsync(request.ItemId);
+        var item = await _db.Items
+            .Include(i => i.ItemSuppliers)
+            .FirstOrDefaultAsync(i => i.Id == request.ItemId);
 
-        return new RecipeIngredientResponse
-        {
-            RecipeId = ingredient.RecipeId,
-            ItemId = ingredient.ItemId,
-            ItemName = item?.Name ?? "",
-            Quantity = ingredient.Quantity
-        };
+        return MapToResponse(ingredient, item);
     }
 
     public async Task<bool> RemoveIngredientAsync(int recipeId, int itemId)
@@ -67,23 +65,40 @@ public class RecipeIngredientService : IRecipeIngredientService
         return true;
     }
 
-    public async Task<RecipeIngredientResponse?> UpdateQuantityAsync(int recipeId, int itemId, decimal quantity)
+    public async Task<RecipeIngredientResponse?> UpdateAsync(int recipeId, int itemId, RecipeIngredientRequest request)
     {
         var ingredient = await _db.RecipeIngredients
             .Include(ri => ri.Item)
+                .ThenInclude(i => i!.ItemSuppliers)
             .FirstOrDefaultAsync(ri => ri.RecipeId == recipeId && ri.ItemId == itemId);
 
         if (ingredient is null) return null;
 
-        ingredient.Quantity = quantity;
+        ingredient.Quantity = request.Quantity;
+        ingredient.Unit = request.Unit;
+        ingredient.Order = request.Order;
         await _db.SaveChangesAsync();
 
-        return new RecipeIngredientResponse
-        {
-            RecipeId = ingredient.RecipeId,
-            ItemId = ingredient.ItemId,
-            ItemName = ingredient.Item?.Name ?? "",
-            Quantity = ingredient.Quantity
-        };
+        return MapToResponse(ingredient, ingredient.Item);
     }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static RecipeIngredientResponse MapToResponse(RecipeIngredient ri, Item? item) => new()
+    {
+        RecipeId = ri.RecipeId,
+        ItemId = ri.ItemId,
+        ItemName = item?.Name ?? "",
+        Quantity = ri.Quantity,
+        Unit = ri.Unit,
+        Order = ri.Order,
+        PurchaseUnit = item?.PurchaseUnit ?? default,
+        ContentUnit = item?.ContentUnit ?? default,
+        ContentQuantity = item?.ContentQuantity ?? 1,
+        UnitPrice = item?.ItemSuppliers
+            .Where(s => s.IsAvailable)
+            .OrderBy(s => s.SupplierId)
+            .Select(s => (decimal?)s.UnitPrice)
+            .FirstOrDefault()
+    };
 }

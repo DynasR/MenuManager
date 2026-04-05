@@ -30,14 +30,15 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Page         | Points clés                                                                      |
 |--------------|----------------------------------------------------------------------------------|
 | Category     | Référence pattern Index (pending rows + dirty + Save All)                        |
-| Item         | FK Category, enum Unit, PackageSize                                              |
+| Item         | FK Category, PurchaseUnit + ContentQuantity + ContentUnit (refactorisé)          |
 | Supplier     | Party + CompanyName, Siret                                                       |
 | Customer     | Bouton CalendarMonth → `/menuplan/{id}`                                          |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards sur 3 ans. Données via `GET /api/dailymenus/{customerId}/monthly-summary` (HasMeals, MonthlyCost). Bouton "Voir le planning" → navigation directe `dayplans?customerId=X&year=Y&month=M`, pas de création serveur. |
-| DayPlan/Index | Query params : `customerId`, `year`, `month`. Calendrier mensuel, barre nav mois (±6, HasMeals), SortableJS reorder/move/**copy** (Ctrl), panier, **cell-drag copy/move** (Ctrl=copie), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), **row/column-primed via overlay absolu** (unique div `.primed-axis-overlay` sur bounding-box) + dbl-clic exécute, **totaux ligne et colonne**, **bouton vider-mois** (DeleteSweep), **bouton remplissage aléatoire** (Casino), overlay sauvegarde, grille 7 col (80px dates, coins arrondis, teinte primaire), **`@key` stable sur cellules** |
+| DayPlan/Index | Calendrier mensuel. Tiroir d'ajout à **2 onglets (Items / Recettes)**. Recettes ajoutables dans les slots (`AddRecipeToSlotAsync`). Calcul coût via `ComputeItemCost` (gère items et recettes). Copy/clone/cell-drag recipe-aware. Dark mode chips inline via `ThemeState`. CSS `.meal-cell-item-recipe` (teinte violet). |
 | MealCell | **`ShouldRender()` override** — compare items (id/qty/order), MealId, IsBeingDragged, IsActionTarget, _clearPrimed ; snapshot dans `OnAfterRenderAsync`. JS drag fire-and-forget. |
-| Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
+| Recipe       | ✅ `/recipes` — MudDataGrid + HierarchyColumn (ingrédients inline), RecipeDialog (create/edit), coût estimé par recette |
+| Layout       | **3 thèmes** : Light (palette chaude), Dark (navy), Custom (noir pur). `ThemeState` + bouton CycleTheme dans AppBar. Persisté localStorage. AppBar dégradé marine fixe. |
 
 ---
 
@@ -46,12 +47,15 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 Voir `CLAUDE.md` pour les détails. Résumé :
 - **Shared** pur (zéro EF), pas de repository, on-demand DailyMenu/Meal.
 - **Shopping Cart** (panneau droit global, `RightPanelState`).
-- **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
+- **Item : refacto unités** — `Unit+PackageSize` → `PurchaseUnit + ContentQuantity + ContentUnit`. Deux migrations : `RefactorItemUnits`, `AddUnitAndOrderToRecipeIngredient`.
+- **MonthlyCost** calculé serveur-side (`ceil(qty / ContentQuantity) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
+- **Recettes dans les slots** — `MealItem` peut référencer un `Item` ou une `Recipe` (champs `ItemId?` / `RecipeId?`). Coût recette = `RecipeEstimatedCost * Quantity`. Shopping Cart distingue les deux sections.
 - **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
 - **Bulk clear** — `DELETE /api/meals/batch` (body JSON, toujours 204). Vider-ligne, vider-colonne, vider-mois utilisent tous ce même endpoint. Pattern confirm-intent : prime (mousedown rouge) + dbl-clic exécute.
 - **Random fill** — `POST /api/meals/random-fill`. Remplit les jours vides du mois avec des items disponibles aléatoires. Skip les jours qui ont déjà des repas.
 - **Drag & drop immédiat** — plus de "Save All" / `_pendingMoves`. Tout appel API se fait au moment du drop. Overlay sombre pendant l'async.
 - **SortableJS copy** — Ctrl au lâcher d'un item cross-cell = copie (ghost visible à la source pendant le drag).
+- **Thème** — 3 thèmes (Light/Dark/Custom), `ThemeState` scoped service, persisté localStorage.
 - **Tests** — SQLite in-memory uniquement.
 
 ---
@@ -73,8 +77,9 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - Clic sur toute la carte MenuPlan → voir le planning (pas seulement le bouton)
 - Revue globale du style
 
-### Paramétrage utilisateur
-- 3 thèmes : Light / Medium / Dark
+### Recettes
+- Calcul coût par portion (BaseServings)
+- Affichage des ingrédients dans la MealCell (tooltip ou expand)
 
 ---
 

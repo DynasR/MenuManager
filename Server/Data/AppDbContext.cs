@@ -74,11 +74,6 @@ public class AppDbContext : DbContext
             .Property(mi => mi.Quantity)
             .HasPrecision(10, 3);
 
-        // MealItem — Servings precision
-        modelBuilder.Entity<MealItem>()
-            .Property(mi => mi.Servings)
-            .HasPrecision(10, 3);
-
         // RecipeIngredient — composite key
         modelBuilder.Entity<RecipeIngredient>()
             .HasKey(ri => new { ri.RecipeId, ri.ItemId });
@@ -86,11 +81,6 @@ public class AppDbContext : DbContext
         // RecipeIngredient — Quantity precision
         modelBuilder.Entity<RecipeIngredient>()
             .Property(ri => ri.Quantity)
-            .HasPrecision(10, 3);
-
-        // Item — MonthlyEstimate precision
-        modelBuilder.Entity<Item>()
-            .Property(i => i.MonthlyEstimate)
             .HasPrecision(10, 3);
 
         // Meal — unique per type/day

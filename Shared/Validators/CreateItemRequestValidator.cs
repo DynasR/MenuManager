@@ -14,8 +14,11 @@ public class CreateItemRequestValidator : AbstractValidator<CreateItemRequest>
         RuleFor(x => x.Description)
             .MaximumLength(1000);
 
-        RuleFor(x => x.PackageSize)
+        RuleFor(x => x.ContentQuantity)
             .GreaterThan(0);
+
+        RuleFor(x => x.ContentUnit)
+            .IsInEnum();
 
         RuleFor(x => x.CategoryId)
             .GreaterThan(0);

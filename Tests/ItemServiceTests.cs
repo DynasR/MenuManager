@@ -38,8 +38,9 @@ public class ItemServiceTests : IDisposable
         var item = new Item
         {
             Name = name,
-            Unit = MeasurementUnit.Piece,
-            PackageSize = 1,
+            PurchaseUnit = MeasurementUnit.Piece,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Piece,
             CategoryId = categoryId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -94,8 +95,9 @@ public class ItemServiceTests : IDisposable
         var result = await _service.CreateAsync(new CreateItemRequest
         {
             Name = "Sugar",
-            Unit = MeasurementUnit.Piece,
-            PackageSize = 1,
+            PurchaseUnit = MeasurementUnit.Piece,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Piece,
             CategoryId = cat.Id
         });
 
@@ -110,8 +112,9 @@ public class ItemServiceTests : IDisposable
         var result = await _service.UpdateAsync(999, new UpdateItemRequest
         {
             Name = "X",
-            Unit = MeasurementUnit.Piece,
-            PackageSize = 1,
+            PurchaseUnit = MeasurementUnit.Piece,
+            ContentQuantity = 1,
+            ContentUnit = MeasurementUnit.Piece,
             CategoryId = 1
         });
 

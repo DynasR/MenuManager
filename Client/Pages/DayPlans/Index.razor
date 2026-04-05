@@ -1,13 +1,16 @@
 @page "/dayplans"
 @using MenuManager.Client.Helpers
+@using MenuManager.Shared.Enums
 @inject DailyMenuService DailyMenuSvc
 @inject MealService MealSvc
 @inject MealItemService MealItemSvc
 @inject ItemService ItemSvc
+@inject RecipeService RecipeSvc
 @inject ISnackbar Snackbar
 @inject IJSRuntime JS
 @inject RightPanelState RightPanel
 @inject NavigationManager Nav
+@inject ThemeState ThemeState
 @implements IDisposable
 
 <PageTitle>Day Plans</PageTitle>
@@ -28,9 +31,16 @@ else
             var variant = isCurrent ? Variant.Filled : m.HasData ? Variant.Filled : Variant.Outlined;
             var chipClass = isCurrent ? "month-nav-chip month-current" : "month-nav-chip";
             var size = isCurrent ? Size.Medium : Size.Small;
+            var darkStyle = ThemeState.IsDarkMode
+                ? isCurrent
+                    ? "background:#0B2116 !important; color:#7EC89A !important; border:1px solid #173D28 !important;"
+                    : m.HasData
+                        ? "background:#071525 !important; color:#5B9EC9 !important; border:1px solid #102844 !important;"
+                        : "border-color:rgba(255,255,255,0.18) !important; color:rgba(255,255,255,0.38) !important;"
+                : null;
             <MudTooltip Text="@m.Label" Placement="Placement.Bottom">
                 <MudButton Size="@size" Variant="@variant" Color="@color"
-                           Class="@chipClass"
+                           Class="@chipClass" Style="@darkStyle"
                            OnClick="@(() => { if (!isCurrent) NavigateToMonth(m); })">
                     @m.Short
                 </MudButton>
@@ -161,29 +171,56 @@ else
 <MudDrawer Anchor="Anchor.Right" Width="320px" Variant="@DrawerVariant.Temporary"
            @bind-Open="_drawerOpen" Elevation="2">
     <MudDrawerHeader>
-        <MudText Typo="Typo.h6">Add item — @_selectedMealType — @_selectedDate.ToString("dd MMM", _frCulture)</MudText>
+        <MudText Typo="Typo.h6">Ajouter — @_selectedMealType — @_selectedDate.ToString("dd MMM", _frCulture)</MudText>
         <MudSpacer />
         <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _drawerOpen = false)" />
     </MudDrawerHeader>
-    <div class="pa-4">
-        <MudTextField @bind-Value="_itemSearch" Placeholder="Rechercher…"
-                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                      Immediate="true" Class="mb-4" />
-        <MudList T="ItemResponse" Dense="true">
-            @foreach (var item in FilteredItems)
-            {
-                <MudListItem T="ItemResponse">
-                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                        <MudText>@item.Name</MudText>
-                        <MudTooltip Text="Add to meal">
-                            <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
-                                           OnClick="@(() => AddItemAsync(item))" />
-                        </MudTooltip>
-                    </div>
-                </MudListItem>
-            }
-        </MudList>
-    </div>
+    <MudTabs @bind-ActivePanelIndex="_drawerTab" Rounded="true" PanelClass="pa-2">
+        <MudTabPanel Text="Items" Icon="@Icons.Material.Filled.Restaurant">
+            <MudTextField @bind-Value="_itemSearch" Placeholder="Rechercher…"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" Class="mb-2" />
+            <MudList T="ItemResponse" Dense="true">
+                @foreach (var item in FilteredItems)
+                {
+                    <MudListItem T="ItemResponse">
+                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                            <MudText>@item.Name</MudText>
+                            <MudTooltip Text="Ajouter">
+                                <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
+                                               OnClick="@(() => AddItemAsync(item))" />
+                            </MudTooltip>
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudTabPanel>
+        <MudTabPanel Text="Recettes" Icon="@Icons.Material.Filled.MenuBook">
+            <MudTextField @bind-Value="_recipeSearch" Placeholder="Rechercher…"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true" Class="mb-2" />
+            <MudList T="RecipeResponse" Dense="true">
+                @foreach (var recipe in FilteredRecipes)
+                {
+                    <MudListItem T="RecipeResponse">
+                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+                            <div>
+                                <MudText>@recipe.Name</MudText>
+                                @if (recipe.EstimatedCost > 0)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.EstimatedCost.ToString("C", _frCulture)</MudText>
+                                }
+                            </div>
+                            <MudTooltip Text="Ajouter">
+                                <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Secondary" Size="Size.Small"
+                                               OnClick="@(() => AddRecipeAsync(recipe))" />
+                            </MudTooltip>
+                        </div>
+                    </MudListItem>
+                }
+            </MudList>
+        </MudTabPanel>
+    </MudTabs>
 </MudDrawer>
 
 <style>
@@ -435,6 +472,16 @@ else
         border-color: color-mix(in srgb, var(--mud-palette-info) 45%, transparent);
     }
 
+    .meal-cell-item-recipe {
+        background: color-mix(in srgb, var(--mud-palette-secondary) 12%, transparent) !important;
+        border-color: color-mix(in srgb, var(--mud-palette-secondary) 25%, transparent) !important;
+    }
+
+    .meal-cell-item-recipe:hover {
+        background: color-mix(in srgb, var(--mud-palette-secondary) 22%, transparent) !important;
+        border-color: color-mix(in srgb, var(--mud-palette-secondary) 45%, transparent) !important;
+    }
+
     .meal-cell-drag-copy,
     .meal-cell-drag-move {
         border-radius: 8px;
@@ -532,6 +579,7 @@ else
     private List<DateOnly> _dates = [];
     private Dictionary<DateOnly, DailyMenuResponse> _dayMenuByDate = new();
     private List<ItemResponse> _allItems = [];
+    private List<RecipeResponse> _allRecipes = [];
     private HashSet<DateOnly> _holidays = [];
     private Dictionary<DateOnly, string> _holidayNames = new();
 
@@ -549,6 +597,8 @@ else
     private DateOnly _selectedDate;
     private MealType _selectedMealType;
     private string _itemSearch = "";
+    private string _recipeSearch = "";
+    private int _drawerTab;
 
     private (int customerId, int year, int month) _lastKey;
 
@@ -556,6 +606,18 @@ else
         _allItems
             .Where(i => i.Name.Contains(_itemSearch, StringComparison.OrdinalIgnoreCase))
             .ToList();
+
+    private List<RecipeResponse> FilteredRecipes =>
+        _allRecipes
+            .Where(r => r.Name.Contains(_recipeSearch, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        ThemeState.OnChange += OnThemeChanged;
+    }
+
+    private void OnThemeChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -573,6 +635,9 @@ else
 
         if (!_allItems.Any())
             _allItems = await ItemSvc.GetAllAsync();
+
+        if (!_allRecipes.Any())
+            _allRecipes = await RecipeSvc.GetAllAsync();
 
         await LoadAsync();
     }
@@ -616,6 +681,7 @@ else
         _selectedDate = args.date;
         _selectedMealType = args.mealType;
         _itemSearch = "";
+        _recipeSearch = "";
         _drawerOpen = true;
     }
 
@@ -623,6 +689,13 @@ else
     {
         var success = await AddItemToSlotAsync(_selectedDate, _selectedMealType, item.Id, 1);
         if (!success) Snackbar.Add("Failed to add item.", Severity.Error);
+        await LoadAsync();
+    }
+
+    private async Task AddRecipeAsync(RecipeResponse recipe)
+    {
+        var success = await AddRecipeToSlotAsync(_selectedDate, _selectedMealType, recipe.Id, 1);
+        if (!success) Snackbar.Add("Échec de l'ajout de la recette.", Severity.Error);
         await LoadAsync();
     }
 
@@ -646,6 +719,29 @@ else
         }
 
         var result = await MealItemSvc.CreateAsync(new CreateMealItemRequest { MealId = meal.Id, ItemId = itemId, Quantity = quantity });
+        return result is not null;
+    }
+
+    private async Task<bool> AddRecipeToSlotAsync(DateOnly date, MealType mealType, int recipeId, decimal quantity)
+    {
+        if (!_dayMenuByDate.TryGetValue(date, out var dailyMenu))
+        {
+            var created = await DailyMenuSvc.CreateAsync(new CreateDailyMenuRequest { Date = date, CustomerId = CustomerId });
+            if (created is null) return false;
+            dailyMenu = created;
+            _dayMenuByDate[date] = dailyMenu;
+        }
+
+        var meal = dailyMenu.Meals.FirstOrDefault(m => m.MealType == mealType);
+        if (meal is null)
+        {
+            var createdMeal = await MealSvc.CreateAsync(new CreateMealRequest { DailyMenuId = dailyMenu.Id, MealType = mealType });
+            if (createdMeal is null) return false;
+            meal = new MealResponse { Id = createdMeal.Id, MealType = createdMeal.MealType, DailyMenuId = createdMeal.DailyMenuId };
+            dailyMenu.Meals.Add(meal);
+        }
+
+        var result = await MealItemSvc.CreateAsync(new CreateMealItemRequest { MealId = meal.Id, RecipeId = recipeId, Quantity = quantity, Unit = MeasurementUnit.Piece });
         return result is not null;
     }
 
@@ -673,8 +769,10 @@ else
             int done = 0;
             foreach (var mi in sourceItems)
             {
-                if (await AddItemToSlotAsync(toDate, toMealType, mi.ItemId, mi.Quantity))
-                    done++;
+                var added = mi.RecipeId.HasValue
+                    ? await AddRecipeToSlotAsync(toDate, toMealType, mi.RecipeId.Value, mi.Quantity)
+                    : await AddItemToSlotAsync(toDate, toMealType, mi.ItemId, mi.Quantity);
+                if (added) done++;
             }
 
             if (!isCopy)
@@ -707,7 +805,9 @@ else
                     ?.MealItems.FirstOrDefault(i => i.Id == args.itemId);
                 if (source is not null)
                 {
-                    var success = await AddItemToSlotAsync(args.toDate, args.toMealType, source.ItemId, source.Quantity);
+                    var success = source.RecipeId.HasValue
+                        ? await AddRecipeToSlotAsync(args.toDate, args.toMealType, source.RecipeId.Value, source.Quantity)
+                        : await AddItemToSlotAsync(args.toDate, args.toMealType, source.ItemId, source.Quantity);
                     if (!success) Snackbar.Add("Échec de la copie.", Severity.Error);
                 }
             }
@@ -763,7 +863,9 @@ else
             ?.Meals.FirstOrDefault(m => m.MealType == args.mealType);
         var source = meal?.MealItems.FirstOrDefault(i => i.Id == args.mealItemId);
         if (source is null) return;
-        var success = await AddItemToSlotAsync(args.date, args.mealType, source.ItemId, source.Quantity);
+        var success = source.RecipeId.HasValue
+            ? await AddRecipeToSlotAsync(args.date, args.mealType, source.RecipeId.Value, source.Quantity)
+            : await AddItemToSlotAsync(args.date, args.mealType, source.ItemId, source.Quantity);
         if (!success) Snackbar.Add("Duplication échouée.", Severity.Error);
         else await LoadAsync();
     }
@@ -900,19 +1002,25 @@ else
         }
     }
 
+    private static decimal ComputeItemCost(MealItemResponse i)
+    {
+        if (i.RecipeId.HasValue && i.RecipeEstimatedCost.HasValue)
+            return i.RecipeEstimatedCost.Value * i.Quantity;
+        if (i.UnitPrice.HasValue)
+            return (decimal)Math.Ceiling(i.Quantity / i.ContentQuantity) * i.UnitPrice.Value;
+        return 0m;
+    }
+
     private decimal GetRowTotal(DateOnly date) =>
         _dayMenuByDate.TryGetValue(date, out var dm)
-            ? dm.Meals.SelectMany(m => m.MealItems)
-                .Where(i => i.UnitPrice.HasValue)
-                .Sum(i => Math.Ceiling(i.Quantity / i.PackageSize) * i.UnitPrice!.Value)
+            ? dm.Meals.SelectMany(m => m.MealItems).Sum(ComputeItemCost)
             : 0;
 
     private decimal GetColumnTotal(MealType mealType) =>
         _dayMenuByDate.Values
             .SelectMany(dm => dm.Meals.Where(m => m.MealType == mealType))
             .SelectMany(m => m.MealItems)
-            .Where(i => i.UnitPrice.HasValue)
-            .Sum(i => Math.Ceiling(i.Quantity / i.PackageSize) * i.UnitPrice!.Value);
+            .Sum(ComputeItemCost);
 
     private void NavigateToMonth(MonthNavItem month)
     {
@@ -921,6 +1029,7 @@ else
 
     public void Dispose()
     {
+        ThemeState.OnChange -= OnThemeChanged;
         RightPanel.Close();
         RightPanel.SetContent(null);
     }

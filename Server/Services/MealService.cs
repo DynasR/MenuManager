@@ -112,12 +112,12 @@ public class MealService : IMealService
         var customerExists = await _db.Customers.AnyAsync(c => c.Id == request.CustomerId);
         if (!customerExists) return [];
 
-        var availableItemIds = await _db.Items
+        var availableItems = await _db.Items
             .Where(i => i.ItemSuppliers.Any(s => s.IsAvailable))
-            .Select(i => i.Id)
+            .Select(i => new { i.Id, i.PurchaseUnit })
             .ToListAsync();
 
-        if (availableItemIds.Count == 0) return [];
+        if (availableItems.Count == 0) return [];
 
         var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
         var monthStart = new DateOnly(request.Year, request.Month, 1);
@@ -170,16 +170,17 @@ public class MealService : IMealService
                 var meal = new Meal { MealType = mealType, DailyMenu = dailyMenu };
                 _db.Meals.Add(meal);
 
-                var pickedIds = availableItemIds.OrderBy(_ => rng.Next()).Take(count).ToList();
+                var pickedItems = availableItems.OrderBy(_ => rng.Next()).Take(count).ToList();
                 int order = 1;
-                foreach (var itemId in pickedIds)
+                foreach (var item in pickedItems)
                 {
                     _db.MealItems.Add(new MealItem
                     {
-                        ItemId = itemId,
+                        ItemId = item.Id,
                         Meal = meal,
                         Quantity = 1,
-                        Order = order++
+                        Order = order++,
+                        Unit = item.PurchaseUnit
                     });
                 }
             }
@@ -233,13 +234,15 @@ public class MealService : IMealService
         Quantity = mi.Quantity,
         Notes = mi.Notes,
         Order = mi.Order,
+        Unit = mi.Unit,
         MealId = mi.MealId,
         UnitPrice = mi.Item?.ItemSuppliers
             .Where(s => s.IsAvailable)
             .OrderBy(s => s.SupplierId)
             .Select(s => (decimal?)s.UnitPrice)
             .FirstOrDefault(),
-        PackageSize = mi.Item?.PackageSize ?? 1,
-        Unit = mi.Item?.Unit ?? default
+        ContentQuantity = mi.Item?.ContentQuantity ?? 1,
+        PurchaseUnit = mi.Item?.PurchaseUnit ?? default,
+        ContentUnit = mi.Item?.ContentUnit ?? default
     };
 }

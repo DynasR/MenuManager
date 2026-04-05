@@ -105,6 +105,12 @@ public class DailyMenuService : IDailyMenuService
                 .ThenInclude(m => m.MealItems)
                     .ThenInclude(mi => mi.Item)
                         .ThenInclude(i => i!.ItemSuppliers)
+            .Include(dm => dm.Meals)
+                .ThenInclude(m => m.MealItems)
+                    .ThenInclude(mi => mi.Recipe)
+                        .ThenInclude(r => r!.RecipeIngredients)
+                            .ThenInclude(ri => ri.Item)
+                                .ThenInclude(i => i!.ItemSuppliers)
             .AsNoTracking()
             .ToListAsync();
 
@@ -125,23 +131,23 @@ public class DailyMenuService : IDailyMenuService
 
     private static decimal ComputeMonthlyCost(IEnumerable<MealItem> items)
     {
-        return items
-            .Where(mi => mi.Item is not null)
-            .GroupBy(mi => mi.ItemId)
-            .Sum(g =>
+        return items.Sum(mi =>
+        {
+            if (mi.Item is not null)
             {
-                var first = g.First();
-                var totalQty = g.Sum(mi => mi.Quantity);
-                var packageSize = first.Item!.PackageSize;
-                var unitPrice = first.Item.ItemSuppliers
+                var unitPrice = mi.Item.ItemSuppliers
                     .Where(s => s.IsAvailable)
                     .OrderBy(s => s.SupplierId)
                     .Select(s => (decimal?)s.UnitPrice)
                     .FirstOrDefault();
 
                 if (unitPrice is null) return 0m;
-                return (int)Math.Ceiling(totalQty / packageSize) * unitPrice.Value;
-            });
+                return (int)Math.Ceiling(mi.Quantity / mi.Item.ContentQuantity) * unitPrice.Value;
+            }
+            if (mi.Recipe is not null)
+                return RecipeService.ComputeRecipeCost(mi.Recipe) * mi.Quantity;
+            return 0m;
+        });
     }
 
     private IQueryable<DailyMenu> QueryWithIncludes() =>
@@ -149,7 +155,13 @@ public class DailyMenuService : IDailyMenuService
             .Include(dm => dm.Meals)
                 .ThenInclude(m => m.MealItems)
                     .ThenInclude(mi => mi.Item)
-                        .ThenInclude(i => i.ItemSuppliers);
+                        .ThenInclude(i => i.ItemSuppliers)
+            .Include(dm => dm.Meals)
+                .ThenInclude(m => m.MealItems)
+                    .ThenInclude(mi => mi.Recipe)
+                        .ThenInclude(r => r!.RecipeIngredients)
+                            .ThenInclude(ri => ri.Item)
+                                .ThenInclude(i => i!.ItemSuppliers);
 
     private static DailyMenuResponse MapToResponse(DailyMenu dm) => new()
     {
@@ -172,16 +184,21 @@ public class DailyMenuService : IDailyMenuService
         Id = mi.Id,
         ItemId = mi.ItemId ?? 0,
         ItemName = mi.Item?.Name ?? "",
+        RecipeId = mi.RecipeId,
+        RecipeName = mi.Recipe?.Name,
+        RecipeEstimatedCost = mi.Recipe != null ? RecipeService.ComputeRecipeCost(mi.Recipe) : null,
         Quantity = mi.Quantity,
         Notes = mi.Notes,
         Order = mi.Order,
+        Unit = mi.Unit,
         MealId = mi.MealId,
         UnitPrice = mi.Item?.ItemSuppliers
             .Where(s => s.IsAvailable)
             .OrderBy(s => s.SupplierId)
             .Select(s => (decimal?)s.UnitPrice)
             .FirstOrDefault(),
-        PackageSize = mi.Item?.PackageSize ?? 1,
-        Unit = mi.Item?.Unit ?? default
+        ContentQuantity = mi.Item?.ContentQuantity ?? 1,
+        PurchaseUnit = mi.Item?.PurchaseUnit ?? default,
+        ContentUnit = mi.Item?.ContentUnit ?? default
     };
 }
