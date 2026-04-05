@@ -48,7 +48,7 @@ else
 
 @code {
     [Parameter]
-    public IEnumerable<MealSlotItemResponse> Items { get; set; } = [];
+    public IEnumerable<MealItemResponse> Items { get; set; } = [];
 
     private static readonly System.Globalization.CultureInfo _frCulture = new("fr-FR");
 
@@ -63,7 +63,7 @@ else
         _hasMissingPrices = _lines.Any(l => !l.LineTotal.HasValue);
     }
 
-    private static List<ShoppingLine> ComputeLines(IEnumerable<MealSlotItemResponse> items)
+    private static List<ShoppingLine> ComputeLines(IEnumerable<MealItemResponse> items)
     {
         return items
             .GroupBy(i => i.ItemId)

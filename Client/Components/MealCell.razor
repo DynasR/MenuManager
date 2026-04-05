@@ -54,8 +54,8 @@
 
     [Parameter, EditorRequired] public DateOnly Date { get; set; }
     [Parameter, EditorRequired] public MealType MealType { get; set; }
-    [Parameter] public int? MealSlotId { get; set; }
-    [Parameter] public List<MealSlotItemResponse> Items { get; set; } = [];
+    [Parameter] public int? MealId { get; set; }
+    [Parameter] public List<MealItemResponse> Items { get; set; } = [];
     [Parameter] public bool IsActionTarget { get; set; }
     [Parameter] public bool IsBeingDragged { get; set; }
 
@@ -63,7 +63,7 @@
         .Where(i => i.UnitPrice.HasValue)
         .Sum(i => Math.Ceiling(i.Quantity / i.PackageSize) * i.UnitPrice!.Value);
 
-    private string FormatItemPrice(MealSlotItemResponse item)
+    private string FormatItemPrice(MealItemResponse item)
     {
         if (!item.UnitPrice.HasValue) return "";
         var cost = Math.Ceiling(item.Quantity / item.PackageSize) * item.UnitPrice.Value;
@@ -73,9 +73,9 @@
     [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex, bool isCopy)> OnItemMoved { get; set; }
     [Parameter] public EventCallback<int> OnItemRemoved { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnAddRequested { get; set; }
-    [Parameter] public EventCallback<(int? mealSlotId, List<int> orderedIds)> OnOrderChanged { get; set; }
+    [Parameter] public EventCallback<(int? mealId, List<int> orderedIds)> OnOrderChanged { get; set; }
     [Parameter] public EventCallback<(DateOnly fromDate, MealType fromMealType, bool isCopy)> OnCellFooterDrop { get; set; }
-    [Parameter] public EventCallback<(DateOnly date, MealType mealType, int mealSlotItemId)> OnItemCloneRequested { get; set; }
+    [Parameter] public EventCallback<(DateOnly date, MealType mealType, int mealItemId)> OnItemCloneRequested { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnDragStarted { get; set; }
     [Parameter] public EventCallback OnDragEnded { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnCellClearRequested { get; set; }
@@ -88,10 +88,10 @@
             await OnAddRequested.InvokeAsync((Date, MealType));
     }
 
-    private async Task HandleItemClick(MouseEventArgs e, int mealSlotItemId)
+    private async Task HandleItemClick(MouseEventArgs e, int mealItemId)
     {
         if (e.CtrlKey)
-            await OnItemCloneRequested.InvokeAsync((Date, MealType, mealSlotItemId));
+            await OnItemCloneRequested.InvokeAsync((Date, MealType, mealItemId));
         else
             await OnAddRequested.InvokeAsync((Date, MealType));
     }
@@ -168,7 +168,7 @@
     [JSInvokable("OnReorder")]
     public async Task HandleReorder(int[] orderedIds)
     {
-        await OnOrderChanged.InvokeAsync((MealSlotId, orderedIds.ToList()));
+        await OnOrderChanged.InvokeAsync((MealId, orderedIds.ToList()));
     }
 
     public async ValueTask DisposeAsync()

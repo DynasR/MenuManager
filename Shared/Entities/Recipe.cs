@@ -7,5 +7,5 @@ public class Recipe
     public string? Description { get; set; }
     public int BaseServings { get; set; } = 1;
     public ICollection<RecipeIngredient> RecipeIngredients { get; set; } = [];
-    public ICollection<MealSlotItem> MealSlotItems { get; set; } = [];
+    public ICollection<MealItem> MealItems { get; set; } = [];
 }

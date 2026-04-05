@@ -109,12 +109,12 @@ public class ItemService : IItemService
     {
         var item = await _db.Items
             .Include(i => i.ItemSuppliers)
-            .Include(i => i.MealSlotItems)
+            .Include(i => i.MealItems)
             .FirstOrDefaultAsync(i => i.Id == id);
 
         if (item is null) return false;
         if (item.ItemSuppliers.Count > 0) return false;
-        if (item.MealSlotItems.Count > 0) return false;
+        if (item.MealItems.Count > 0) return false;
 
         _db.Items.Remove(item);
         await _db.SaveChangesAsync();

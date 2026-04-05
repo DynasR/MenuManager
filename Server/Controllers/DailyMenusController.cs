@@ -6,17 +6,17 @@ namespace MenuManager.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class MenuPlansController : ControllerBase
+public class DailyMenusController : ControllerBase
 {
-    private readonly IMenuPlanService _service;
+    private readonly IDailyMenuService _service;
 
-    public MenuPlansController(IMenuPlanService service)
+    public DailyMenusController(IDailyMenuService service)
     {
         _service = service;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<MenuPlanResponse>>> GetAll([FromQuery] int? customerId)
+    public async Task<ActionResult<List<DailyMenuResponse>>> GetAll([FromQuery] int? customerId)
     {
         if (customerId.HasValue)
             return Ok(await _service.GetByCustomerAsync(customerId.Value));
@@ -25,14 +25,14 @@ public class MenuPlansController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<MenuPlanResponse>> GetById(int id)
+    public async Task<ActionResult<DailyMenuResponse>> GetById(int id)
     {
         var result = await _service.GetByIdAsync(id);
         return result is null ? NotFound() : Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<MenuPlanResponse>> Create(MenuPlanRequest request)
+    public async Task<ActionResult<DailyMenuResponse>> Create(CreateDailyMenuRequest request)
     {
         var result = await _service.CreateAsync(request);
         if (result is null) return NotFound();
@@ -40,7 +40,7 @@ public class MenuPlansController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    public async Task<ActionResult<MenuPlanResponse>> Update(int id, MenuPlanRequest request)
+    public async Task<ActionResult<DailyMenuResponse>> Update(int id, UpdateDailyMenuRequest request)
     {
         var result = await _service.UpdateAsync(id, request);
         return result is null ? NotFound() : Ok(result);
@@ -51,5 +51,11 @@ public class MenuPlansController : ControllerBase
     {
         var deleted = await _service.DeleteAsync(id);
         return deleted ? NoContent() : NotFound();
+    }
+
+    [HttpGet("{customerId:int}/monthly-summary")]
+    public async Task<ActionResult<List<MonthlySummaryResponse>>> GetMonthlySummary(int customerId)
+    {
+        return Ok(await _service.GetMonthlySummaryAsync(customerId));
     }
 }

@@ -3,9 +3,9 @@ using MenuManager.Shared.DTOs;
 
 namespace MenuManager.Shared.Validators;
 
-public class MealSlotItemRequestValidator : AbstractValidator<MealSlotItemRequest>
+public class CreateMealItemRequestValidator : AbstractValidator<CreateMealItemRequest>
 {
-    public MealSlotItemRequestValidator()
+    public CreateMealItemRequestValidator()
     {
         RuleFor(x => x.ItemId)
             .GreaterThan(0);

@@ -197,69 +197,64 @@ public static class SeedData
         );
         db.SaveChanges();
 
-        // --- MenuPlan ---
-        db.MenuPlans.Add(new MenuPlan { Id = 1, Name = "Avril 2026", Month = 4, Year = 2026, CustomerId = 3, CreatedAt = now });
-        db.SaveChanges();
-
-        // --- DayPlans (on-demand, only days with items) ---
-        db.DayPlans.AddRange(
-            new DayPlan { Id = 1,  Date = new DateOnly(2026, 4, 7),  MenuPlanId = 1 },
-            new DayPlan { Id = 2,  Date = new DateOnly(2026, 4, 9),  MenuPlanId = 1 },
-            new DayPlan { Id = 3,  Date = new DateOnly(2026, 4, 10), MenuPlanId = 1 },
-            new DayPlan { Id = 4,  Date = new DateOnly(2026, 4, 12), MenuPlanId = 1 },
-            new DayPlan { Id = 5,  Date = new DateOnly(2026, 4, 14), MenuPlanId = 1 },
-            new DayPlan { Id = 6,  Date = new DateOnly(2026, 4, 16), MenuPlanId = 1 },
-            new DayPlan { Id = 7,  Date = new DateOnly(2026, 4, 18), MenuPlanId = 1 },
-            new DayPlan { Id = 8,  Date = new DateOnly(2026, 4, 21), MenuPlanId = 1 },
-            new DayPlan { Id = 9,  Date = new DateOnly(2026, 4, 23), MenuPlanId = 1 },
-            new DayPlan { Id = 10, Date = new DateOnly(2026, 4, 25), MenuPlanId = 1 }
+        // --- DailyMenus (on-demand, only days with items) ---
+        db.DailyMenus.AddRange(
+            new DailyMenu { Id = 1,  Date = new DateOnly(2026, 4, 7),  CustomerId = 3 },
+            new DailyMenu { Id = 2,  Date = new DateOnly(2026, 4, 9),  CustomerId = 3 },
+            new DailyMenu { Id = 3,  Date = new DateOnly(2026, 4, 10), CustomerId = 3 },
+            new DailyMenu { Id = 4,  Date = new DateOnly(2026, 4, 12), CustomerId = 3 },
+            new DailyMenu { Id = 5,  Date = new DateOnly(2026, 4, 14), CustomerId = 3 },
+            new DailyMenu { Id = 6,  Date = new DateOnly(2026, 4, 16), CustomerId = 3 },
+            new DailyMenu { Id = 7,  Date = new DateOnly(2026, 4, 18), CustomerId = 3 },
+            new DailyMenu { Id = 8,  Date = new DateOnly(2026, 4, 21), CustomerId = 3 },
+            new DailyMenu { Id = 9,  Date = new DateOnly(2026, 4, 23), CustomerId = 3 },
+            new DailyMenu { Id = 10, Date = new DateOnly(2026, 4, 25), CustomerId = 3 }
         );
         db.SaveChanges();
 
-        // --- MealSlots ---
-        db.MealSlots.AddRange(
-            new MealSlot { Id = 1,  MealType = MealType.Lunch,          DayPlanId = 1 },  // 07/04 Lunch
-            new MealSlot { Id = 2,  MealType = MealType.AfternoonSnack, DayPlanId = 1 },  // 07/04 AfternoonSnack
-            new MealSlot { Id = 3,  MealType = MealType.Lunch,          DayPlanId = 2 },  // 09/04 Lunch
-            new MealSlot { Id = 4,  MealType = MealType.Breakfast,      DayPlanId = 3 },  // 10/04 Breakfast
-            new MealSlot { Id = 5,  MealType = MealType.Lunch,          DayPlanId = 4 },  // 12/04 Lunch
-            new MealSlot { Id = 6,  MealType = MealType.Dinner,         DayPlanId = 5 },  // 14/04 Dinner
-            new MealSlot { Id = 7,  MealType = MealType.MorningSnack,   DayPlanId = 6 },  // 16/04 MorningSnack
-            new MealSlot { Id = 8,  MealType = MealType.Lunch,          DayPlanId = 7 },  // 18/04 Lunch
-            new MealSlot { Id = 9,  MealType = MealType.Dinner,         DayPlanId = 8 },  // 21/04 Dinner
-            new MealSlot { Id = 10, MealType = MealType.AfternoonSnack, DayPlanId = 9 },  // 23/04 AfternoonSnack
-            new MealSlot { Id = 11, MealType = MealType.Lunch,          DayPlanId = 10 }  // 25/04 Lunch
+        // --- Meals ---
+        db.Meals.AddRange(
+            new Meal { Id = 1,  MealType = MealType.Lunch,          DailyMenuId = 1 },  // 07/04 Lunch
+            new Meal { Id = 2,  MealType = MealType.AfternoonSnack, DailyMenuId = 1 },  // 07/04 AfternoonSnack
+            new Meal { Id = 3,  MealType = MealType.Lunch,          DailyMenuId = 2 },  // 09/04 Lunch
+            new Meal { Id = 4,  MealType = MealType.Breakfast,      DailyMenuId = 3 },  // 10/04 Breakfast
+            new Meal { Id = 5,  MealType = MealType.Lunch,          DailyMenuId = 4 },  // 12/04 Lunch
+            new Meal { Id = 6,  MealType = MealType.Dinner,         DailyMenuId = 5 },  // 14/04 Dinner
+            new Meal { Id = 7,  MealType = MealType.MorningSnack,   DailyMenuId = 6 },  // 16/04 MorningSnack
+            new Meal { Id = 8,  MealType = MealType.Lunch,          DailyMenuId = 7 },  // 18/04 Lunch
+            new Meal { Id = 9,  MealType = MealType.Dinner,         DailyMenuId = 8 },  // 21/04 Dinner
+            new Meal { Id = 10, MealType = MealType.AfternoonSnack, DailyMenuId = 9 },  // 23/04 AfternoonSnack
+            new Meal { Id = 11, MealType = MealType.Lunch,          DailyMenuId = 10 }  // 25/04 Lunch
         );
         db.SaveChanges();
 
-        // --- MealSlotItems (Recipe → RecipeId set, Item → ItemId set) ---
-        db.MealSlotItems.AddRange(
-            new MealSlotItem { Id = 1,  MealSlotId = 1,  RecipeId = 1,  Quantity = 1, Servings = 4 },  // Spaghetti Bolognaise
-            new MealSlotItem { Id = 2,  MealSlotId = 2,  ItemId = 3,   Quantity = 2, Servings = 1 },   // Glace Fraise x2
-            new MealSlotItem { Id = 3,  MealSlotId = 3,  RecipeId = 4,  Quantity = 1, Servings = 2 },  // Raviolis
-            new MealSlotItem { Id = 4,  MealSlotId = 4,  ItemId = 1,   Quantity = 3, Servings = 1 },   // Pims Orange x3
-            new MealSlotItem { Id = 5,  MealSlotId = 4,  ItemId = 9,   Quantity = 1, Servings = 1 },   // Jus d'orange Andros x1
-            new MealSlotItem { Id = 6,  MealSlotId = 5,  RecipeId = 2,  Quantity = 1, Servings = 4 },  // Riz cantonnais
-            new MealSlotItem { Id = 7,  MealSlotId = 6,  RecipeId = 3,  Quantity = 1, Servings = 4 },  // Soupe chinoise
-            new MealSlotItem { Id = 8,  MealSlotId = 7,  ItemId = 20,  Quantity = 1, Servings = 1 },   // Smacks x1
-            new MealSlotItem { Id = 9,  MealSlotId = 8,  RecipeId = 5,  Quantity = 1, Servings = 2 },  // Sandwich Roquefort Jambon
-            new MealSlotItem { Id = 10, MealSlotId = 9,  RecipeId = 1,  Quantity = 1, Servings = 4 },  // Spaghetti Bolognaise
-            new MealSlotItem { Id = 11, MealSlotId = 10, ItemId = 22,  Quantity = 1, Servings = 1 },   // Chocolat Daims x1
-            new MealSlotItem { Id = 12, MealSlotId = 11, RecipeId = 2,  Quantity = 1, Servings = 4 }   // Riz cantonnais
+        // --- MealItems (Recipe → RecipeId set, Item → ItemId set) ---
+        db.MealItems.AddRange(
+            new MealItem { Id = 1,  MealId = 1,  RecipeId = 1,  Quantity = 1, Servings = 4 },  // Spaghetti Bolognaise
+            new MealItem { Id = 2,  MealId = 2,  ItemId = 3,   Quantity = 2, Servings = 1 },   // Glace Fraise x2
+            new MealItem { Id = 3,  MealId = 3,  RecipeId = 4,  Quantity = 1, Servings = 2 },  // Raviolis
+            new MealItem { Id = 4,  MealId = 4,  ItemId = 1,   Quantity = 3, Servings = 1 },   // Pims Orange x3
+            new MealItem { Id = 5,  MealId = 4,  ItemId = 9,   Quantity = 1, Servings = 1 },   // Jus d'orange Andros x1
+            new MealItem { Id = 6,  MealId = 5,  RecipeId = 2,  Quantity = 1, Servings = 4 },  // Riz cantonnais
+            new MealItem { Id = 7,  MealId = 6,  RecipeId = 3,  Quantity = 1, Servings = 4 },  // Soupe chinoise
+            new MealItem { Id = 8,  MealId = 7,  ItemId = 20,  Quantity = 1, Servings = 1 },   // Smacks x1
+            new MealItem { Id = 9,  MealId = 8,  RecipeId = 5,  Quantity = 1, Servings = 2 },  // Sandwich Roquefort Jambon
+            new MealItem { Id = 10, MealId = 9,  RecipeId = 1,  Quantity = 1, Servings = 4 },  // Spaghetti Bolognaise
+            new MealItem { Id = 11, MealId = 10, ItemId = 22,  Quantity = 1, Servings = 1 },   // Chocolat Daims x1
+            new MealItem { Id = 12, MealId = 11, RecipeId = 2,  Quantity = 1, Servings = 4 }   // Riz cantonnais
         );
         db.SaveChanges();
 
         // --- Reset PostgreSQL sequences to avoid PK conflicts on next insert ---
         var sequences = new (string Table, string Column)[]
         {
-            ("Categories",   "Id"),
-            ("Party",        "Id"),
-            ("Items",        "Id"),
-            ("Recipes",      "Id"),
-            ("MenuPlans",    "Id"),
-            ("DayPlans",     "Id"),
-            ("MealSlots",    "Id"),
-            ("MealSlotItems","Id")
+            ("Categories",  "Id"),
+            ("Party",       "Id"),
+            ("Items",       "Id"),
+            ("Recipes",     "Id"),
+            ("DailyMenus",  "Id"),
+            ("Meals",       "Id"),
+            ("MealItems",   "Id")
         };
 
         foreach (var (table, column) in sequences)

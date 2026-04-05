@@ -9,13 +9,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MenuManager.Tests;
 
-public class MealSlotItemServiceTests : IDisposable
+public class MealItemServiceTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
-    private readonly MealSlotItemService _service;
+    private readonly MealItemService _service;
 
-    public MealSlotItemServiceTests()
+    public MealItemServiceTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
@@ -26,7 +26,7 @@ public class MealSlotItemServiceTests : IDisposable
 
         _db = new AppDbContext(options);
         _db.Database.EnsureCreated();
-        _service = new MealSlotItemService(_db);
+        _service = new MealItemService(_db);
     }
 
     public void Dispose()
@@ -57,7 +57,7 @@ public class MealSlotItemServiceTests : IDisposable
         return item;
     }
 
-    private async Task<MealSlot> SeedMealSlotAsync()
+    private async Task<Meal> SeedMealAsync()
     {
         var customer = new Customer
         {
@@ -70,57 +70,46 @@ public class MealSlotItemServiceTests : IDisposable
         _db.Customers.Add(customer);
         await _db.SaveChangesAsync();
 
-        var plan = new MenuPlan
-        {
-            Name = "Plan",
-            Month = 1,
-            Year = 2026,
-            CustomerId = customer.Id,
-            CreatedAt = DateTime.UtcNow
-        };
-        _db.MenuPlans.Add(plan);
-        await _db.SaveChangesAsync();
-
-        var dayPlan = new DayPlan
+        var dailyMenu = new DailyMenu
         {
             Date = new DateOnly(2026, 1, 15),
-            MenuPlanId = plan.Id
+            CustomerId = customer.Id
         };
-        _db.DayPlans.Add(dayPlan);
+        _db.DailyMenus.Add(dailyMenu);
         await _db.SaveChangesAsync();
 
-        var mealSlot = new MealSlot
+        var meal = new Meal
         {
             MealType = MealType.Breakfast,
-            DayPlanId = dayPlan.Id
+            DailyMenuId = dailyMenu.Id
         };
-        _db.MealSlots.Add(mealSlot);
+        _db.Meals.Add(meal);
         await _db.SaveChangesAsync();
-        return mealSlot;
+        return meal;
     }
 
-    private async Task<MealSlotItem> SeedMealSlotItemAsync(MealSlot mealSlot, Item item)
+    private async Task<MealItem> SeedMealItemAsync(Meal meal, Item item)
     {
-        var msi = new MealSlotItem
+        var mi = new MealItem
         {
             Quantity = 2.5m,
             Notes = "test note",
-            MealSlotId = mealSlot.Id,
+            MealId = meal.Id,
             ItemId = item.Id
         };
-        _db.MealSlotItems.Add(msi);
+        _db.MealItems.Add(mi);
         await _db.SaveChangesAsync();
-        return msi;
+        return mi;
     }
 
     // ── GetAllAsync ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetAllAsync_ReturnsAllMealSlotItems()
+    public async Task GetAllAsync_ReturnsAllMealItems()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        await SeedMealSlotItemAsync(mealSlot, item);
+        await SeedMealItemAsync(meal, item);
 
         var result = await _service.GetAllAsync();
 
@@ -143,13 +132,13 @@ public class MealSlotItemServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetByIdAsync_ReturnsMealSlotItem()
+    public async Task GetByIdAsync_ReturnsMealItem()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.GetByIdAsync(msi.Id);
+        var result = await _service.GetByIdAsync(mi.Id);
 
         result.Should().NotBeNull();
         result!.ItemName.Should().Be(item.Name);
@@ -163,13 +152,13 @@ public class MealSlotItemServiceTests : IDisposable
     // ── CreateAsync ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CreateAsync_ReturnsNull_WhenMealSlotNotFound()
+    public async Task CreateAsync_ReturnsNull_WhenMealNotFound()
     {
         var item = await SeedItemAsync();
 
-        var result = await _service.CreateAsync(new CreateMealSlotItemRequest
+        var result = await _service.CreateAsync(new CreateMealItemRequest
         {
-            MealSlotId = 999,
+            MealId = 999,
             ItemId = item.Id,
             Quantity = 1m
         });
@@ -180,11 +169,11 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task CreateAsync_ReturnsNull_WhenItemNotFound()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
 
-        var result = await _service.CreateAsync(new CreateMealSlotItemRequest
+        var result = await _service.CreateAsync(new CreateMealItemRequest
         {
-            MealSlotId = mealSlot.Id,
+            MealId = meal.Id,
             ItemId = 999,
             Quantity = 1m
         });
@@ -195,12 +184,12 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task CreateAsync_CreatesAndReturnsWithCorrectData()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
 
-        var result = await _service.CreateAsync(new CreateMealSlotItemRequest
+        var result = await _service.CreateAsync(new CreateMealItemRequest
         {
-            MealSlotId = mealSlot.Id,
+            MealId = meal.Id,
             ItemId = item.Id,
             Quantity = 3.5m,
             Notes = "some notes"
@@ -211,7 +200,7 @@ public class MealSlotItemServiceTests : IDisposable
         result.ItemName.Should().Be(item.Name);
         result.Quantity.Should().Be(3.5m);
         result.Notes.Should().Be("some notes");
-        result.MealSlotId.Should().Be(mealSlot.Id);
+        result.MealId.Should().Be(meal.Id);
         result.PackageSize.Should().Be(1);
         result.Unit.Should().Be(MeasurementUnit.Piece);
         result.UnitPrice.Should().BeNull();
@@ -220,7 +209,7 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task CreateAsync_ReturnsUnitPrice_WhenAvailableSupplierExists()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
 
         var supplier = new Supplier
@@ -244,9 +233,9 @@ public class MealSlotItemServiceTests : IDisposable
         });
         await _db.SaveChangesAsync();
 
-        var result = await _service.CreateAsync(new CreateMealSlotItemRequest
+        var result = await _service.CreateAsync(new CreateMealItemRequest
         {
-            MealSlotId = mealSlot.Id,
+            MealId = meal.Id,
             ItemId = item.Id,
             Quantity = 1m
         });
@@ -258,9 +247,9 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task GetByIdAsync_ReturnsNullUnitPrice_WhenNoAvailableSupplier()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
         var supplier = new Supplier
         {
@@ -283,7 +272,7 @@ public class MealSlotItemServiceTests : IDisposable
         });
         await _db.SaveChangesAsync();
 
-        var result = await _service.GetByIdAsync(msi.Id);
+        var result = await _service.GetByIdAsync(mi.Id);
 
         result.Should().NotBeNull();
         result!.UnitPrice.Should().BeNull();
@@ -294,9 +283,9 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task UpdateAsync_ReturnsNull_ForUnknownId()
     {
-        var result = await _service.UpdateAsync(999, new UpdateMealSlotItemRequest
+        var result = await _service.UpdateAsync(999, new UpdateMealItemRequest
         {
-            MealSlotId = 1,
+            MealId = 1,
             ItemId = 1,
             Quantity = 1m
         });
@@ -305,15 +294,15 @@ public class MealSlotItemServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdateAsync_ReturnsNull_WhenMealSlotNotFound()
+    public async Task UpdateAsync_ReturnsNull_WhenMealNotFound()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.UpdateAsync(msi.Id, new UpdateMealSlotItemRequest
+        var result = await _service.UpdateAsync(mi.Id, new UpdateMealItemRequest
         {
-            MealSlotId = 999,
+            MealId = 999,
             ItemId = item.Id,
             Quantity = 1m
         });
@@ -324,13 +313,13 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task UpdateAsync_ReturnsNull_WhenItemNotFound()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.UpdateAsync(msi.Id, new UpdateMealSlotItemRequest
+        var result = await _service.UpdateAsync(mi.Id, new UpdateMealItemRequest
         {
-            MealSlotId = mealSlot.Id,
+            MealId = meal.Id,
             ItemId = 999,
             Quantity = 1m
         });
@@ -341,13 +330,13 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task UpdateAsync_UpdatesFieldsAndReturnsUpdatedItem()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.UpdateAsync(msi.Id, new UpdateMealSlotItemRequest
+        var result = await _service.UpdateAsync(mi.Id, new UpdateMealItemRequest
         {
-            MealSlotId = mealSlot.Id,
+            MealId = meal.Id,
             ItemId = item.Id,
             Quantity = 10m,
             Notes = "updated"
@@ -363,7 +352,7 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task MoveAsync_ReturnsNull_ForUnknownId()
     {
-        var result = await _service.MoveAsync(999, new MoveMealSlotItemRequest
+        var result = await _service.MoveAsync(999, new MoveMealItemRequest
         {
             TargetDate = new DateOnly(2026, 1, 16),
             TargetMealType = MealType.Lunch,
@@ -376,11 +365,11 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task MoveAsync_MovesToSameSlot_UpdatesOrder()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        var result = await _service.MoveAsync(mi.Id, new MoveMealItemRequest
         {
             TargetDate = new DateOnly(2026, 1, 15),
             TargetMealType = MealType.Breakfast,
@@ -388,25 +377,25 @@ public class MealSlotItemServiceTests : IDisposable
         });
 
         result.Should().NotBeNull();
-        result!.MealSlotId.Should().Be(mealSlot.Id);
-        var entity = await _db.MealSlotItems.FindAsync(msi.Id);
+        result!.MealId.Should().Be(meal.Id);
+        var entity = await _db.MealItems.FindAsync(mi.Id);
         entity!.Order.Should().Be(1);
     }
 
     [Fact]
-    public async Task MoveAsync_MovesToDifferentSlot_ExistingSlot()
+    public async Task MoveAsync_MovesToDifferentMeal_ExistingMeal()
     {
-        var mealSlot = await SeedMealSlotAsync(); // Breakfast on 2026-01-15
+        var meal = await SeedMealAsync(); // Breakfast on 2026-01-15
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        // Create a Lunch slot on the same day
-        var dayPlan = await _db.DayPlans.FirstAsync();
-        var lunchSlot = new MealSlot { MealType = MealType.Lunch, DayPlanId = dayPlan.Id };
-        _db.MealSlots.Add(lunchSlot);
+        // Create a Lunch meal on the same day
+        var dailyMenu = await _db.DailyMenus.FirstAsync();
+        var lunchMeal = new Meal { MealType = MealType.Lunch, DailyMenuId = dailyMenu.Id };
+        _db.Meals.Add(lunchMeal);
         await _db.SaveChangesAsync();
 
-        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        var result = await _service.MoveAsync(mi.Id, new MoveMealItemRequest
         {
             TargetDate = new DateOnly(2026, 1, 15),
             TargetMealType = MealType.Lunch,
@@ -414,40 +403,40 @@ public class MealSlotItemServiceTests : IDisposable
         });
 
         result.Should().NotBeNull();
-        result!.MealSlotId.Should().Be(lunchSlot.Id);
+        result!.MealId.Should().Be(lunchMeal.Id);
     }
 
     [Fact]
-    public async Task MoveAsync_CreatesSlotOnDemand_WhenTargetSlotMissing()
+    public async Task MoveAsync_CreatesMealOnDemand_WhenTargetMealMissing()
     {
-        var mealSlot = await SeedMealSlotAsync(); // Breakfast on 2026-01-15
+        var meal = await SeedMealAsync(); // Breakfast on 2026-01-15
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        var result = await _service.MoveAsync(mi.Id, new MoveMealItemRequest
         {
             TargetDate = new DateOnly(2026, 1, 15),
-            TargetMealType = MealType.Dinner, // no Dinner slot exists
+            TargetMealType = MealType.Dinner,
             NewOrder = 0
         });
 
         result.Should().NotBeNull();
-        var newSlot = await _db.MealSlots
-            .FirstOrDefaultAsync(ms => ms.MealType == MealType.Dinner);
-        newSlot.Should().NotBeNull();
-        result!.MealSlotId.Should().Be(newSlot!.Id);
+        var newMeal = await _db.Meals
+            .FirstOrDefaultAsync(m => m.MealType == MealType.Dinner);
+        newMeal.Should().NotBeNull();
+        result!.MealId.Should().Be(newMeal!.Id);
     }
 
     [Fact]
-    public async Task MoveAsync_CreatesDayPlanAndSlotOnDemand_WhenTargetDateMissing()
+    public async Task MoveAsync_CreatesDailyMenuAndMealOnDemand_WhenTargetDateMissing()
     {
-        var mealSlot = await SeedMealSlotAsync(); // Breakfast on 2026-01-15
+        var meal = await SeedMealAsync(); // Breakfast on 2026-01-15
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var targetDate = new DateOnly(2026, 1, 20); // no DayPlan for this date
+        var targetDate = new DateOnly(2026, 1, 20);
 
-        var result = await _service.MoveAsync(msi.Id, new MoveMealSlotItemRequest
+        var result = await _service.MoveAsync(mi.Id, new MoveMealItemRequest
         {
             TargetDate = targetDate,
             TargetMealType = MealType.Lunch,
@@ -455,64 +444,64 @@ public class MealSlotItemServiceTests : IDisposable
         });
 
         result.Should().NotBeNull();
-        var newDayPlan = await _db.DayPlans
-            .FirstOrDefaultAsync(dp => dp.Date == targetDate);
-        newDayPlan.Should().NotBeNull();
-        var newSlot = await _db.MealSlots
-            .FirstOrDefaultAsync(ms => ms.DayPlanId == newDayPlan!.Id && ms.MealType == MealType.Lunch);
-        newSlot.Should().NotBeNull();
-        result!.MealSlotId.Should().Be(newSlot!.Id);
+        var newDailyMenu = await _db.DailyMenus
+            .FirstOrDefaultAsync(dm => dm.Date == targetDate);
+        newDailyMenu.Should().NotBeNull();
+        var newMeal = await _db.Meals
+            .FirstOrDefaultAsync(m => m.DailyMenuId == newDailyMenu!.Id && m.MealType == MealType.Lunch);
+        newMeal.Should().NotBeNull();
+        result!.MealId.Should().Be(newMeal!.Id);
     }
 
-    // ── ReorderAsync ────────────────────────────────────────────────────────
+    // ── ReorderAsync ─────────────────────────────────────────────────────────
 
     [Fact]
     public async Task ReorderAsync_ReordersItemsCorrectly()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item1 = await SeedItemAsync("Rice");
         var item2 = await SeedItemAsync("Pasta");
         var item3 = await SeedItemAsync("Bread");
-        var msi1 = await SeedMealSlotItemAsync(mealSlot, item1);
-        var msi2 = await SeedMealSlotItemAsync(mealSlot, item2);
-        var msi3 = await SeedMealSlotItemAsync(mealSlot, item3);
+        var mi1 = await SeedMealItemAsync(meal, item1);
+        var mi2 = await SeedMealItemAsync(meal, item2);
+        var mi3 = await SeedMealItemAsync(meal, item3);
 
-        var result = await _service.ReorderAsync(new ReorderMealSlotItemsRequest
+        var result = await _service.ReorderAsync(new ReorderMealItemsRequest
         {
-            MealSlotId = mealSlot.Id,
-            OrderedItemIds = [msi3.Id, msi1.Id, msi2.Id]
+            MealId = meal.Id,
+            OrderedItemIds = [mi3.Id, mi1.Id, mi2.Id]
         });
 
         result.Should().BeTrue();
-        (await _db.MealSlotItems.FindAsync(msi3.Id))!.Order.Should().Be(1);
-        (await _db.MealSlotItems.FindAsync(msi1.Id))!.Order.Should().Be(2);
-        (await _db.MealSlotItems.FindAsync(msi2.Id))!.Order.Should().Be(3);
+        (await _db.MealItems.FindAsync(mi3.Id))!.Order.Should().Be(1);
+        (await _db.MealItems.FindAsync(mi1.Id))!.Order.Should().Be(2);
+        (await _db.MealItems.FindAsync(mi2.Id))!.Order.Should().Be(3);
     }
 
     [Fact]
     public async Task ReorderAsync_ReturnsFalse_WhenUnknownIdInList()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.ReorderAsync(new ReorderMealSlotItemsRequest
+        var result = await _service.ReorderAsync(new ReorderMealItemsRequest
         {
-            MealSlotId = mealSlot.Id,
-            OrderedItemIds = [msi.Id, 999]
+            MealId = meal.Id,
+            OrderedItemIds = [mi.Id, 999]
         });
 
         result.Should().BeFalse();
     }
 
     [Fact]
-    public async Task ReorderAsync_ReturnsFalse_WhenSlotEmpty()
+    public async Task ReorderAsync_ReturnsFalse_WhenMealEmpty()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
 
-        var result = await _service.ReorderAsync(new ReorderMealSlotItemsRequest
+        var result = await _service.ReorderAsync(new ReorderMealItemsRequest
         {
-            MealSlotId = mealSlot.Id,
+            MealId = meal.Id,
             OrderedItemIds = []
         });
 
@@ -522,16 +511,16 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task ReorderAsync_ReturnsFalse_WhenPartialList()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item1 = await SeedItemAsync("Rice");
         var item2 = await SeedItemAsync("Pasta");
-        var msi1 = await SeedMealSlotItemAsync(mealSlot, item1);
-        await SeedMealSlotItemAsync(mealSlot, item2);
+        var mi1 = await SeedMealItemAsync(meal, item1);
+        await SeedMealItemAsync(meal, item2);
 
-        var result = await _service.ReorderAsync(new ReorderMealSlotItemsRequest
+        var result = await _service.ReorderAsync(new ReorderMealItemsRequest
         {
-            MealSlotId = mealSlot.Id,
-            OrderedItemIds = [msi1.Id]
+            MealId = meal.Id,
+            OrderedItemIds = [mi1.Id]
         });
 
         result.Should().BeFalse();
@@ -542,22 +531,22 @@ public class MealSlotItemServiceTests : IDisposable
     [Fact]
     public async Task CreateAsync_AssignsSequentialOrder()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item1 = await SeedItemAsync("Rice");
         var item2 = await SeedItemAsync("Pasta");
         var item3 = await SeedItemAsync("Bread");
 
-        var r1 = await _service.CreateAsync(new CreateMealSlotItemRequest
+        var r1 = await _service.CreateAsync(new CreateMealItemRequest
         {
-            MealSlotId = mealSlot.Id, ItemId = item1.Id, Quantity = 1
+            MealId = meal.Id, ItemId = item1.Id, Quantity = 1
         });
-        var r2 = await _service.CreateAsync(new CreateMealSlotItemRequest
+        var r2 = await _service.CreateAsync(new CreateMealItemRequest
         {
-            MealSlotId = mealSlot.Id, ItemId = item2.Id, Quantity = 1
+            MealId = meal.Id, ItemId = item2.Id, Quantity = 1
         });
-        var r3 = await _service.CreateAsync(new CreateMealSlotItemRequest
+        var r3 = await _service.CreateAsync(new CreateMealItemRequest
         {
-            MealSlotId = mealSlot.Id, ItemId = item3.Id, Quantity = 1
+            MealId = meal.Id, ItemId = item3.Id, Quantity = 1
         });
 
         r1!.Order.Should().Be(1);
@@ -568,85 +557,79 @@ public class MealSlotItemServiceTests : IDisposable
     // ── MoveAsync renumbering ────────────────────────────────────────────────
 
     [Fact]
-    public async Task MoveAsync_RenumbersSourceSlot_AfterMove()
+    public async Task MoveAsync_RenumbersSourceMeal_AfterMove()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item1 = await SeedItemAsync("Rice");
         var item2 = await SeedItemAsync("Pasta");
         var item3 = await SeedItemAsync("Bread");
-        var msi1 = await SeedMealSlotItemAsync(mealSlot, item1);
-        var msi2 = await SeedMealSlotItemAsync(mealSlot, item2);
-        var msi3 = await SeedMealSlotItemAsync(mealSlot, item3);
-        msi1.Order = 1; msi2.Order = 2; msi3.Order = 3;
+        var mi1 = await SeedMealItemAsync(meal, item1);
+        var mi2 = await SeedMealItemAsync(meal, item2);
+        var mi3 = await SeedMealItemAsync(meal, item3);
+        mi1.Order = 1; mi2.Order = 2; mi3.Order = 3;
         await _db.SaveChangesAsync();
 
-        // Move middle item to a new slot
-        await _service.MoveAsync(msi2.Id, new MoveMealSlotItemRequest
+        await _service.MoveAsync(mi2.Id, new MoveMealItemRequest
         {
             TargetDate = new DateOnly(2026, 1, 15),
             TargetMealType = MealType.Lunch,
             NewOrder = 0
         });
 
-        // Source slot should be renumbered 1, 2 without gap
-        var source = await _db.MealSlotItems
-            .Where(msi => msi.MealSlotId == mealSlot.Id)
-            .OrderBy(msi => msi.Order)
+        var source = await _db.MealItems
+            .Where(mi => mi.MealId == meal.Id)
+            .OrderBy(mi => mi.Order)
             .ToListAsync();
         source.Should().HaveCount(2);
-        source[0].Id.Should().Be(msi1.Id);
+        source[0].Id.Should().Be(mi1.Id);
         source[0].Order.Should().Be(1);
-        source[1].Id.Should().Be(msi3.Id);
+        source[1].Id.Should().Be(mi3.Id);
         source[1].Order.Should().Be(2);
     }
 
     [Fact]
-    public async Task MoveAsync_InsertsAtCorrectPosition_InTargetSlot()
+    public async Task MoveAsync_InsertsAtCorrectPosition_InTargetMeal()
     {
-        var mealSlot = await SeedMealSlotAsync(); // Breakfast
+        var meal = await SeedMealAsync(); // Breakfast
         var item1 = await SeedItemAsync("Rice");
         var item2 = await SeedItemAsync("Pasta");
         var item3 = await SeedItemAsync("Bread");
-        var msi1 = await SeedMealSlotItemAsync(mealSlot, item1);
-        var msi2 = await SeedMealSlotItemAsync(mealSlot, item2);
-        msi1.Order = 1; msi2.Order = 2;
+        var mi1 = await SeedMealItemAsync(meal, item1);
+        var mi2 = await SeedMealItemAsync(meal, item2);
+        mi1.Order = 1; mi2.Order = 2;
         await _db.SaveChangesAsync();
 
-        // Create a second slot with one item
-        var dayPlan = await _db.DayPlans.FirstAsync();
-        var lunchSlot = new MealSlot { MealType = MealType.Lunch, DayPlanId = dayPlan.Id };
-        _db.MealSlots.Add(lunchSlot);
+        var dailyMenu = await _db.DailyMenus.FirstAsync();
+        var lunchMeal = new Meal { MealType = MealType.Lunch, DailyMenuId = dailyMenu.Id };
+        _db.Meals.Add(lunchMeal);
         await _db.SaveChangesAsync();
-        var msi3 = new MealSlotItem { MealSlotId = lunchSlot.Id, ItemId = item3.Id, Quantity = 1, Order = 1 };
-        _db.MealSlotItems.Add(msi3);
+        var mi3 = new MealItem { MealId = lunchMeal.Id, ItemId = item3.Id, Quantity = 1, Order = 1 };
+        _db.MealItems.Add(mi3);
         await _db.SaveChangesAsync();
 
-        // Move msi1 to Lunch at position 0 (before existing item)
-        await _service.MoveAsync(msi1.Id, new MoveMealSlotItemRequest
+        await _service.MoveAsync(mi1.Id, new MoveMealItemRequest
         {
             TargetDate = new DateOnly(2026, 1, 15),
             TargetMealType = MealType.Lunch,
             NewOrder = 0
         });
 
-        // Target slot: msi1 at 1, msi3 at 2
-        var target = await _db.MealSlotItems
-            .Where(msi => msi.MealSlotId == lunchSlot.Id)
-            .OrderBy(msi => msi.Order)
+        var target = await _db.MealItems
+            .Where(mi => mi.MealId == lunchMeal.Id)
+            .OrderBy(mi => mi.Order)
             .ToListAsync();
         target.Should().HaveCount(2);
-        target[0].Id.Should().Be(msi1.Id);
+        target[0].Id.Should().Be(mi1.Id);
         target[0].Order.Should().Be(1);
-        target[1].Id.Should().Be(msi3.Id);
+        target[1].Id.Should().Be(mi3.Id);
         target[1].Order.Should().Be(2);
 
-        // Source slot: msi2 alone at 1
-        var source = await _db.MealSlotItems
-            .Where(msi => msi.MealSlotId == mealSlot.Id)
-            .OrderBy(msi => msi.Order)
+        var source = await _db.MealItems
+            .Where(mi => mi.MealId == meal.Id)
+            .OrderBy(mi => mi.Order)
             .ToListAsync();
         source.Should().HaveCount(1);
-        source[0].Id.Should().Be(msi2.Id);
+        source[0].Id.Should().Be(mi2.Id);
         source[0].Order.Should().Be(1);
     }
 
@@ -661,15 +644,15 @@ public class MealSlotItemServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_ReturnsTrue_AndRemovesMealSlotItem()
+    public async Task DeleteAsync_ReturnsTrue_AndRemovesMealItem()
     {
-        var mealSlot = await SeedMealSlotAsync();
+        var meal = await SeedMealAsync();
         var item = await SeedItemAsync();
-        var msi = await SeedMealSlotItemAsync(mealSlot, item);
+        var mi = await SeedMealItemAsync(meal, item);
 
-        var result = await _service.DeleteAsync(msi.Id);
+        var result = await _service.DeleteAsync(mi.Id);
 
         result.Should().BeTrue();
-        _db.MealSlotItems.Should().BeEmpty();
+        _db.MealItems.Should().BeEmpty();
     }
 }

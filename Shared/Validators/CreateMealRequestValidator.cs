@@ -3,9 +3,9 @@ using MenuManager.Shared.DTOs;
 
 namespace MenuManager.Shared.Validators;
 
-public class MealSlotRequestValidator : AbstractValidator<MealSlotRequest>
+public class CreateMealRequestValidator : AbstractValidator<CreateMealRequest>
 {
-    public MealSlotRequestValidator()
+    public CreateMealRequestValidator()
     {
         RuleFor(x => x.MealType)
             .IsInEnum();

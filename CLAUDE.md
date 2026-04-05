@@ -39,27 +39,28 @@ Client reads `ServerUrl` from `Client/wwwroot/appsettings.json`.
 
 ```
 Party (abstract, TPT)
-  ├── Customer   — PasswordHash, PasswordSalt, ICollection<MenuPlan>
+  ├── Customer   — PasswordHash, PasswordSalt, ICollection<DailyMenu>
   └── Supplier   — CompanyName, Siret, ICollection<ItemSupplier>
 
 Category       — Id, Name, Description, ParentCategoryId (self-ref), SubCategories, Items
 Item           — Id, Name, Description, Unit(MeasurementUnit), PackageSize(decimal, default=1),
-                 CategoryId(int), CreatedAt, UpdatedAt, ItemSuppliers, MealSlotItems
+                 CategoryId(int), CreatedAt, UpdatedAt, ItemSuppliers, MealItems
 ItemSupplier   — PK composite (ItemId+SupplierId), UnitPrice(10,2), SupplierRef, IsAvailable, UpdatedAt
-MenuPlan       — Id, Name, Month, Year, CustomerId, CreatedAt, ICollection<DayPlan>
-DayPlan        — Id, Date(DateOnly), MenuPlanId, ICollection<MealSlot>
-MealSlot       — Id, MealType, DayPlanId, unique(DayPlanId+MealType), ICollection<MealSlotItem>
-MealSlotItem   — Id, Quantity(10,3), Notes, Order(int, default=0), MealSlotId, ItemId
+DailyMenu      — Id, Date(DateOnly), CustomerId, ICollection<Meal>
+Meal           — Id, MealType, DailyMenuId, unique(DailyMenuId+MealType), ICollection<MealItem>
+MealItem       — Id, Quantity(10,3), Notes, Servings(10,3), Order(int, default=0), MealId, ItemId?, RecipeId?
 
-MealType        (enum, Shared/Enums/) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
+MealType        (enum, Shared/Entities/) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
 MeasurementUnit (enum, Shared/Enums/) — Piece, Gram, Kilogram, Milliliter, Liter
 ```
+
+Hierarchy: **Customer → DailyMenu → Meal → MealItem** (MenuPlan removed).
 
 All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 `AppDbContext.OnModelCreating()` Fluent API.
 
 ### PackageSize business rule
-- `MealSlotItem.Quantity` = quantity consumed in the recipe (e.g. 1 ice cream)
+- `MealItem.Quantity` = quantity consumed in the recipe (e.g. 1 ice cream)
 - `Item.PackageSize` = units per package (e.g. 6)
 - Purchase calculation: `ceil(total_needed / PackageSize)`
 - Future migration to weight: add nullable `UnitWeightG` — zero breaking change.
@@ -68,11 +69,12 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 
 ## Migrations applied
 
-| Migration name                   | Description                                      |
-|----------------------------------|--------------------------------------------------|
-| InitialCreate                    | Full initial schema                              |
-| RefactorItemUnitAndPackageSize   | Unit → enum MeasurementUnit, PackageSize added   |
-| AddMealSlotItemOrder             | Order int default 0 added on MealSlotItem        |
+| Migration name                             | Description                                            |
+|--------------------------------------------|--------------------------------------------------------|
+| InitialCreate                              | Full initial schema                                    |
+| RefactorItemUnitAndPackageSize             | Unit → enum MeasurementUnit, PackageSize added         |
+| AddMealSlotItemOrder                       | Order int default 0 added on MealSlotItem              |
+| RemoveMenuPlan_RenameDayPlan_MealSlot      | Drop MenuPlan; DailyMenu→Meal→MealItem, FK=CustomerId  |
 
 ---
 
@@ -85,9 +87,7 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 - **No repository pattern** — services use `AppDbContext` directly.
 - **No business logic** in Blazor components — all HTTP calls go through a service.
 - **Tests**: SQLite in-memory only. EF InMemory provider is **forbidden** (doesn't enforce constraints).
-- **On-demand DB records**: DayPlan and MealSlot records are never pre-generated.
-  They are created lazily when the first MealSlotItem is added to a day/slot.
-  MenuPlan.CreateAsync persists only the MenuPlan — no child generation.
+- **On-demand DB records**: DailyMenu and Meal records are created lazily when the first MealItem is added to a date/meal type.
 
 ---
 
@@ -137,22 +137,24 @@ Stacked grids (pending + main): `table-layout: fixed; width: 100%` on both, iden
 ## Completed slices
 
 ### Backend (all complete: DTO / Validator / Service / Controller / Tests)
-Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, MealSlotItem
+Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem
+
+**New endpoint**: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>(Year, Month, HasMeals, MonthlyCost)`
+MonthlyCost = sum of `ceil(qty / PackageSize) * cheapest available UnitPrice` across all MealItems of the month, computed in C# after EF load.
 
 ### Frontend (Client)
 
-| Slice        | Service | Index           | Notes                                                              |
+| Slice        | Service | Index / Page    | Notes                                                              |
 |--------------|---------|-----------------|--------------------------------------------------------------------|
 | Layout       | —       | —               | MudTheme (Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0), gradient AppBar, NavMenu split (main top / admin bottom), RightPanelState |
-| Category     | ✅      | ✅ patched      | Reference implementation — new Save pattern applied                |
-| Item         | ✅      | ✅ patched      | FK CategoryId, enum Unit, decimal PackageSize                      |
-| Supplier     | ✅      | ✅ patched      | Party fields + CompanyName, Siret                                  |
-| Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
-| ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
-| MenuPlan     | ✅      | ✅ cards        | 3-year cards, HasData coloring, MonthlyCost, unified button        |
-| DayPlan      | ✅      | ✅ calendar     | Month nav bar, SortableJS reorder/move/copy (immediate), shopping cart, cell-drag copy/move, Ctrl+click clone item, click item=add drawer, dbl-click item=delete, dbl-click total=clear cell, row-primed highlight, saving overlay, 7-col grid |
-| MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
-| MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
+| Category     | ✅      | ✅              | Reference implementation — new Save pattern applied                |
+| Item         | ✅      | ✅              | FK CategoryId, enum Unit, decimal PackageSize                      |
+| Supplier     | ✅      | ✅              | Party fields + CompanyName, Siret                                  |
+| Customer     | ✅      | ✅              | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
+| ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409                 |
+| DailyMenu    | ✅      | ✅ via MenuPlan/Index | Route `/menuplan/{CustomerId}` — cards from `monthly-summary` endpoint |
+| Meal         | ✅      | ✅ via DayPlan/Index  | FK DailyMenuId                                                |
+| MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, PackageSize, Unit                |
 
 ---
 
@@ -162,10 +164,10 @@ Route: `/menuplan/{CustomerId:int}` — always scoped to a customer.
 Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
 - 3 years of cards grouped by year: current month → Dec, then full N+1 and N+2.
-- Unified "Voir le planning" button — creates MenuPlan on-the-fly if absent.
+- Unified "Voir le planning" button — navigates directly to `dayplans?customerId=X&year=Y&month=M` (no server-side creation).
 - **HasData coloring**: current month = green (`#1B5E20`), has data = filled blue, empty = outlined.
 - **MonthlyCost**: computed server-side (`ceil(qty / PackageSize) * cheapest available UnitPrice`), displayed on each card (EUR, FR locale).
-- `MenuPlanResponse.HasData` / `MonthlyCost` — computed in `MenuPlanService.MapToResponse`.
+- Data source: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>` (`Year`, `Month`, `HasMeals`, `MonthlyCost`). Client service: `DailyMenuService.GetMonthlySummaryAsync`.
 
 ---
 
@@ -181,9 +183,9 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 ### Month navigation bar
 - Horizontal strip of ±6 circular chips above the calendar (13 months total).
 - Current month = green filled (`#1B5E20`), has data = blue filled, empty = outlined.
-- Click navigates to that month's DayPlan — creates MenuPlan on-the-fly if absent.
-- Uses `OnParametersSetAsync` (not `OnInitializedAsync`) for SPA re-navigation.
-- `_siblingPlans` loaded via `MenuPlanSvc.GetByCustomerAsync` to detect existing plans.
+- Click navigates to `dayplans?customerId=X&year=Y&month=M` — no server-side creation needed.
+- Uses `OnParametersSetAsync` (not `OnInitializedAsync`) for SPA re-navigation; triggered by `(CustomerId, Year, Month)` key change.
+- `_monthlySummary` loaded via `DailyMenuSvc.GetMonthlySummaryAsync(CustomerId)` to detect `HasMeals` per month.
 
 ### MealCell component (`Client/Components/MealCell.razor`)
 - One cell per `(DateOnly date, MealType mealType)`.
@@ -195,13 +197,13 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Item interactions**: click item = open add drawer; Ctrl+click = clone in same slot (`OnItemCloneRequested`); double-click = delete (`OnItemRemoved`).
 - **Click anywhere on cell** (non-item area) = open add drawer.
 - **Hover states**: `.meal-cell:hover` subtle tint; `.meal-cell:not(.meal-cell-empty):hover` green glow; `.meal-cell-item:hover` blue wash.
-- **Parameters**: `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
+- **Parameters**: `MealId` (int?), `Items` (List\<MealItemResponse\>), `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
 - **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `cell-drag-source` on source cell; `cell-drag-copy-mode` on source cell when Ctrl held.
 - **Callbacks**: `OnItemMoved(itemId, fromDate, fromMealType, toDate, toMealType, newIndex, isCopy)`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted(date, mealType)`, `OnDragEnded`, `OnCellClearRequested`.
 
 ### AddItemToSlotAsync — on-demand creation (shared helper)
 - Private `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)`.
-- DayPlan → MealSlot → MealSlotItem created lazily. Returns `false` on any API failure.
+- DailyMenu → Meal → MealItem created lazily. Returns `false` on any API failure.
 - Called by: AddItemAsync (drawer), ExecuteCellActionAsync, CloneItemAsync.
 
 ### Cell drag-and-drop (DayPlan/Index — fully implemented)
@@ -237,9 +239,9 @@ A `_saving` bool shows a full-screen dark overlay (`dayplan-overlay`) during any
 - SortableJS via JS interop (`sortable-interop.js`).
 - **Immediate save**: all moves and reorders call the API directly; no buffering, no Save All.
 - SortableJS cross-cell drag supports Ctrl at drop time = copy (item added to target, source untouched).
-- Backend: `PATCH /mealslotitem/{id}/move` (cross-cell), `PATCH /mealslotitems/reorder` (same-slot).
-- `MealSlotItem.Order` — 1-based, gap-free, auto-renumbered on move.
-- `MealSlotItemResponse` includes `Order`, `UnitPrice`, `PackageSize`, `Unit`.
+- Backend: `PATCH /mealitems/{id}/move` (cross-cell), `PATCH /mealitems/reorder` (same-slot).
+- `MealItem.Order` — 1-based, gap-free, auto-renumbered on move.
+- `MealItemResponse` includes `Order`, `UnitPrice`, `PackageSize`, `Unit`.
 
 ---
 

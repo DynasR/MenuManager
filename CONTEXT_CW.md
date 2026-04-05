@@ -22,7 +22,7 @@ Blazor WASM (PWA) + MudBlazor · ASP.NET Core Web API (.NET 9) · EF Core 9 + Po
 ## État du projet (2026-04-05)
 
 ### Backend — complet
-9 slices : Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, MealSlotItem.
+8 slices : Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem.
 Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory).
 
 ### Frontend — complet
@@ -32,10 +32,10 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Category     | Référence pattern Index (pending rows + dirty + Save All)                        |
 | Item         | FK Category, enum Unit, PackageSize                                              |
 | Supplier     | Party + CompanyName, Siret                                                       |
-| Customer     | Bouton CalendarMonth → MenuPlan                                                  |
+| Customer     | Bouton CalendarMonth → `/menuplan/{id}`                                          |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
-| MenuPlan     | 3 ans de cards groupées par année, HasData, MonthlyCost, bouton unifié           |
-| DayPlan      | Calendrier, barre nav mois (±6), SortableJS reorder/move/**copy** (Ctrl au lâcher), panier, **cell-drag copy/move** (Ctrl=copie, zone latérale footer), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), **row-primed** (mousedown sur date = rouge sur toute la ligne, prépare vider-ligne), overlay sauvegarde, grille 7 col (80px dates) |
+| MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards sur 3 ans. Données via `GET /api/dailymenus/{customerId}/monthly-summary` (HasMeals, MonthlyCost). Bouton "Voir le planning" → navigation directe `dayplans?customerId=X&year=Y&month=M`, pas de création serveur. |
+| DayPlan/Index | Query params : `customerId`, `year`, `month`. Calendrier mensuel, barre nav mois (±6, HasMeals via monthly-summary), SortableJS reorder/move/**copy** (Ctrl au lâcher), panier, **cell-drag copy/move** (Ctrl=copie, zone latérale footer), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), **row-primed** (mousedown sur date = rouge sur toute la ligne, prépare vider-ligne), overlay sauvegarde, grille 7 col (80px dates) |
 | Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
 
 ---
@@ -43,8 +43,8 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 ## Décisions d'architecture clés
 
 Voir `CLAUDE.md` pour les détails. Résumé :
-- **Shared** pur (zéro EF), pas de repository, on-demand DayPlan/MealSlot.
-- **Deferred drag & drop**, **Shopping Cart** (panneau droit global).
+- **Shared** pur (zéro EF), pas de repository, on-demand DailyMenu/Meal.
+- **Shopping Cart** (panneau droit global, `RightPanelState`).
 - **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
 - **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
 - **Drag & drop immédiat** — plus de "Save All" / `_pendingMoves`. Tout appel API se fait au moment du drop. Overlay sombre pendant l'async.

@@ -12,10 +12,9 @@ public class AppDbContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Item> Items => Set<Item>();
     public DbSet<ItemSupplier> ItemSuppliers => Set<ItemSupplier>();
-    public DbSet<MenuPlan> MenuPlans => Set<MenuPlan>();
-    public DbSet<DayPlan> DayPlans => Set<DayPlan>();
-    public DbSet<MealSlot> MealSlots => Set<MealSlot>();
-    public DbSet<MealSlotItem> MealSlotItems => Set<MealSlotItem>();
+    public DbSet<DailyMenu> DailyMenus => Set<DailyMenu>();
+    public DbSet<Meal> Meals => Set<Meal>();
+    public DbSet<MealItem> MealItems => Set<MealItem>();
     public DbSet<Recipe> Recipes => Set<Recipe>();
     public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
 
@@ -60,18 +59,24 @@ public class AppDbContext : DbContext
             .WithMany(s => s.ItemSuppliers)
             .HasForeignKey(isp => isp.SupplierId);
 
+        // DailyMenu -> Customer
+        modelBuilder.Entity<DailyMenu>()
+            .HasOne(dm => dm.Customer)
+            .WithMany(c => c.DailyMenus)
+            .HasForeignKey(dm => dm.CustomerId);
+
         // Decimal precision
         modelBuilder.Entity<ItemSupplier>()
             .Property(isp => isp.UnitPrice)
             .HasPrecision(10, 2);
 
-        modelBuilder.Entity<MealSlotItem>()
-            .Property(msi => msi.Quantity)
+        modelBuilder.Entity<MealItem>()
+            .Property(mi => mi.Quantity)
             .HasPrecision(10, 3);
 
-        // MealSlotItem — Servings precision
-        modelBuilder.Entity<MealSlotItem>()
-            .Property(msi => msi.Servings)
+        // MealItem — Servings precision
+        modelBuilder.Entity<MealItem>()
+            .Property(mi => mi.Servings)
             .HasPrecision(10, 3);
 
         // RecipeIngredient — composite key
@@ -88,9 +93,9 @@ public class AppDbContext : DbContext
             .Property(i => i.MonthlyEstimate)
             .HasPrecision(10, 3);
 
-        // MealSlot — unique per type/day
-        modelBuilder.Entity<MealSlot>()
-            .HasIndex(ms => new { ms.DayPlanId, ms.MealType })
+        // Meal — unique per type/day
+        modelBuilder.Entity<Meal>()
+            .HasIndex(m => new { m.DailyMenuId, m.MealType })
             .IsUnique();
     }
 }

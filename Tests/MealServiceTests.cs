@@ -9,13 +9,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MenuManager.Tests;
 
-public class MealSlotServiceTests : IDisposable
+public class MealServiceTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly AppDbContext _db;
-    private readonly MealSlotService _service;
+    private readonly MealService _service;
 
-    public MealSlotServiceTests()
+    public MealServiceTests()
     {
         _connection = new SqliteConnection("DataSource=:memory:");
         _connection.Open();
@@ -26,7 +26,7 @@ public class MealSlotServiceTests : IDisposable
 
         _db = new AppDbContext(options);
         _db.Database.EnsureCreated();
-        _service = new MealSlotService(_db);
+        _service = new MealService(_db);
     }
 
     public void Dispose()
@@ -37,11 +37,11 @@ public class MealSlotServiceTests : IDisposable
 
     // ── Seed helpers ─────────────────────────────────────────────────────────
 
-    private async Task<Customer> SeedCustomerAsync(string name = "Alice")
+    private async Task<DailyMenu> SeedDailyMenuAsync()
     {
         var customer = new Customer
         {
-            Name = name,
+            Name = "Alice",
             PasswordHash = [],
             PasswordSalt = [],
             CreatedAt = DateTime.UtcNow,
@@ -49,67 +49,41 @@ public class MealSlotServiceTests : IDisposable
         };
         _db.Customers.Add(customer);
         await _db.SaveChangesAsync();
-        return customer;
-    }
 
-    private async Task<MenuPlan> SeedMenuPlanAsync(Customer customer)
-    {
-        var plan = new MenuPlan
-        {
-            Name = "January Plan",
-            Month = 1,
-            Year = 2026,
-            CustomerId = customer.Id,
-            CreatedAt = DateTime.UtcNow
-        };
-        _db.MenuPlans.Add(plan);
-        await _db.SaveChangesAsync();
-        return plan;
-    }
-
-    private async Task<DayPlan> SeedDayPlanAsync(MenuPlan menuPlan)
-    {
-        var dayPlan = new DayPlan
+        var dailyMenu = new DailyMenu
         {
             Date = new DateOnly(2026, 1, 15),
-            MenuPlanId = menuPlan.Id
+            CustomerId = customer.Id
         };
-        _db.DayPlans.Add(dayPlan);
+        _db.DailyMenus.Add(dailyMenu);
         await _db.SaveChangesAsync();
-        return dayPlan;
+        return dailyMenu;
     }
 
-    private async Task<DayPlan> SeedFullChainAsync()
+    private async Task<Meal> SeedMealAsync(DailyMenu dailyMenu, MealType mealType = MealType.Breakfast)
     {
-        var customer = await SeedCustomerAsync();
-        var plan = await SeedMenuPlanAsync(customer);
-        return await SeedDayPlanAsync(plan);
-    }
-
-    private async Task<MealSlot> SeedMealSlotAsync(DayPlan dayPlan, MealType mealType = MealType.Breakfast)
-    {
-        var mealSlot = new MealSlot
+        var meal = new Meal
         {
             MealType = mealType,
-            DayPlanId = dayPlan.Id
+            DailyMenuId = dailyMenu.Id
         };
-        _db.MealSlots.Add(mealSlot);
+        _db.Meals.Add(meal);
         await _db.SaveChangesAsync();
-        return mealSlot;
+        return meal;
     }
 
     // ── GetAllAsync ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task GetAllAsync_ReturnsAllMealSlots()
+    public async Task GetAllAsync_ReturnsAllMeals()
     {
-        var dayPlan = await SeedFullChainAsync();
-        await SeedMealSlotAsync(dayPlan);
+        var dailyMenu = await SeedDailyMenuAsync();
+        await SeedMealAsync(dailyMenu);
 
         var result = await _service.GetAllAsync();
 
         result.Should().HaveCount(1);
-        result[0].DayPlanId.Should().Be(dayPlan.Id);
+        result[0].DailyMenuId.Should().Be(dailyMenu.Id);
         result[0].MealType.Should().Be(MealType.Breakfast);
     }
 
@@ -124,64 +98,64 @@ public class MealSlotServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetByIdAsync_ReturnsMealSlot()
+    public async Task GetByIdAsync_ReturnsMeal()
     {
-        var dayPlan = await SeedFullChainAsync();
-        var mealSlot = await SeedMealSlotAsync(dayPlan);
+        var dailyMenu = await SeedDailyMenuAsync();
+        var meal = await SeedMealAsync(dailyMenu);
 
-        var result = await _service.GetByIdAsync(mealSlot.Id);
+        var result = await _service.GetByIdAsync(meal.Id);
 
         result.Should().NotBeNull();
         result!.MealType.Should().Be(MealType.Breakfast);
-        result.DayPlanId.Should().Be(dayPlan.Id);
+        result.DailyMenuId.Should().Be(dailyMenu.Id);
     }
 
     // ── CreateAsync ──────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task CreateAsync_ReturnsDayPlanNotFound_WhenDayPlanDoesNotExist()
+    public async Task CreateAsync_ReturnsDailyMenuNotFound_WhenDailyMenuDoesNotExist()
     {
-        var result = await _service.CreateAsync(new CreateMealSlotRequest
+        var result = await _service.CreateAsync(new CreateMealRequest
         {
             MealType = MealType.Lunch,
-            DayPlanId = 999
+            DailyMenuId = 999
         });
 
-        result.Error.Should().Be(CreateMealSlotError.DayPlanNotFound);
+        result.Error.Should().Be(CreateMealError.DailyMenuNotFound);
         result.Response.Should().BeNull();
     }
 
     [Fact]
-    public async Task CreateAsync_ReturnsAlreadyExists_WhenDuplicateMealTypeOnSameDayPlan()
+    public async Task CreateAsync_ReturnsAlreadyExists_WhenDuplicateMealTypeOnSameDailyMenu()
     {
-        var dayPlan = await SeedFullChainAsync();
-        await SeedMealSlotAsync(dayPlan, MealType.Lunch);
+        var dailyMenu = await SeedDailyMenuAsync();
+        await SeedMealAsync(dailyMenu, MealType.Lunch);
 
-        var result = await _service.CreateAsync(new CreateMealSlotRequest
+        var result = await _service.CreateAsync(new CreateMealRequest
         {
             MealType = MealType.Lunch,
-            DayPlanId = dayPlan.Id
+            DailyMenuId = dailyMenu.Id
         });
 
-        result.Error.Should().Be(CreateMealSlotError.AlreadyExists);
+        result.Error.Should().Be(CreateMealError.AlreadyExists);
         result.Response.Should().BeNull();
     }
 
     [Fact]
     public async Task CreateAsync_CreatesAndReturnsWithCorrectData()
     {
-        var dayPlan = await SeedFullChainAsync();
+        var dailyMenu = await SeedDailyMenuAsync();
 
-        var result = await _service.CreateAsync(new CreateMealSlotRequest
+        var result = await _service.CreateAsync(new CreateMealRequest
         {
             MealType = MealType.Dinner,
-            DayPlanId = dayPlan.Id
+            DailyMenuId = dailyMenu.Id
         });
 
         result.Error.Should().BeNull();
         result.Response.Should().NotBeNull();
         result.Response!.MealType.Should().Be(MealType.Dinner);
-        result.Response.DayPlanId.Should().Be(dayPlan.Id);
+        result.Response.DailyMenuId.Should().Be(dailyMenu.Id);
     }
 
     // ── UpdateAsync ──────────────────────────────────────────────────────────
@@ -189,40 +163,40 @@ public class MealSlotServiceTests : IDisposable
     [Fact]
     public async Task UpdateAsync_ReturnsNull_ForUnknownId()
     {
-        var result = await _service.UpdateAsync(999, new UpdateMealSlotRequest
+        var result = await _service.UpdateAsync(999, new UpdateMealRequest
         {
             MealType = MealType.Lunch,
-            DayPlanId = 1
+            DailyMenuId = 1
         });
 
         result.Should().BeNull();
     }
 
     [Fact]
-    public async Task UpdateAsync_ReturnsNull_WhenDayPlanNotFound()
+    public async Task UpdateAsync_ReturnsNull_WhenDailyMenuNotFound()
     {
-        var dayPlan = await SeedFullChainAsync();
-        var mealSlot = await SeedMealSlotAsync(dayPlan);
+        var dailyMenu = await SeedDailyMenuAsync();
+        var meal = await SeedMealAsync(dailyMenu);
 
-        var result = await _service.UpdateAsync(mealSlot.Id, new UpdateMealSlotRequest
+        var result = await _service.UpdateAsync(meal.Id, new UpdateMealRequest
         {
             MealType = MealType.Lunch,
-            DayPlanId = 999
+            DailyMenuId = 999
         });
 
         result.Should().BeNull();
     }
 
     [Fact]
-    public async Task UpdateAsync_UpdatesFieldsAndReturnsUpdatedMealSlot()
+    public async Task UpdateAsync_UpdatesMealTypeAndReturnsUpdatedMeal()
     {
-        var dayPlan = await SeedFullChainAsync();
-        var mealSlot = await SeedMealSlotAsync(dayPlan);
+        var dailyMenu = await SeedDailyMenuAsync();
+        var meal = await SeedMealAsync(dailyMenu);
 
-        var result = await _service.UpdateAsync(mealSlot.Id, new UpdateMealSlotRequest
+        var result = await _service.UpdateAsync(meal.Id, new UpdateMealRequest
         {
             MealType = MealType.Dinner,
-            DayPlanId = dayPlan.Id
+            DailyMenuId = dailyMenu.Id
         });
 
         result.Should().NotBeNull();
@@ -240,14 +214,14 @@ public class MealSlotServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_ReturnsTrue_AndRemovesMealSlot()
+    public async Task DeleteAsync_ReturnsTrue_AndRemovesMeal()
     {
-        var dayPlan = await SeedFullChainAsync();
-        var mealSlot = await SeedMealSlotAsync(dayPlan);
+        var dailyMenu = await SeedDailyMenuAsync();
+        var meal = await SeedMealAsync(dailyMenu);
 
-        var result = await _service.DeleteAsync(mealSlot.Id);
+        var result = await _service.DeleteAsync(meal.Id);
 
         result.Should().BeTrue();
-        _db.MealSlots.Should().BeEmpty();
+        _db.Meals.Should().BeEmpty();
     }
 }

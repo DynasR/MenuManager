@@ -104,17 +104,14 @@ public class CustomerServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_ReturnsFalse_WhenCustomerHasMenuPlans()
+    public async Task DeleteAsync_ReturnsFalse_WhenCustomerHasDailyMenus()
     {
         var customer = await SeedCustomerAsync();
 
-        _db.MenuPlans.Add(new MenuPlan
+        _db.DailyMenus.Add(new DailyMenu
         {
-            Name = "Plan janvier",
-            Month = 1,
-            Year = 2026,
-            CustomerId = customer.Id,
-            CreatedAt = DateTime.UtcNow
+            Date = new DateOnly(2026, 1, 15),
+            CustomerId = customer.Id
         });
         await _db.SaveChangesAsync();
 

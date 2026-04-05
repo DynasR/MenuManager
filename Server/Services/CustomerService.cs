@@ -87,11 +87,11 @@ public class CustomerService : ICustomerService
     public async Task<bool> DeleteAsync(int id)
     {
         var customer = await _db.Customers
-            .Include(c => c.MenuPlans)
+            .Include(c => c.DailyMenus)
             .FirstOrDefaultAsync(c => c.Id == id);
 
         if (customer is null) return false;
-        if (customer.MenuPlans.Count > 0) return false;
+        if (customer.DailyMenus.Count > 0) return false;
 
         _db.Customers.Remove(customer);
         await _db.SaveChangesAsync();

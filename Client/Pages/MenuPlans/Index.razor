@@ -1,5 +1,5 @@
 @page "/menuplan/{CustomerId:int}"
-@inject MenuPlanService MenuPlanSvc
+@inject DailyMenuService DailyMenuSvc
 @inject CustomerService CustomerSvc
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
@@ -33,7 +33,7 @@ else
                         </MudCardHeader>
                         @{
                             var isCurrentMonth = slot.Month == DateTime.Now.Month && slot.Year == DateTime.Now.Year;
-                            var hasData = slot.MenuPlan?.HasData ?? false;
+                            var hasData = slot.Summary?.HasMeals ?? false;
                             var btnColor = isCurrentMonth ? Color.Default : hasData ? Color.Primary : Color.Default;
                             var btnVariant = isCurrentMonth || hasData ? Variant.Filled : Variant.Outlined;
                             var btnClass = isCurrentMonth ? "btn-month-current" : "";
@@ -42,11 +42,11 @@ else
                             <MudButton Variant="@btnVariant" Color="@btnColor" Size="Size.Small"
                                        Class="@btnClass"
                                        StartIcon="@Icons.Material.Filled.CalendarMonth"
-                                       OnClick="@(() => CreateAndNavigateAsync(slot))">
+                                       OnClick="@(() => Nav.NavigateTo($"dayplans?customerId={CustomerId}&year={slot.Year}&month={slot.Month}"))">
                                 Voir le planning
                             </MudButton>
                             @{
-                                var cost = slot.MenuPlan?.MonthlyCost ?? 0;
+                                var cost = slot.Summary?.MonthlyCost ?? 0;
                             }
                             <MudText Typo="Typo.body2" Class="monthly-cost">
                                 @(cost > 0 ? cost.ToString("N2", FrCulture) + " €" : "—")
@@ -90,37 +90,31 @@ else
         _loading = true;
 
         var customerTask = CustomerSvc.GetByIdAsync(CustomerId);
-        var plansTask = MenuPlanSvc.GetByCustomerAsync(CustomerId);
-        await Task.WhenAll(customerTask, plansTask);
+        var summaryTask = DailyMenuSvc.GetMonthlySummaryAsync(CustomerId);
+        await Task.WhenAll(customerTask, summaryTask);
 
         var customer = customerTask.Result;
         _customerName = customer?.Name ?? $"Client #{CustomerId}";
 
-        var plans = plansTask.Result;
-        _slotsByYear = BuildSlotsByYear(plans);
+        _slotsByYear = BuildSlotsByYear(summaryTask.Result);
 
         _loading = false;
     }
 
-    private static SortedDictionary<int, List<MonthSlot>> BuildSlotsByYear(List<MenuPlanResponse> plans)
+    private static SortedDictionary<int, List<MonthSlot>> BuildSlotsByYear(List<MonthlySummaryResponse> summaries)
     {
         var now = DateTime.Now;
         var currentYear = now.Year;
         var result = new SortedDictionary<int, List<MonthSlot>>();
 
-        // Current year: from current month to December
-        result[currentYear] = BuildSlotsForRange(plans, currentYear, now.Month, 12);
-
-        // N+1: January to December
-        result[currentYear + 1] = BuildSlotsForRange(plans, currentYear + 1, 1, 12);
-
-        // N+2: January to December
-        result[currentYear + 2] = BuildSlotsForRange(plans, currentYear + 2, 1, 12);
+        result[currentYear] = BuildSlotsForRange(summaries, currentYear, now.Month, 12);
+        result[currentYear + 1] = BuildSlotsForRange(summaries, currentYear + 1, 1, 12);
+        result[currentYear + 2] = BuildSlotsForRange(summaries, currentYear + 2, 1, 12);
 
         return result;
     }
 
-    private static List<MonthSlot> BuildSlotsForRange(List<MenuPlanResponse> plans, int year, int startMonth, int endMonth)
+    private static List<MonthSlot> BuildSlotsForRange(List<MonthlySummaryResponse> summaries, int year, int startMonth, int endMonth)
     {
         var slots = new List<MonthSlot>();
 
@@ -133,7 +127,7 @@ else
             var startDate = first.ToString("d MMMM", FrCulture);
             var endDate = last.ToString("d MMMM", FrCulture);
 
-            var match = plans.FirstOrDefault(p => p.Month == month && p.Year == year);
+            var match = summaries.FirstOrDefault(s => s.Month == month && s.Year == year);
 
             slots.Add(new MonthSlot(month, year, title, startDate, endDate, match));
         }
@@ -141,31 +135,5 @@ else
         return slots;
     }
 
-    private async Task CreateAndNavigateAsync(MonthSlot slot)
-    {
-        if (slot.MenuPlan is not null)
-        {
-            Nav.NavigateTo($"dayplans?menuPlanId={slot.MenuPlan.Id}");
-            return;
-        }
-
-        var result = await MenuPlanSvc.CreateAsync(new MenuPlanRequest
-        {
-            Name = $"Planning {slot.Month:D2}/{slot.Year}",
-            Month = slot.Month,
-            Year = slot.Year,
-            CustomerId = CustomerId
-        });
-
-        if (result is not null)
-        {
-            Nav.NavigateTo($"dayplans?menuPlanId={result.Id}");
-        }
-        else
-        {
-            Snackbar.Add("Échec de la création du menu plan.", Severity.Error);
-        }
-    }
-
-    private sealed record MonthSlot(int Month, int Year, string Title, string StartDate, string EndDate, MenuPlanResponse? MenuPlan);
+    private sealed record MonthSlot(int Month, int Year, string Title, string StartDate, string EndDate, MonthlySummaryResponse? Summary);
 }

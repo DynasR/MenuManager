@@ -6,30 +6,30 @@ namespace MenuManager.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class MealSlotItemsController : ControllerBase
+public class MealItemsController : ControllerBase
 {
-    private readonly IMealSlotItemService _service;
+    private readonly IMealItemService _service;
 
-    public MealSlotItemsController(IMealSlotItemService service)
+    public MealItemsController(IMealItemService service)
     {
         _service = service;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<MealSlotItemResponse>>> GetAll()
+    public async Task<ActionResult<List<MealItemResponse>>> GetAll()
     {
         return Ok(await _service.GetAllAsync());
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<MealSlotItemResponse>> GetById(int id)
+    public async Task<ActionResult<MealItemResponse>> GetById(int id)
     {
         var result = await _service.GetByIdAsync(id);
         return result is null ? NotFound() : Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<MealSlotItemResponse>> Create(CreateMealSlotItemRequest request)
+    public async Task<ActionResult<MealItemResponse>> Create(CreateMealItemRequest request)
     {
         var result = await _service.CreateAsync(request);
         if (result is null) return NotFound();
@@ -37,21 +37,21 @@ public class MealSlotItemsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    public async Task<ActionResult<MealSlotItemResponse>> Update(int id, UpdateMealSlotItemRequest request)
+    public async Task<ActionResult<MealItemResponse>> Update(int id, UpdateMealItemRequest request)
     {
         var result = await _service.UpdateAsync(id, request);
         return result is null ? NotFound() : Ok(result);
     }
 
     [HttpPatch("{id:int}/move")]
-    public async Task<ActionResult<MealSlotItemResponse>> Move(int id, MoveMealSlotItemRequest request)
+    public async Task<ActionResult<MealItemResponse>> Move(int id, MoveMealItemRequest request)
     {
         var result = await _service.MoveAsync(id, request);
         return result is null ? NotFound() : Ok(result);
     }
 
     [HttpPatch("reorder")]
-    public async Task<IActionResult> Reorder(ReorderMealSlotItemsRequest request)
+    public async Task<IActionResult> Reorder(ReorderMealItemsRequest request)
     {
         var result = await _service.ReorderAsync(request);
         return result ? NoContent() : NotFound();

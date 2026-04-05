@@ -140,15 +140,15 @@ public class ItemServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_ReturnsFalse_WhenItemHasMealSlotItems()
+    public async Task DeleteAsync_ReturnsFalse_WhenItemHasMealItems()
     {
         var cat = await SeedCategoryAsync();
         var item = await SeedItemAsync(cat.Id);
 
-        _db.MealSlotItems.Add(new MealSlotItem
+        _db.MealItems.Add(new MealItem
         {
             ItemId = item.Id,
-            MealSlotId = 1,   // fake — InMemory does not enforce FK
+            MealId = 1,   // fake — SQLite FK enforcement is off by default
             Quantity = 2
         });
         await _db.SaveChangesAsync();

@@ -6,30 +6,30 @@ namespace MenuManager.Server.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class MealSlotsController : ControllerBase
+public class MealsController : ControllerBase
 {
-    private readonly IMealSlotService _service;
+    private readonly IMealService _service;
 
-    public MealSlotsController(IMealSlotService service)
+    public MealsController(IMealService service)
     {
         _service = service;
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<MealSlotResponse>>> GetAll()
+    public async Task<ActionResult<List<MealResponse>>> GetAll()
     {
         return Ok(await _service.GetAllAsync());
     }
 
     [HttpGet("{id:int}")]
-    public async Task<ActionResult<MealSlotResponse>> GetById(int id)
+    public async Task<ActionResult<MealResponse>> GetById(int id)
     {
         var result = await _service.GetByIdAsync(id);
         return result is null ? NotFound() : Ok(result);
     }
 
     [HttpPost]
-    public async Task<ActionResult<MealSlotResponse>> Create(CreateMealSlotRequest request)
+    public async Task<ActionResult<MealResponse>> Create(CreateMealRequest request)
     {
         var result = await _service.CreateAsync(request);
 
@@ -37,7 +37,7 @@ public class MealSlotsController : ControllerBase
         {
             return result.Error switch
             {
-                CreateMealSlotError.AlreadyExists => Conflict(),
+                CreateMealError.AlreadyExists => Conflict(),
                 _ => NotFound()
             };
         }
@@ -46,7 +46,7 @@ public class MealSlotsController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
-    public async Task<ActionResult<MealSlotResponse>> Update(int id, UpdateMealSlotRequest request)
+    public async Task<ActionResult<MealResponse>> Update(int id, UpdateMealRequest request)
     {
         var result = await _service.UpdateAsync(id, request);
         return result is null ? NotFound() : Ok(result);

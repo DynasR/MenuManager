@@ -16,6 +16,6 @@ public class Item
     public bool IsStaple { get; set; }
     public decimal? MonthlyEstimate { get; set; }
     public ICollection<ItemSupplier> ItemSuppliers { get; set; } = [];
-    public ICollection<MealSlotItem> MealSlotItems { get; set; } = [];
+    public ICollection<MealItem> MealItems { get; set; } = [];
     public ICollection<RecipeIngredient> RecipeIngredients { get; set; } = [];
 }
