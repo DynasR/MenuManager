@@ -12,6 +12,7 @@
 @inject NavigationManager Nav
 @inject ThemeState ThemeState
 @inject ItemSupplierCache ItemSupplierCache
+@inject IDialogService DialogSvc
 @implements IDisposable
 
 <PageTitle>Day Plans</PageTitle>
@@ -74,7 +75,7 @@ else
                  @onmouseup="@(() => { _ = JS.InvokeVoidAsync("removeColumnPrimed", hmtKey); })"
                  @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeColumnPrimed", hmtKey); })"
                  @ondblclick="@(() => ClearColumnAsync(hmt))">
-                <MudText Typo="Typo.subtitle2">@hmt</MudText>
+                <MudText Typo="Typo.subtitle2">@hmt.ToFrenchLabel()</MudText>
                 @if (colTotal > 0)
                 {
                     <span class="dayplan-cost-total">@colTotal.ToString("C", _frCulture)</span>
@@ -137,7 +138,7 @@ else
                               MealType="capturedMt"
                               MealId="meal?.Id"
                               Items="@(meal?.MealItems ?? [])"
-                              OnAddRequested="OpenDrawer"
+                              OnAddRequested="OpenAddDialog"
                               OnItemRemoved="RemoveItemAsync"
                               OnItemMoved="HandleMoveItemAsync"
                               OnOrderChanged="HandleOrderChanged"
@@ -172,60 +173,6 @@ else
     </div>
 }
 
-<MudDrawer Anchor="Anchor.Right" Width="320px" Variant="@DrawerVariant.Temporary"
-           @bind-Open="_drawerOpen" Elevation="2">
-    <MudDrawerHeader>
-        <MudText Typo="Typo.h6">Ajouter — @_selectedMealType — @_selectedDate.ToString("dd MMM", _frCulture)</MudText>
-        <MudSpacer />
-        <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _drawerOpen = false)" />
-    </MudDrawerHeader>
-    <MudTabs @bind-ActivePanelIndex="_drawerTab" Rounded="true">
-        <MudTabPanel Text="Items" Icon="@Icons.Material.Filled.Restaurant">
-            <MudTextField @bind-Value="_itemSearch" Placeholder="Rechercher…"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                          Immediate="true" Class="mb-2" />
-            <MudList T="ItemResponse" Dense="true">
-                @foreach (var item in FilteredItems)
-                {
-                    <MudListItem T="ItemResponse">
-                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                            <MudText>@item.Name</MudText>
-                            <MudTooltip Text="Ajouter">
-                                <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Primary" Size="Size.Small"
-                                               OnClick="@(() => AddItemAsync(item))" />
-                            </MudTooltip>
-                        </div>
-                    </MudListItem>
-                }
-            </MudList>
-        </MudTabPanel>
-        <MudTabPanel Text="Recettes" Icon="@Icons.Material.Filled.MenuBook">
-            <MudTextField @bind-Value="_recipeSearch" Placeholder="Rechercher…"
-                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
-                          Immediate="true" Class="mb-2" />
-            <MudList T="RecipeResponse" Dense="true">
-                @foreach (var recipe in FilteredRecipes)
-                {
-                    <MudListItem T="RecipeResponse">
-                        <div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
-                            <div>
-                                <MudText>@recipe.Name</MudText>
-                                @if (recipe.EstimatedCost > 0)
-                                {
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@recipe.EstimatedCost.ToString("C", _frCulture)</MudText>
-                                }
-                            </div>
-                            <MudTooltip Text="Ajouter">
-                                <MudIconButton Icon="@Icons.Material.Filled.Add" Color="Color.Secondary" Size="Size.Small"
-                                               OnClick="@(() => AddRecipeAsync(recipe))" />
-                            </MudTooltip>
-                        </div>
-                    </MudListItem>
-                }
-            </MudList>
-        </MudTabPanel>
-    </MudTabs>
-</MudDrawer>
 
 <style>
     .month-nav-bar {
@@ -630,25 +577,11 @@ else
 
     private sealed record MonthNavItem(int Month, int Year, string Label, string Short, bool HasData);
 
-    // Drawer state
-    private bool _drawerOpen;
+    // Add dialog state
     private DateOnly _selectedDate;
     private MealType _selectedMealType;
-    private string _itemSearch = "";
-    private string _recipeSearch = "";
-    private int _drawerTab;
 
     private (int customerId, int year, int month) _lastKey;
-
-    private List<ItemResponse> FilteredItems =>
-        _allItems
-            .Where(i => i.Name.Contains(_itemSearch, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-    private List<RecipeResponse> FilteredRecipes =>
-        _allRecipes
-            .Where(r => r.Name.Contains(_recipeSearch, StringComparison.OrdinalIgnoreCase))
-            .ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -716,14 +649,29 @@ else
         });
     }
 
-    private void OpenDrawer((DateOnly date, MealType mealType) args)
+    private async Task OpenAddDialog((DateOnly date, MealType mealType) args)
     {
         RightPanel.Close();
         _selectedDate = args.date;
         _selectedMealType = args.mealType;
-        _itemSearch = "";
-        _recipeSearch = "";
-        _drawerOpen = true;
+
+        var parameters = new DialogParameters<AddItemDialog>
+        {
+            { x => x.SelectedDate, args.date },
+            { x => x.SelectedMealType, args.mealType },
+            { x => x.AllItems, _allItems },
+            { x => x.AllRecipes, _allRecipes },
+            { x => x.OnItemAdd, (Func<ItemResponse, Task>)AddItemAsync },
+            { x => x.OnRecipeAdd, (Func<RecipeResponse, Task>)AddRecipeAsync },
+        };
+        var options = new DialogOptions
+        {
+            FullWidth = true,
+            MaxWidth = MaxWidth.False,
+            CloseButton = false,
+            CloseOnEscapeKey = true,
+        };
+        await DialogSvc.ShowAsync<AddItemDialog>("", parameters, options);
     }
 
     private async Task AddItemAsync(ItemResponse item)

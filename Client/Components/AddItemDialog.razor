@@ -1,0 +1,289 @@
+@using MenuManager.Shared.Enums
+@using MenuManager.Client.Helpers
+@inject ItemSupplierCache Cache
+@inject IJSRuntime JS
+
+<MudDialog>
+    <TitleContent>
+        <div style="display:flex; align-items:flex-start; justify-content:space-between; width:100%; gap:16px; flex-wrap:wrap;">
+            <div>
+                <MudText Typo="Typo.h6" Style="font-weight:700; line-height:1.2;">
+                    Ajouter — @SelectedDate.ToString("dddd d MMMM yyyy", _fr)
+                </MudText>
+                <MudText Typo="Typo.subtitle2" Style="color:var(--mud-palette-text-secondary);">
+                    @SelectedMealType.ToFrenchLabel()
+                </MudText>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                <MudButtonGroup Size="Size.Small">
+                    <MudButton Variant="@(_tab == 0 ? Variant.Filled : Variant.Outlined)"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Restaurant"
+                               OnClick="@(() => { _tab = 0; _search = ""; })">Items</MudButton>
+                    <MudButton Variant="@(_tab == 1 ? Variant.Filled : Variant.Outlined)"
+                               Color="Color.Secondary"
+                               StartIcon="@Icons.Material.Filled.MenuBook"
+                               OnClick="@(() => { _tab = 1; _search = ""; })">Recettes</MudButton>
+                </MudButtonGroup>
+                <MudTooltip Text="@(_denseView ? "Vue cards" : "Vue liste")">
+                    <MudIconButton Icon="@(_denseView ? Icons.Material.Filled.ViewModule : Icons.Material.Filled.ViewList)"
+                                   Size="Size.Small" OnClick="ToggleDenseViewAsync" />
+                </MudTooltip>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small"
+                               OnClick="@(() => MudDialog.Cancel())" />
+            </div>
+        </div>
+        <MudTextField @bind-Value="_search" Placeholder="Rechercher…"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                      Immediate="true" FullWidth="true" Margin="Margin.Dense" Class="mt-2" />
+    </TitleContent>
+    <DialogContent>
+        @if (_tab == 0)
+        {
+            var filtered = AllItems
+                .Where(i => i.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            @if (_denseView)
+            {
+                <MudDataGrid T="ItemResponse" Items="filtered" Dense="true" ReadOnly="true"
+                             SortMode="SortMode.Single" Hover="true"
+                             RowClass="cursor-pointer"
+                             RowClick="HandleItemRowClick">
+                    <Columns>
+                        <PropertyColumn Property="x => x.Name" Title="Nom" />
+                        <PropertyColumn Property="x => x.CategoryName" Title="Catégorie" />
+                        <TemplateColumn Title="Fournisseur" Sortable="false">
+                            <CellTemplate>
+                                @(Cache.GetBestSupplier(context.Item.Id)?.SupplierName ?? "—")
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Prix unitaire" Sortable="false">
+                            <CellTemplate>
+                                @GetBestUnitPrice(context.Item)
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Unité" Sortable="false">
+                            <CellTemplate>
+                                @FormatUnit(context.Item.PurchaseUnit)
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="€/kg ou /L" Sortable="false">
+                            <CellTemplate>
+                                @GetPricePerKgL(context.Item)
+                            </CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            }
+            else
+            {
+                <MudGrid Spacing="2">
+                    @foreach (var item in filtered)
+                    {
+                        var ci = item;
+                        var best = Cache.GetBestSupplier(item.Id);
+                        <MudItem xs="6" sm="3">
+                            <MudCard Outlined="true" Style="cursor:pointer; height:100%;"
+                                     @onclick="@(() => _ = OnItemAdd(ci))">
+                                <div style="height:160px; @GetGradientStyle(item.CategoryName); display:flex; align-items:center; justify-content:center;">
+                                    <MudIcon Icon="@Icons.Material.Filled.Restaurant"
+                                             Style="font-size:3rem; color:rgba(255,255,255,0.45);" />
+                                </div>
+                                <MudCardContent Style="padding:8px 12px 4px;">
+                                    <MudText Typo="Typo.body2" Style="font-weight:700;">@item.Name</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">@item.CategoryName</MudText>
+                                    @if (best != null)
+                                    {
+                                        var pp = ComputePricePerKgL(best.UnitPrice, item.ContentQuantity, item.ContentUnit);
+                                        <div style="display:flex; align-items:baseline; gap:6px; margin-top:2px; flex-wrap:wrap;">
+                                            <MudText Typo="Typo.body2" Style="font-weight:700; color:var(--mud-palette-primary);">@FmtMoney(best.UnitPrice)</MudText>
+                                            @if (pp != null) { <MudText Typo="Typo.caption" Color="Color.Secondary">@pp</MudText> }
+                                        </div>
+                                        <span class="add-dialog-badge add-dialog-badge-@(best.PaymentType == PaymentType.TR ? "tr" : "cb")">@best.PaymentType</span>
+                                    }
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                                        @FmtQty(item.ContentQuantity) @FormatUnit(item.ContentUnit) / @FormatUnit(item.PurchaseUnit)
+                                    </MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        }
+        else
+        {
+            var filtered = AllRecipes
+                .Where(r => r.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            @if (_denseView)
+            {
+                <MudDataGrid T="RecipeResponse" Items="filtered" Dense="true" ReadOnly="true"
+                             SortMode="SortMode.Single" Hover="true"
+                             RowClass="cursor-pointer"
+                             RowClick="HandleRecipeRowClick">
+                    <Columns>
+                        <PropertyColumn Property="x => x.Name" Title="Nom" />
+                        <PropertyColumn Property="x => x.BaseServings" Title="Portions" />
+                        <TemplateColumn Title="Coût estimé" Sortable="false">
+                            <CellTemplate>
+                                @(context.Item.EstimatedCost > 0 ? FmtMoney(context.Item.EstimatedCost) : "—")
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Coût/portion" Sortable="false">
+                            <CellTemplate>
+                                @(context.Item.EstimatedCost > 0 && context.Item.BaseServings > 0
+                                    ? FmtMoney(context.Item.EstimatedCost / context.Item.BaseServings)
+                                    : "—")
+                            </CellTemplate>
+                        </TemplateColumn>
+                        <TemplateColumn Title="Ingrédients" Sortable="false">
+                            <CellTemplate>@context.Item.Ingredients.Count</CellTemplate>
+                        </TemplateColumn>
+                    </Columns>
+                </MudDataGrid>
+            }
+            else
+            {
+                <MudGrid Spacing="2">
+                    @foreach (var recipe in filtered)
+                    {
+                        var cr = recipe;
+                        <MudItem xs="6" sm="3">
+                            <MudCard Outlined="true" Style="cursor:pointer; height:100%;"
+                                     @onclick="@(() => _ = OnRecipeAdd(cr))">
+                                <div style="height:160px; @GetGradientStyle(recipe.Name); display:flex; align-items:center; justify-content:center;">
+                                    <MudIcon Icon="@Icons.Material.Filled.MenuBook"
+                                             Style="font-size:3rem; color:rgba(255,255,255,0.45);" />
+                                </div>
+                                <MudCardContent Style="padding:8px 12px 4px;">
+                                    <MudText Typo="Typo.body2" Style="font-weight:700;">@recipe.Name</MudText>
+                                    @if (!string.IsNullOrWhiteSpace(recipe.Description))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary"
+                                                 Style="overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
+                                            @recipe.Description
+                                        </MudText>
+                                    }
+                                    @if (recipe.EstimatedCost > 0)
+                                    {
+                                        <div style="margin-top:2px;">
+                                            <MudText Typo="Typo.body2" Style="font-weight:700; color:var(--mud-palette-secondary);">
+                                                @FmtMoney(recipe.EstimatedCost)
+                                                @if (recipe.BaseServings > 0)
+                                                {
+                                                    <text> · @FmtMoney(recipe.EstimatedCost / recipe.BaseServings)/pers.</text>
+                                                }
+                                            </MudText>
+                                        </div>
+                                    }
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
+                                        @recipe.BaseServings pers. · @recipe.Ingredients.Count ingréd.
+                                    </MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudItem>
+                    }
+                </MudGrid>
+            }
+        }
+    </DialogContent>
+</MudDialog>
+
+<style>
+    .add-dialog-badge {
+        font-size: 0.6rem;
+        font-weight: 700;
+        opacity: 0.7;
+        border-radius: 3px;
+        padding: 0 3px;
+        line-height: 1.5;
+        white-space: nowrap;
+    }
+    .add-dialog-badge-tr { color: #1565C0; }
+    .add-dialog-badge-cb { color: #6A1B9A; }
+</style>
+
+@code {
+    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
+
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public DateOnly SelectedDate { get; set; }
+    [Parameter] public MealType SelectedMealType { get; set; }
+    [Parameter] public List<ItemResponse> AllItems { get; set; } = [];
+    [Parameter] public List<RecipeResponse> AllRecipes { get; set; } = [];
+    [Parameter] public Func<ItemResponse, Task> OnItemAdd { get; set; } = null!;
+    [Parameter] public Func<RecipeResponse, Task> OnRecipeAdd { get; set; } = null!;
+
+    private int _tab;
+    private bool _denseView = true;
+    private string _search = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "add-dialog-dense");
+        if (stored == "false") _denseView = false;
+    }
+
+    private async Task ToggleDenseViewAsync()
+    {
+        _denseView = !_denseView;
+        await JS.InvokeVoidAsync("localStorage.setItem", "add-dialog-dense", _denseView ? "true" : "false");
+    }
+
+    private async Task HandleItemRowClick(DataGridRowClickEventArgs<ItemResponse> args)
+        => await OnItemAdd(args.Item);
+
+    private async Task HandleRecipeRowClick(DataGridRowClickEventArgs<RecipeResponse> args)
+        => await OnRecipeAdd(args.Item);
+
+    private string GetBestUnitPrice(ItemResponse item)
+    {
+        var best = Cache.GetBestSupplier(item.Id);
+        return best != null ? FmtMoney(best.UnitPrice) : "—";
+    }
+
+    private string GetPricePerKgL(ItemResponse item)
+    {
+        var best = Cache.GetBestSupplier(item.Id);
+        return best != null ? ComputePricePerKgL(best.UnitPrice, item.ContentQuantity, item.ContentUnit) ?? "—" : "—";
+    }
+
+    private static string FmtMoney(decimal v) => v.ToString("0.00 €", _fr);
+    private static string FmtQty(decimal v) => v.ToString("0.##", _fr);
+
+    private static string FormatUnit(MeasurementUnit unit) => unit switch
+    {
+        MeasurementUnit.Piece      => "pcs",
+        MeasurementUnit.Gram       => "g",
+        MeasurementUnit.Kilogram   => "kg",
+        MeasurementUnit.Milliliter => "mL",
+        MeasurementUnit.Liter      => "L",
+        _                          => unit.ToString()
+    };
+
+    private static string? ComputePricePerKgL(decimal unitPrice, decimal contentQty, MeasurementUnit contentUnit)
+    {
+        if (contentQty == 0) return null;
+        return contentUnit switch
+        {
+            MeasurementUnit.Gram       => FmtMoney(unitPrice / contentQty * 1000) + "/kg",
+            MeasurementUnit.Kilogram   => FmtMoney(unitPrice / contentQty) + "/kg",
+            MeasurementUnit.Milliliter => FmtMoney(unitPrice / contentQty * 1000) + "/L",
+            MeasurementUnit.Liter      => FmtMoney(unitPrice / contentQty) + "/L",
+            _                          => null
+        };
+    }
+
+    private static string GetGradientStyle(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) name = "default";
+        var h = 0;
+        foreach (var c in name) h = h * 31 + c;
+        h = Math.Abs(h) % 360;
+        var h2 = (h + 40) % 360;
+        return $"background: linear-gradient(135deg, hsl({h}, 55%, 38%) 0%, hsl({h2}, 50%, 28%) 100%);";
+    }
+}

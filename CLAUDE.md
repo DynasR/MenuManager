@@ -171,7 +171,7 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 | ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409; dropdown shows `CompanyName ?? Name`; ItemName/SupplierName columns `Editable="false"` |
 | DailyMenu    | ✅      | ✅ via MenuPlan/Index | Route `/menuplan/{CustomerId}` — cards from `monthly-summary` endpoint |
 | Meal         | ✅      | ✅ via DayPlan/Index  | FK DailyMenuId                                                |
-| MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, ContentQuantity, Unit; ItemId? or RecipeId? |
+| MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, ContentQuantity, Unit; ItemId? or RecipeId?; add via `AddItemDialog` (dual view: cards/dense, localStorage) |
 | Recipe       | ✅      | ✅ `/recipes`   | MudDataGrid + HierarchyColumn (inline ingredient editing per row) + RecipeDialog (create/edit) |
 
 ---
@@ -231,8 +231,8 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - Displays price per item + slot total (EUR, FR locale, `ceil(qty/PackageSize)*UnitPrice`).
 - **Whole cell is `draggable="true"`** — drag cell anywhere to move; Ctrl held = copy. Footer has two `.footer-zone-side` draggable divs flanking the slot total.
 - **Slot total**: double-click = clear all items (`OnCellClearRequested`). `_clearPrimed` state: mousedown turns total red (`total-primed` CSS) to confirm intent.
-- **Item interactions**: click item = open add drawer; Ctrl+click = clone in same slot (`OnItemCloneRequested`); double-click = delete (`OnItemRemoved`).
-- **Click anywhere on cell** (non-item area) = open add drawer.
+- **Item interactions**: click item = open add dialog; Ctrl+click = clone in same slot (`OnItemCloneRequested`); double-click = delete (`OnItemRemoved`).
+- **Click anywhere on cell** (non-item area) = open add dialog.
 - **Hover states**: `.meal-cell:hover` subtle tint; `.meal-cell:not(.meal-cell-empty):hover` green glow; `.meal-cell-item:hover` blue wash; `.meal-cell-item-recipe` purple tint (secondary) for recipe entries.
 - **Parameters**: `MealId` (int?), `Items` (List\<MealItemResponse\>), `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
 - **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `cell-drag-source` on source cell; `cell-drag-copy-mode` on source cell when Ctrl held.
@@ -242,10 +242,15 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **ShouldRender() optimisation**: MealCell overrides `ShouldRender()` — compares `_renderedItems` (via `ItemsEqual`: id/quantity/order), `_renderedMealId`, `_renderedIsBeingDragged`, `_renderedIsActionTarget`, `_renderedClearPrimed`, `_renderedPaymentTypes` (snapshot of `GetCurrentPaymentTypes()`) against current params. `GetCurrentPaymentTypes()` includes both direct item IDs and recipe ingredient item IDs so ShouldRender detects cache changes for recipe slots. Snapshot updated in `OnAfterRenderAsync`. Skips re-render when parent rebuilds but cell data hasn't changed.
 - **Fire-and-forget JS drag calls**: `setFooterDragSource` and `clearFooterDragSource` use `_ = JS.InvokeVoidAsync(...)` (non-blocking) — drag start/end must not block Blazor's event thread.
 
-### Add drawer (DayPlan/Index)
-- Two tabs: **Items** (search + list) and **Recettes** (search + list with estimated cost).
-- `_drawerTab` int tracks active tab; `_recipeSearch` separate search field.
-- Tab is shared (same `_selectedDate` / `_selectedMealType`); reset on new open.
+### Add dialog (`Client/Components/AddItemDialog.razor`)
+- `MudDialog` opened via `IDialogService.ShowAsync<AddItemDialog>` from `DayPlan/Index.OpenAddDialog`. Replaces the old inline `MudDrawer`.
+- Parameters: `SelectedDate`, `SelectedMealType`, `AllItems`, `AllRecipes`, `OnItemAdd` (Func), `OnRecipeAdd` (Func).
+- **Two tabs**: Items / Recettes — switched via `MudButtonGroup` (single `_search` field shared, cleared on tab switch).
+- **Dual view mode** (`_denseView`, default `true`): toggled by icon button, persisted to `localStorage` key `add-dialog-dense`.
+  - Dense (list): `MudDataGrid` — Items columns: Nom, Catégorie, Fournisseur, Prix unitaire, Unité, €/kg ou /L. Recettes: Nom, Portions, Coût estimé, Coût/portion, Ingrédients. Row click triggers add.
+  - Cards: `MudGrid` xs=6 sm=3 — gradient thumbnail (hue derived from category/name hash), price, supplier, TR/CB badge, content info. Recettes: gradient, description excerpt (2-line clamp), cost/pers.
+- `ComputePricePerKgL` duplicated locally (same formula as `ShoppingCart`).
+- `MealTypeHelper.ToFrenchLabel()` used in subtitle.
 - Month nav chips apply dark mode inline styles from `ThemeState.IsDarkMode` — current=dark green, hasData=dark blue, empty=outlined dim. `DayPlan/Index` subscribes to `ThemeState.OnChange`.
 
 ### AddItemToSlotAsync / AddRecipeToSlotAsync — on-demand creation helpers
@@ -266,7 +271,7 @@ A `_saving` bool shows a full-screen dark overlay (`dayplan-overlay`) during any
 
 **Item-level operations:**
 - `Ctrl+Click` on item → `CloneItemAsync` (adds duplicate with same quantity in same slot).
-- `Click` on item (no Ctrl) → open add drawer.
+- `Click` on item (no Ctrl) → open add dialog.
 - `Double-click` on item → delete (`RemoveItemAsync`).
 - Cross-cell item drag via SortableJS → **immediate** `HandleMoveItemAsync` (supports Ctrl at drop = copy).
 - Same-slot reorder via SortableJS → **immediate** `HandleOrderChanged` (calls API directly; reloads on failure).
@@ -315,12 +320,16 @@ Static helper class — canonical cost formulas shared across `MealCell`, `DayPl
 - `PackageCost(totalQty, contentQty, unitPrice)` → `ceil(totalQty / contentQty) * unitPrice`. Guards `contentQty <= 0`.
 - `ComputeItemCost(MealItemResponse item, decimal? bestUnitPrice = null)` — recipe: `RecipeEstimatedCost * Quantity`; item: `PackageCost(Quantity, ContentQuantity, bestUnitPrice ?? item.UnitPrice)`. `bestUnitPrice` comes from `ItemSupplierCache` and takes priority over the DTO field.
 
+## MealTypeHelper (`Client/Helpers/MealTypeHelper.cs`)
+
+Extension method `ToFrenchLabel(this MealType)` — maps enum values to French display strings (Breakfast → "Petit-déjeuner", etc.). Used in `DayPlan/Index` column headers and `AddItemDialog` subtitle.
+
 ---
 
 ## Shopping Cart (right panel)
 
 - `RightPanelState` — scoped service, global `MudDrawer` in `MainLayout`. Any page can push content.
-- `ShoppingCart.razor` — fed by DayPlan/Index on every `LoadAsync()`. Parameters: `Items` (`IEnumerable<MealItemResponse>`), `Recipes` (`IEnumerable<RecipeResponse>`). Implements `IDisposable`; unsubscribes from `RightPanel.OnChange` on dispose.
+- `ShoppingCart.razor` — fed by DayPlan/Index on every `LoadAsync()`. Parameters: `Items` (`IEnumerable<MealItemResponse>`), `Recipes` (`IEnumerable<RecipeResponse>`). Implements `IDisposable`; unsubscribes from `RightPanel.OnChange` on dispose. Header: dark navy gradient (`#06091A → #0C1228`) with `ShoppingCart` icon.
 - **`ItemSupplierCache`** (`Client/Services/ItemSupplierCache.cs`) — scoped service. Calls `GET /api/itemsuppliers/best-by-item` once per DayPlan load (`EnsureLoadedAsync()`), caches `Dictionary<int, BestSupplierInfo>`. `GetBestSupplier(itemId)` returns cheapest available supplier info. Shared by `ShoppingCart` and `MealCell`.
 - **Enriched display** (`_supplierDataLoaded = true`):
   - Items grouped by `(PaymentType, CompanyName)` of the **cheapest available supplier** per item. Group header color: TR = blue `#1565C0`, CB = purple `#6A1B9A`.

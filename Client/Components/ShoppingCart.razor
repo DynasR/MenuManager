@@ -6,7 +6,10 @@
 @implements IDisposable
 
 <div>
-    <MudText Typo="Typo.h6" Class="pa-4">Shopping Cart</MudText>
+    <div style="background: linear-gradient(135deg, #06091A 0%, #0C1228 60%, #050A1C 100%); color: white; padding: 12px 16px; display: flex; align-items: center; gap: 8px;">
+        <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Style="color: white;" />
+        <MudText Typo="Typo.h6" Style="font-size: 1rem; font-weight: 600; color: white; margin: 0;">Shopping Cart</MudText>
+    </div>
 
     @if (!_itemLines.Any() && !_recipeLines.Any())
     {

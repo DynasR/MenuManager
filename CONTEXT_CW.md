@@ -35,11 +35,11 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Party + **PaymentType** (TR/CB) — CalendarMonth → `/menuplan/{id}`               |
 | ItemSupplier | PK composite, pattern 404/409 ; dropdown `CompanyName ?? Name` ; colonnes FK non-éditables |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards 3 ans. HasData coloring. **Dark mode** via `ThemeState` (inline styles dynamiques). |
-| DayPlan/Index | Calendrier mensuel. Tiroir 2 onglets (Items / Recettes). **_monthTotal badge** dans l'en-tête Date. `ComputeItemCost` via `CostHelper`. Badges TR/CB recipe-aware. |
+| DayPlan/Index | Calendrier mensuel. **`AddItemDialog`** (remplace le tiroir) : 2 onglets Items/Recettes, vue cards ou dense (MudDataGrid), préférence persistée localStorage. En-têtes MealType en français via `MealTypeHelper`. `_monthTotal badge`. Badges TR/CB recipe-aware. |
 | MealCell | `ShouldRender()` override. Badges TR/CB : items via cache direct, recettes via `GetRecipePaymentTypes` (ingrédients). CSS subgrid (nom / badges / prix alignés). |
 | Recipe       | `/recipes` — MudDataGrid + HierarchyColumn, RecipeDialog, coût estimé par recette |
 | Layout       | 3 thèmes (Light/Dark/Custom). `ThemeState` + CycleTheme. Persisté localStorage. |
-| Shopping Cart | `ItemSupplierCache` partagé. Items groupés par fournisseur. **Footer épinglé TR/CB/Total**. `Recipes` param pour coûts par ingrédient. `ComputePricePerKgL` (€/kg, €/L). |
+| Shopping Cart | `ItemSupplierCache` partagé. Items groupés par fournisseur. **Footer épinglé TR/CB/Total**. `Recipes` param. En-tête dark navy gradient. `ComputePricePerKgL` (€/kg, €/L). |
 
 ---
 
@@ -61,6 +61,8 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **SortableJS copy** — Ctrl au lâcher d'un item cross-cell = copie (ghost visible à la source pendant le drag).
 - **Thème** — 3 thèmes (Light/Dark/Custom), `ThemeState` scoped service, persisté localStorage. `MenuPlan/Index` dark mode : inline styles dynamiques via `ThemeState.OnChange`.
 - **CostHelper** — `Client/Helpers/CostHelper.cs` : `PackageCost` + `ComputeItemCost` — formules canoniques partagées par `MealCell`, `DayPlan/Index`, `ShoppingCart`. Fin de la duplication.
+- **AddItemDialog** — le tiroir inline de DayPlan/Index a été remplacé par `AddItemDialog.razor` (MudDialog via `IDialogService`). Deux modes d'affichage : cards (gradients, infos fournisseur) et dense (MudDataGrid sortable). Préférence mémorisée en localStorage (`add-dialog-dense`).
+- **MealTypeHelper** — `Client/Helpers/MealTypeHelper.cs` : extension `ToFrenchLabel()` sur `MealType`. Utilisé dans les en-têtes colonnes DayPlan et le sous-titre de `AddItemDialog`.
 - **Fix UnitPrice mapping** — les services (`MealItemService`, `DailyMenuService`, `MealService`) utilisaient `OrderBy(s => s.SupplierId)` pour le prix unitaire affiché → corrigé en `OrderBy(s => s.UnitPrice)` (vraiment le moins cher).
 - **MealItemResponse.RecipeIngredientItemIds** — liste des `ItemId` des ingrédients d'une recette, propagée depuis le serveur. Permet aux badges TR/CB de la `MealCell` et au footer TR/CB du `ShoppingCart` de coûter les recettes par ingrédient.
 - **Tests** — SQLite in-memory uniquement.
