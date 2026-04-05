@@ -39,8 +39,8 @@ Client reads `ServerUrl` from `Client/wwwroot/appsettings.json`.
 
 ```
 Party (abstract, TPT)
-  ├── Customer   — PasswordHash, PasswordSalt, ICollection<DailyMenu>
-  └── Supplier   — CompanyName, Siret, ICollection<ItemSupplier>
+  ├── Customer   — PasswordHash, PasswordSalt, PaymentType, ICollection<DailyMenu>
+  └── Supplier   — CompanyName, Siret, PaymentType, ICollection<ItemSupplier>
 
 Category         — Id, Name, Description, ParentCategoryId (self-ref), SubCategories, Items
 Item             — Id, Name, Description, PurchaseUnit(MeasurementUnit), ContentQuantity(decimal, default=1),
@@ -54,6 +54,7 @@ RecipeIngredient — PK composite (RecipeId+ItemId), Quantity, Unit(MeasurementU
 
 MealType        (enum, Shared/Entities/) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
 MeasurementUnit (enum, Shared/Enums/) — Piece, Gram, Kilogram, Milliliter, Liter
+PaymentType     (enum, Shared/Enums/) — TR, CB
 ```
 
 Hierarchy: **Customer → DailyMenu → Meal → MealItem** (MenuPlan removed).
@@ -80,6 +81,8 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 | RemoveMenuPlan_RenameDayPlan_MealSlot      | Drop MenuPlan; DailyMenu→Meal→MealItem, FK=CustomerId                          |
 | RefactorItemUnits                          | Item: Unit+PackageSize → PurchaseUnit+ContentQuantity+ContentUnit; drop IsStaple+MonthlyEstimate |
 | AddUnitAndOrderToRecipeIngredient          | RecipeIngredient: add Unit(MeasurementUnit) + Order(int)                       |
+| AddPaymentTypeToSupplier                   | Supplier: add PaymentType(int)                                                 |
+| AddPaymentTypeToCustomer                   | Customer: add PaymentType(int)                                                 |
 
 ---
 
@@ -151,6 +154,8 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 
 **MealItemService**: `CreateAsync` accepts `ItemId?` or `RecipeId?` (exactly one must be set). Response maps `RecipeName`, `RecipeEstimatedCost` (via `RecipeService.ComputeRecipeCost`), `Unit`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`.
 
+**New endpoint**: `POST /api/itemsuppliers/by-items` — body: `ByItemsRequest { List<int> ItemIds }` → `List<ItemPricingResponse>`. Returns all **available** `ItemSupplier` rows for the requested item IDs, with `ContentQuantity` and `Supplier` info (`Id`, `CompanyName`, `PaymentType`). Used by Shopping Cart to compute per-supplier price ranges.
+
 ### Frontend (Client)
 
 | Slice        | Service | Index / Page    | Notes                                                              |
@@ -158,8 +163,8 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 | Layout       | —       | —               | ThemeState (Light/Dark/Custom), AppBar dark navy gradient, NavMenu split, RightPanelState, CycleTheme button (persisted to localStorage) |
 | Category     | ✅      | ✅              | Reference implementation — new Save pattern applied                |
 | Item         | ✅      | ✅              | FK CategoryId, PurchaseUnit + ContentQuantity + ContentUnit (3 cols) |
-| Supplier     | ✅      | ✅              | Party fields + CompanyName, Siret                                  |
-| Customer     | ✅      | ✅              | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
+| Supplier     | ✅      | ✅              | Party fields + CompanyName, Siret, PaymentType                     |
+| Customer     | ✅      | ✅              | Party fields + PaymentType — CalendarMonth button → `/menuplan/{id}` |
 | ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409                 |
 | DailyMenu    | ✅      | ✅ via MenuPlan/Index | Route `/menuplan/{CustomerId}` — cards from `monthly-summary` endpoint |
 | Meal         | ✅      | ✅ via DayPlan/Index  | FK DailyMenuId                                                |
@@ -299,11 +304,14 @@ All operations use `_saving` overlay. Implemented as immediate API calls (no con
 ## Shopping Cart (right panel)
 
 - `RightPanelState` — scoped service, global `MudDrawer` in `MainLayout`. Any page can push content.
-- `ShoppingCart.razor` — split into two sections:
-  - **Items**: aggregated by `ItemId`, packages = `ceil(totalQty / ContentQuantity)`, line total = `packages * UnitPrice`. Grouped under "Items" heading.
-  - **Recettes**: aggregated by `RecipeId`, line total = `RecipeEstimatedCost * totalQty`. Grouped under "Recettes" heading.
-  - Grand total = sum of both. `_hasMissingPrices` only reflects missing item prices.
-- Fed by DayPlan/Index on every `LoadAsync()`. Disposed on page leave.
+- `ShoppingCart.razor` — fed by DayPlan/Index on every `LoadAsync()`. Implements `IDisposable`; unsubscribes from `RightPanel.OnChange` on dispose.
+- **Lazy supplier enrichment**: when the panel opens (`RightPanel.OnChange`), calls `ItemSupplierSvc.GetByItemsAsync` with the current item IDs. If item set changed since last load, `_supplierDataLoaded = false` first.
+- **Enriched display** (`_supplierDataLoaded = true`):
+  - Items grouped by `(PaymentType, CompanyName)` of the **cheapest available supplier** per item. Group header color: TR = blue `#1565C0`, CB = purple `#6A1B9A`.
+  - `EnrichedShoppingLine` (private record): Name, TotalQuantity, Unit, ContentQuantity, PackagesToBuy, BestCost, WorstCost, AvgCost, RetainedSupplierId, RetainedSupplierName, RetainedPaymentType.
+  - Footer shows three totals (items + recipes combined): best, worst, avg.
+- **Fallback display** (`_supplierDataLoaded = false`): classic flat list with `_hasMissingPrices` warning.
+- **Recettes** section unchanged: aggregated by `RecipeId`, line total = `RecipeEstimatedCost * totalQty`.
 
 ---
 

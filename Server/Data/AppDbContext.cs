@@ -37,7 +37,7 @@ public class AppDbContext : DbContext
                 .HasForeignKey(c => c.ParentCategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasCheckConstraint("CK_Category_Name_NotEmpty", "trim(\"Name\") <> ''");
+            entity.ToTable(t => t.HasCheckConstraint("CK_Category_Name_NotEmpty", "trim(\"Name\") <> ''"));
         });
 
         // Item -> Category

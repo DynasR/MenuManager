@@ -175,7 +175,7 @@ else
         <MudSpacer />
         <MudIconButton Icon="@Icons.Material.Filled.Close" OnClick="@(() => _drawerOpen = false)" />
     </MudDrawerHeader>
-    <MudTabs @bind-ActivePanelIndex="_drawerTab" Rounded="true" PanelClass="pa-2">
+    <MudTabs @bind-ActivePanelIndex="_drawerTab" Rounded="true">
         <MudTabPanel Text="Items" Icon="@Icons.Material.Filled.Restaurant">
             <MudTextField @bind-Value="_itemSearch" Placeholder="Rechercher…"
                           Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
@@ -612,9 +612,10 @@ else
             .Where(r => r.Name.Contains(_recipeSearch, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-    protected override async Task OnInitializedAsync()
+    protected override Task OnInitializedAsync()
     {
         ThemeState.OnChange += OnThemeChanged;
+        return Task.CompletedTask;
     }
 
     private void OnThemeChanged() => InvokeAsync(StateHasChanged);

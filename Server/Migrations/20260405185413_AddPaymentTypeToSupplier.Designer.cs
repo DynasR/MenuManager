@@ -3,6 +3,7 @@ using System;
 using MenuManager.Server.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MenuManager.Server.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260405185413_AddPaymentTypeToSupplier")]
+    partial class AddPaymentTypeToSupplier
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -304,9 +307,6 @@ namespace MenuManager.Server.Migrations
                     b.Property<byte[]>("PasswordSalt")
                         .IsRequired()
                         .HasColumnType("bytea");
-
-                    b.Property<int>("PaymentType")
-                        .HasColumnType("integer");
 
                     b.ToTable("Customers");
                 });

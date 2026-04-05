@@ -29,7 +29,7 @@ public class MealItemService : IMealItemService
     {
         var items = await _db.MealItems
             .Include(mi => mi.Item)
-                .ThenInclude(i => i.ItemSuppliers)
+                .ThenInclude(i => i!.ItemSuppliers)
             .Include(mi => mi.Recipe)
                 .ThenInclude(r => r!.RecipeIngredients)
                     .ThenInclude(ri => ri.Item)
@@ -44,7 +44,7 @@ public class MealItemService : IMealItemService
     {
         var item = await _db.MealItems
             .Include(mi => mi.Item)
-                .ThenInclude(i => i.ItemSuppliers)
+                .ThenInclude(i => i!.ItemSuppliers)
             .Include(mi => mi.Recipe)
                 .ThenInclude(r => r!.RecipeIngredients)
                     .ThenInclude(ri => ri.Item)

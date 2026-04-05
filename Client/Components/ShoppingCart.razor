@@ -1,4 +1,8 @@
 @using MenuManager.Shared.Enums
+@using MenuManager.Shared.DTOs
+@inject ItemSupplierService ItemSupplierSvc
+@inject RightPanelState RightPanel
+@implements IDisposable
 
 <MudText Typo="Typo.h6" Class="pa-4">Shopping Cart</MudText>
 
@@ -10,31 +14,68 @@ else
 {
     @if (_itemLines.Any())
     {
-        <MudText Typo="Typo.subtitle2" Class="px-4 pt-2 pb-1" Color="Color.Primary">Items</MudText>
-        <MudList T="ShoppingLine" Dense="true" Class="px-2">
-            @foreach (var line in _itemLines)
+        @if (_supplierDataLoaded)
+        {
+            @foreach (var group in _groupedLines)
             {
-                <MudListItem T="ShoppingLine">
-                    <div style="display: flex; flex-direction: column; width: 100%;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <MudText Typo="Typo.body2" Style="font-weight: 600;">@line.Name</MudText>
-                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
-                                @line.PackagesToBuy pkg
-                            </MudChip>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                @line.TotalQuantity @FormatUnit(line.Unit)
-                            </MudText>
-                            <MudText Typo="Typo.body2">
-                                @(line.LineTotal.HasValue ? line.LineTotal.Value.ToString("C2", _frCulture) : "—")
-                            </MudText>
-                        </div>
-                    </div>
-                </MudListItem>
-                <MudDivider />
+                <MudText Typo="Typo.overline" Class="px-4 pt-3 pb-0"
+                         Style="@(group.Key.PaymentType == PaymentType.TR ? "color: #1565C0;" : "color: #6A1B9A;")">
+                    @group.Key.PaymentType — @group.Key.CompanyName
+                </MudText>
+                <MudList T="EnrichedShoppingLine" Dense="true" Class="px-2">
+                    @foreach (var line in group)
+                    {
+                        <MudListItem T="EnrichedShoppingLine">
+                            <div style="display: flex; flex-direction: column; width: 100%;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">@line.Name</MudText>
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                        @line.PackagesToBuy pkg
+                                    </MudChip>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @line.TotalQuantity @FormatUnit(line.Unit)
+                                    </MudText>
+                                    <MudText Typo="Typo.body2">
+                                        @line.BestCost.ToString("C2", _frCulture)
+                                    </MudText>
+                                </div>
+                            </div>
+                        </MudListItem>
+                        <MudDivider />
+                    }
+                </MudList>
             }
-        </MudList>
+        }
+        else
+        {
+            <MudText Typo="Typo.subtitle2" Class="px-4 pt-2 pb-1" Color="Color.Primary">Items</MudText>
+            <MudList T="ShoppingLine" Dense="true" Class="px-2">
+                @foreach (var line in _itemLines)
+                {
+                    <MudListItem T="ShoppingLine">
+                        <div style="display: flex; flex-direction: column; width: 100%;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <MudText Typo="Typo.body2" Style="font-weight: 600;">@line.Name</MudText>
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                    @line.PackagesToBuy pkg
+                                </MudChip>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @line.TotalQuantity @FormatUnit(line.Unit)
+                                </MudText>
+                                <MudText Typo="Typo.body2">
+                                    @(line.LineTotal.HasValue ? line.LineTotal.Value.ToString("C2", _frCulture) : "—")
+                                </MudText>
+                            </div>
+                        </div>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+        }
     }
 
     @if (_recipeLines.Any())
@@ -62,7 +103,31 @@ else
         <MudText Typo="Typo.h6">@_grandTotal.ToString("C2", _frCulture)</MudText>
     </div>
 
-    @if (_hasMissingPrices)
+    @if (_supplierDataLoaded)
+    {
+        <MudDivider />
+        <div class="pa-3" style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <MudText Typo="Typo.body2">💚 Au mieux</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Success" Style="font-weight: 600;">
+                    @_bestTotal.ToString("C2", _frCulture)
+                </MudText>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <MudText Typo="Typo.body2">🔴 Au pire</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Error" Style="font-weight: 600;">
+                    @_worstTotal.ToString("C2", _frCulture)
+                </MudText>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <MudText Typo="Typo.body2">⚖️ Moyenne</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Info" Style="font-weight: 600;">
+                    @_avgTotal.ToString("C2", _frCulture)
+                </MudText>
+            </div>
+        </div>
+    }
+    else if (_hasMissingPrices)
     {
         <MudText Typo="Typo.caption" Color="Color.Warning" Class="px-4 pb-2">
             * Some items have missing prices and are not included in the total.
@@ -81,6 +146,21 @@ else
     private decimal _grandTotal;
     private bool _hasMissingPrices;
 
+    // Enriched supplier data
+    private List<ItemPricingResponse> _pricingData = [];
+    private bool _supplierDataLoaded;
+    private HashSet<int> _loadedItemIds = [];
+    private List<EnrichedShoppingLine> _enrichedLines = [];
+    private IEnumerable<IGrouping<(PaymentType PaymentType, string CompanyName), EnrichedShoppingLine>> _groupedLines = [];
+    private decimal _bestTotal;
+    private decimal _worstTotal;
+    private decimal _avgTotal;
+
+    protected override void OnInitialized()
+    {
+        RightPanel.OnChange += OnPanelChanged;
+    }
+
     protected override void OnParametersSet()
     {
         var itemMealItems = Items.Where(i => !i.RecipeId.HasValue).ToList();
@@ -93,6 +173,82 @@ else
         var recipeTotal = _recipeLines.Sum(l => l.LineTotal);
         _grandTotal = itemTotal + recipeTotal;
         _hasMissingPrices = _itemLines.Any(l => !l.LineTotal.HasValue);
+
+        var currentItemIds = itemMealItems.Select(i => i.ItemId).Distinct().ToHashSet();
+        if (!currentItemIds.SetEquals(_loadedItemIds))
+        {
+            _supplierDataLoaded = false;
+            _loadedItemIds = currentItemIds;
+        }
+    }
+
+    private void OnPanelChanged()
+    {
+        if (RightPanel.IsOpen && !_supplierDataLoaded && _loadedItemIds.Count > 0)
+            InvokeAsync(LoadSupplierDataAsync);
+    }
+
+    private async Task LoadSupplierDataAsync()
+    {
+        _pricingData = await ItemSupplierSvc.GetByItemsAsync(_loadedItemIds.ToList());
+        ComputeEnrichedLines();
+        _supplierDataLoaded = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ComputeEnrichedLines()
+    {
+        var itemMealItems = Items.Where(i => !i.RecipeId.HasValue).ToList();
+        var pricingByItem = _pricingData.GroupBy(p => p.ItemId).ToDictionary(g => g.Key, g => g.ToList());
+
+        _enrichedLines = itemMealItems
+            .GroupBy(i => i.ItemId)
+            .Select(g =>
+            {
+                var first = g.First();
+                var totalQty = g.Sum(i => i.Quantity);
+
+                if (!pricingByItem.TryGetValue(first.ItemId, out var suppliers) || suppliers.Count == 0)
+                    return null;
+
+                var costs = suppliers.Select(s =>
+                    (cost: Math.Ceiling(totalQty / s.ContentQuantity) * s.UnitPrice, supplier: s)).ToList();
+
+                var best = costs.MinBy(x => x.cost);
+                var worst = costs.MaxBy(x => x.cost);
+                var avg = costs.Average(x => x.cost);
+                var packages = (int)Math.Ceiling(totalQty / best.supplier.ContentQuantity);
+
+                return new EnrichedShoppingLine(
+                    first.ItemName,
+                    totalQty,
+                    first.Unit,
+                    best.supplier.ContentQuantity,
+                    packages,
+                    best.cost,
+                    worst.cost,
+                    avg,
+                    best.supplier.Supplier.Id,
+                    best.supplier.Supplier.CompanyName,
+                    best.supplier.Supplier.PaymentType);
+            })
+            .OfType<EnrichedShoppingLine>()
+            .OrderBy(l => l.Name)
+            .ToList();
+
+        _groupedLines = _enrichedLines
+            .GroupBy(l => (l.RetainedPaymentType, l.RetainedSupplierName))
+            .OrderBy(g => g.Key.RetainedPaymentType)
+            .ThenBy(g => g.Key.RetainedSupplierName);
+
+        _bestTotal = _enrichedLines.Sum(l => l.BestCost) + _recipeLines.Sum(l => l.LineTotal);
+        _worstTotal = _enrichedLines.Sum(l => l.WorstCost) + _recipeLines.Sum(l => l.LineTotal);
+        _avgTotal = _enrichedLines.Sum(l => l.AvgCost) + _recipeLines.Sum(l => l.LineTotal);
+    }
+
+    public void Dispose()
+    {
+        RightPanel.OnChange -= OnPanelChanged;
     }
 
     private static List<ShoppingLine> ComputeItemLines(IEnumerable<MealItemResponse> items)
@@ -158,4 +314,17 @@ else
         string Name,
         decimal TotalQuantity,
         decimal LineTotal);
+
+    private sealed record EnrichedShoppingLine(
+        string Name,
+        decimal TotalQuantity,
+        MeasurementUnit Unit,
+        decimal ContentQuantity,
+        int PackagesToBuy,
+        decimal BestCost,
+        decimal WorstCost,
+        decimal AvgCost,
+        int RetainedSupplierId,
+        string RetainedSupplierName,
+        PaymentType RetainedPaymentType);
 }

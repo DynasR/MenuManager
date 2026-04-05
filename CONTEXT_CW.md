@@ -31,14 +31,15 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 |--------------|----------------------------------------------------------------------------------|
 | Category     | Référence pattern Index (pending rows + dirty + Save All)                        |
 | Item         | FK Category, PurchaseUnit + ContentQuantity + ContentUnit (refactorisé)          |
-| Supplier     | Party + CompanyName, Siret                                                       |
-| Customer     | Bouton CalendarMonth → `/menuplan/{id}`                                          |
+| Supplier     | Party + CompanyName, Siret, **PaymentType** (TR/CB)                              |
+| Customer     | Party + **PaymentType** (TR/CB) — CalendarMonth → `/menuplan/{id}`               |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards sur 3 ans. Données via `GET /api/dailymenus/{customerId}/monthly-summary` (HasMeals, MonthlyCost). Bouton "Voir le planning" → navigation directe `dayplans?customerId=X&year=Y&month=M`, pas de création serveur. |
 | DayPlan/Index | Calendrier mensuel. Tiroir d'ajout à **2 onglets (Items / Recettes)**. Recettes ajoutables dans les slots (`AddRecipeToSlotAsync`). Calcul coût via `ComputeItemCost` (gère items et recettes). Copy/clone/cell-drag recipe-aware. Dark mode chips inline via `ThemeState`. CSS `.meal-cell-item-recipe` (teinte violet). |
 | MealCell | **`ShouldRender()` override** — compare items (id/qty/order), MealId, IsBeingDragged, IsActionTarget, _clearPrimed ; snapshot dans `OnAfterRenderAsync`. JS drag fire-and-forget. |
 | Recipe       | ✅ `/recipes` — MudDataGrid + HierarchyColumn (ingrédients inline), RecipeDialog (create/edit), coût estimé par recette |
 | Layout       | **3 thèmes** : Light (palette chaude), Dark (navy), Custom (noir pur). `ThemeState` + bouton CycleTheme dans AppBar. Persisté localStorage. AppBar dégradé marine fixe. |
+| Shopping Cart | **Enrichissement fournisseur** : s'ouvre → appel `POST /api/itemsuppliers/by-items` → items groupés par meilleur fournisseur (TR bleu / CB violet). Affiche best/worst/avg totals. Fallback si données non chargées. |
 
 ---
 
@@ -50,6 +51,8 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **Item : refacto unités** — `Unit+PackageSize` → `PurchaseUnit + ContentQuantity + ContentUnit`. Deux migrations : `RefactorItemUnits`, `AddUnitAndOrderToRecipeIngredient`.
 - **MonthlyCost** calculé serveur-side (`ceil(qty / ContentQuantity) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
 - **Recettes dans les slots** — `MealItem` peut référencer un `Item` ou une `Recipe` (champs `ItemId?` / `RecipeId?`). Coût recette = `RecipeEstimatedCost * Quantity`. Shopping Cart distingue les deux sections.
+- **PaymentType** — enum `TR | CB` ajouté sur `Supplier` et `Customer`. Deux migrations séparées. Seed : Carrefour=TR, Leclerc=CB, Dynas=TR, Marlène=CB.
+- **Shopping Cart enrichi** — chargement lazy au premier affichage du panneau. Par item : tous les fournisseurs disponibles → best/worst/avg. Items groupés par fournisseur retenu (= le moins cher). Endpoint dédié : `POST /api/itemsuppliers/by-items`.
 - **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
 - **Bulk clear** — `DELETE /api/meals/batch` (body JSON, toujours 204). Vider-ligne, vider-colonne, vider-mois utilisent tous ce même endpoint. Pattern confirm-intent : prime (mousedown rouge) + dbl-clic exécute.
 - **Random fill** — `POST /api/meals/random-fill`. Remplit les jours vides du mois avec des items disponibles aléatoires. Skip les jours qui ont déjà des repas.

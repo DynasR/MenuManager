@@ -12,6 +12,8 @@ git add -A
 git commit -m "<MESSAGE COMMIT>"
 Contraintes
 
+message commit sur une ligne sans signature
+
 CLAUDE.md : détails d'implémentation uniquement
 context_CW.md : rôles, état projet, décisions haut niveau, backlog
 Rien de dupliqué entre les deux

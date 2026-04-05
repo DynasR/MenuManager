@@ -208,7 +208,7 @@ public class MealService : IMealService
         _db.Meals
             .Include(m => m.MealItems)
                 .ThenInclude(mi => mi.Item)
-                    .ThenInclude(i => i.ItemSuppliers);
+                    .ThenInclude(i => i!.ItemSuppliers);
 
     private static DailyMenuResponse MapDailyMenuToResponse(DailyMenu dm) => new()
     {

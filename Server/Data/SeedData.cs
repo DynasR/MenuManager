@@ -30,19 +30,18 @@ public static class SeedData
 
         // --- Suppliers (Party TPT) ---
         db.Suppliers.AddRange(
-            new Supplier { Id = 1, Name = "Carrefour City",  CompanyName = "Carrefour City",  CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
-            new Supplier { Id = 2, Name = "Leclerc Drive",   CompanyName = "E.Leclerc Drive",  CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+            new Supplier { Id = 1, Name = "Carrefour City", CompanyName = "Carrefour City",  PaymentType = PaymentType.TR, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Supplier { Id = 2, Name = "Leclerc Drive",  CompanyName = "E.Leclerc Drive", PaymentType = PaymentType.CB, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
         );
         db.SaveChanges();
 
-        // --- Customer (Party TPT, Id = 3) ---
+        // --- Customers (Party TPT) ---
         var dummyHash = new byte[64];
         var dummySalt = new byte[128];
-        db.Customers.Add(new Customer
-        {
-            Id = 3, Name = "Dynas", PasswordHash = dummyHash, PasswordSalt = dummySalt,
-            CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
-        });
+        db.Customers.AddRange(
+            new Customer { Id = 3, Name = "Dynas",   PasswordHash = dummyHash, PasswordSalt = dummySalt, PaymentType = PaymentType.TR, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow },
+            new Customer { Id = 4, Name = "Marlène", PasswordHash = dummyHash, PasswordSalt = dummySalt, PaymentType = PaymentType.CB, CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow }
+        );
         db.SaveChanges();
 
         // --- Items ---

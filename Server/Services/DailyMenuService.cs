@@ -155,7 +155,7 @@ public class DailyMenuService : IDailyMenuService
             .Include(dm => dm.Meals)
                 .ThenInclude(m => m.MealItems)
                     .ThenInclude(mi => mi.Item)
-                        .ThenInclude(i => i.ItemSuppliers)
+                        .ThenInclude(i => i!.ItemSuppliers)
             .Include(dm => dm.Meals)
                 .ThenInclude(m => m.MealItems)
                     .ThenInclude(mi => mi.Recipe)
