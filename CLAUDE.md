@@ -175,6 +175,7 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
 ### Layout
 - CSS grid: 7 columns — Date (80px) + 5 MealTypes + Date-right (80px). Wrapped in `.dayplan-grid-wrapper` (flex, `user-select: none`).
+- Cell wrapper `<div>` carries `@key="@((capturedDate, capturedMt))"` for stable Blazor diffing across re-renders.
 - One row per day of the month, FR locale, weekend/holiday coloring.
 - Date labels: `.date-label` flex column — DOW abbreviation (small, uppercase) + day number (large). Classes: `date-label-weekend` (opacity), `date-label-holiday` (warning color).
 - `FrenchHolidays.cs` helper for public holidays (fixed + Easter-based).
@@ -202,6 +203,8 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Parameters**: `MealId` (int?), `Items` (List\<MealItemResponse\>), `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
 - **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `cell-drag-source` on source cell; `cell-drag-copy-mode` on source cell when Ctrl held.
 - **Callbacks**: `OnItemMoved(itemId, fromDate, fromMealType, toDate, toMealType, newIndex, isCopy)`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted(date, mealType)`, `OnDragEnded`, `OnCellClearRequested`.
+- **ShouldRender() optimisation**: MealCell overrides `ShouldRender()` — compares `_renderedItems` (via `ItemsEqual`: id/quantity/order), `_renderedMealId`, `_renderedIsBeingDragged`, `_renderedIsActionTarget`, `_renderedClearPrimed` against current params. Snapshot updated in `OnAfterRenderAsync`. Skips re-render when parent rebuilds but cell data hasn't changed.
+- **Fire-and-forget JS drag calls**: `setFooterDragSource` and `clearFooterDragSource` use `_ = JS.InvokeVoidAsync(...)` (non-blocking) — drag start/end must not block Blazor's event thread.
 
 ### AddItemToSlotAsync — on-demand creation (shared helper)
 - Private `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)`.

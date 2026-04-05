@@ -82,6 +82,36 @@
 
     private bool _clearPrimed;
 
+    // --- ShouldRender optimisation ---
+    private List<MealItemResponse>? _renderedItems;
+    private int? _renderedMealId;
+    private bool _renderedIsBeingDragged;
+    private bool _renderedIsActionTarget;
+    private bool _renderedClearPrimed;
+
+    protected override bool ShouldRender()
+    {
+        var should = _renderedClearPrimed != _clearPrimed
+            || _renderedIsBeingDragged != IsBeingDragged
+            || _renderedIsActionTarget != IsActionTarget
+            || _renderedMealId != MealId
+            || !ItemsEqual(_renderedItems, Items);
+        Console.WriteLine($"[MealCell {Date:yyyy-MM-dd}/{MealType}] ShouldRender={should}");
+        return should;
+    }
+
+    private static bool ItemsEqual(List<MealItemResponse>? a, List<MealItemResponse>? b)
+    {
+        if (ReferenceEquals(a, b)) return true;
+        if (a is null || b is null) return false;
+        if (a.Count != b.Count) return false;
+        for (var i = 0; i < a.Count; i++)
+            if (a[i].Id != b[i].Id || a[i].Quantity != b[i].Quantity || a[i].Order != b[i].Order)
+                return false;
+        return true;
+    }
+    // ---
+
     private async Task HandleCellClick()
     {
         if (!IsActionTarget)
@@ -112,13 +142,13 @@
 
     private async Task HandleFooterDragStart(DragEventArgs e)
     {
-        await JS.InvokeVoidAsync("setFooterDragSource", _footerRef, Date.ToString("yyyy-MM-dd"), MealType.ToString(), e.CtrlKey);
+        _ = JS.InvokeVoidAsync("setFooterDragSource", _footerRef, Date.ToString("yyyy-MM-dd"), MealType.ToString(), e.CtrlKey);
         await OnDragStarted.InvokeAsync((Date, MealType));
     }
 
-    private async Task HandleFooterDragEnd(DragEventArgs _)
+    private async Task HandleFooterDragEnd(DragEventArgs e)
     {
-        await JS.InvokeVoidAsync("clearFooterDragSource");
+        _ = JS.InvokeVoidAsync("clearFooterDragSource");
         await OnDragEnded.InvokeAsync();
     }
 
@@ -144,6 +174,12 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        _renderedItems = Items;
+        _renderedMealId = MealId;
+        _renderedIsBeingDragged = IsBeingDragged;
+        _renderedIsActionTarget = IsActionTarget;
+        _renderedClearPrimed = _clearPrimed;
+
         if (firstRender)
         {
             await JS.InvokeVoidAsync("addCellDragOverHandler", _cellRef);

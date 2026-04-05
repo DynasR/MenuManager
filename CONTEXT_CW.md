@@ -35,7 +35,8 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Bouton CalendarMonth → `/menuplan/{id}`                                          |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards sur 3 ans. Données via `GET /api/dailymenus/{customerId}/monthly-summary` (HasMeals, MonthlyCost). Bouton "Voir le planning" → navigation directe `dayplans?customerId=X&year=Y&month=M`, pas de création serveur. |
-| DayPlan/Index | Query params : `customerId`, `year`, `month`. Calendrier mensuel, barre nav mois (±6, HasMeals), SortableJS reorder/move/**copy** (Ctrl), panier, **cell-drag copy/move** (Ctrl=copie), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), **row-primed + dbl-clic date=vider ligne**, **column-primed + dbl-clic header=vider colonne**, **totaux ligne et colonne** (coût affiché dans label date droite et en-tête MealType), **bouton vider-mois** (DeleteSweep), **bouton remplissage aléatoire** (Casino), overlay sauvegarde, grille 7 col (80px dates) |
+| DayPlan/Index | Query params : `customerId`, `year`, `month`. Calendrier mensuel, barre nav mois (±6, HasMeals), SortableJS reorder/move/**copy** (Ctrl), panier, **cell-drag copy/move** (Ctrl=copie), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), **row-primed + dbl-clic date=vider ligne**, **column-primed + dbl-clic header=vider colonne**, **totaux ligne et colonne** (coût affiché dans label date droite et en-tête MealType), **bouton vider-mois** (DeleteSweep), **bouton remplissage aléatoire** (Casino), overlay sauvegarde, grille 7 col (80px dates), **`@key` stable sur cellules** |
+| MealCell | **`ShouldRender()` override** — compare items (id/qty/order), MealId, IsBeingDragged, IsActionTarget, _clearPrimed ; snapshot dans `OnAfterRenderAsync`. JS drag fire-and-forget. |
 | Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
 
 ---
@@ -64,6 +65,7 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 ### DayPlan/Index
 - Total par semaine
 - Dialogue de confirmation pour les actions destructives (vider ligne/colonne/mois)
+- Supprimer le `Console.WriteLine` de debug dans `MealCell.ShouldRender()`
 
 ### Détails financiers
 - Coût moyen et médian par jour/semaine/mois

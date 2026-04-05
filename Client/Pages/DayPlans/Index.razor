@@ -118,7 +118,7 @@ else
                 var meal = dm?.Meals.FirstOrDefault(m => m.MealType == mt);
                 var capturedDate = date;
                 var capturedMt = mt;
-                <div class="@cellCssClass" data-rowdate="@rowDateStr" data-colmealtype="@((int)capturedMt)">
+                <div @key="@((capturedDate, capturedMt))" class="@cellCssClass" data-rowdate="@rowDateStr" data-colmealtype="@((int)capturedMt)">
                     <MealCell Date="capturedDate"
                               MealType="capturedMt"
                               MealId="meal?.Id"
