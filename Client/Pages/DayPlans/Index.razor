@@ -262,13 +262,17 @@ else
         min-width: 0;
         display: grid;
         grid-template-columns: 80px repeat(5, 1fr) 80px;
-        gap: 1px;
+        column-gap: 1px;
+        row-gap: 1px;
         background: var(--mud-palette-table-lines);
         border: 1px solid var(--mud-palette-table-lines);
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
     }
 
     .dayplan-grid-header {
-        background: var(--mud-palette-surface);
+        background: color-mix(in srgb, var(--mud-palette-primary) 6%, var(--mud-palette-surface));
         padding: 8px;
         text-align: center;
         font-weight: 600;
@@ -276,6 +280,7 @@ else
         flex-direction: column;
         align-items: center;
         gap: 2px;
+        border-bottom: 2px solid var(--mud-palette-table-lines);
     }
 
     .date-right-inner {
@@ -296,30 +301,41 @@ else
         padding: 1px 5px;
     }
 
+    .primed-axis-overlay {
+        position: absolute;
+        pointer-events: none;
+        z-index: 10;
+        background: color-mix(in srgb, var(--mud-palette-error) 12%, transparent);
+        border: 1px solid color-mix(in srgb, var(--mud-palette-error) 30%, transparent);
+        border-radius: 4px;
+    }
+
     .dayplan-grid-date {
-        background: var(--mud-palette-surface);
-        padding: 8px;
+        background: color-mix(in srgb, var(--mud-palette-primary) 4%, var(--mud-palette-surface));
+        padding: 8px 4px;
         display: flex;
         align-items: center;
         justify-content: center;
+        border-radius: 4px 0 0 4px;
     }
 
     .dayplan-grid-date-right {
-        background: var(--mud-palette-surface);
-        padding: 8px;
+        background: color-mix(in srgb, var(--mud-palette-primary) 4%, var(--mud-palette-surface));
+        padding: 8px 4px;
         display: flex;
         align-items: center;
         justify-content: center;
         transition: background 0.25s ease, box-shadow 0.25s ease;
+        border-radius: 0 4px 4px 0;
     }
 
     .dayplan-grid-cell {
         background: var(--mud-palette-surface);
-        min-height: 60px;
+        min-height: 64px;
         min-width: 0;
         display: flex;
         flex-direction: column;
-        overflow: hidden;
+        padding: 2px;
     }
 
     .meal-cell {
@@ -357,12 +373,20 @@ else
     }
 
 
-.dayplan-weekend {
-        background: var(--mud-palette-background-grey);
+    .dayplan-weekend {
+        background: var(--mud-palette-background-grey) !important;
+    }
+
+    .dayplan-weekend.dayplan-grid-cell {
+        background: color-mix(in srgb, var(--mud-palette-text-secondary) 4%, var(--mud-palette-surface)) !important;
     }
 
     .dayplan-holiday {
-        background: color-mix(in srgb, var(--mud-palette-warning) 15%, var(--mud-palette-surface));
+        background: color-mix(in srgb, var(--mud-palette-warning) 18%, var(--mud-palette-surface)) !important;
+    }
+
+    .dayplan-holiday.dayplan-grid-cell {
+        background: color-mix(in srgb, var(--mud-palette-warning) 8%, var(--mud-palette-surface)) !important;
     }
 
     .meal-cell {
@@ -481,58 +505,13 @@ else
         transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
 
-    .meal-cell-slot-total.total-primed,
-    .meal-cell-slot-total.total-primed:hover,
-    .row-primed .meal-cell-slot-total,
-    .row-primed .meal-cell-slot-total:hover {
-        color: var(--mud-palette-error);
-        border-color: color-mix(in srgb, var(--mud-palette-error) 60%, transparent);
-        background: color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
-    }
-
-    .dayplan-grid-date.row-primed,
-    .dayplan-grid-date-right.row-primed {
-        background: color-mix(in srgb, var(--mud-palette-error) 8%, var(--mud-palette-surface)) !important;
-        transition: background-color 80ms ease;
-    }
-
-    .dayplan-grid-date.row-primed .date-label-dow,
-    .dayplan-grid-date.row-primed .date-label-num,
-    .dayplan-grid-date-right.row-primed .date-label-dow,
-    .dayplan-grid-date-right.row-primed .date-label-num {
+    .total-primed {
         color: var(--mud-palette-error) !important;
-        opacity: 1 !important;
+        border-color: var(--mud-palette-error) !important;
+        background: color-mix(in srgb, var(--mud-palette-error) 12%, transparent) !important;
     }
 
-    .dayplan-grid-cell.row-primed .meal-cell {
-        background: color-mix(in srgb, var(--mud-palette-error) 10%, var(--mud-palette-surface)) !important;
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-error) 35%, transparent),
-                    inset 0 0 14px color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
-        transition: background-color 80ms ease, box-shadow 80ms ease;
-    }
 
-    .dayplan-grid-header.column-primed {
-        background: color-mix(in srgb, var(--mud-palette-error) 8%, var(--mud-palette-surface)) !important;
-        transition: background-color 80ms ease;
-    }
-
-    .dayplan-grid-header.column-primed .mud-typography {
-        color: var(--mud-palette-error) !important;
-    }
-
-    .dayplan-grid-cell.column-primed .meal-cell {
-        background: color-mix(in srgb, var(--mud-palette-error) 10%, var(--mud-palette-surface)) !important;
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-error) 35%, transparent),
-                    inset 0 0 14px color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
-        transition: background-color 80ms ease, box-shadow 80ms ease;
-    }
-
-    .meal-cell:has(.total-primed) {
-        background: color-mix(in srgb, var(--mud-palette-error) 10%, var(--mud-palette-surface)) !important;
-        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-error) 35%, transparent),
-                    inset 0 0 14px color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
-        transition: background 0.15s, box-shadow 0.15s;
-    }
 </style>
 
 @code {

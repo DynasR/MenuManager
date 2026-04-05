@@ -179,8 +179,9 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - One row per day of the month, FR locale, weekend/holiday coloring.
 - Date labels: `.date-label` flex column — DOW abbreviation (small, uppercase) + day number (large). Classes: `date-label-weekend` (opacity), `date-label-holiday` (warning color).
 - `FrenchHolidays.cs` helper for public holidays (fixed + Easter-based).
-- **Row-primed highlight**: mousedown on either date cell (left or right) calls `addRowPrimed(date)` JS — all elements sharing `data-rowdate="yyyy-MM-dd"` get `row-primed` class (date labels turn error-red, all meal cells get red tint + inset glow, all slot totals turn red). mouseup/mouseleave calls `removeRowPrimed(date)`. dbl-click on either date cell fires `ClearRowAsync(date)` (confirm-intent pattern: prime then execute). All date cells and meal cells carry `data-rowdate` attribute.
-- **Column-primed highlight**: mousedown on a MealType header calls `addColumnPrimed(mealTypeInt)` JS — all elements sharing `data-colmealtype="X"` (header + all meal cell divs in that column) get `column-primed` class (header label turns error-red, all cells get red tint + inset glow). dbl-click on header fires `ClearColumnAsync(mealType)`. Row-primed and column-primed are mutually exclusive: activating one clears the other in JS. All meal cell wrapper divs carry `data-colmealtype` attribute.
+- **Row-primed highlight**: mousedown on either date cell (left or right) calls `addRowPrimed(date)` JS — creates a single absolutely-positioned `.primed-axis-overlay` div covering the bounding rect of all `[data-rowdate="yyyy-MM-dd"]` elements (red tint, pointer-events: none). mouseup/mouseleave calls `removeRowPrimed(date)` → removes overlay. dbl-click fires `ClearRowAsync(date)` (confirm-intent pattern). All date cells and meal cells carry `data-rowdate` attribute.
+- **Column-primed highlight**: mousedown on a MealType header calls `addColumnPrimed(mealTypeInt)` JS — same overlay mechanism over all `[data-colmealtype="X"]` elements. dbl-click fires `ClearColumnAsync(mealType)`. Row-primed and column-primed are mutually exclusive (only one `_primedOverlay` exists at a time). All meal cell wrapper divs carry `data-colmealtype` attribute.
+- **`.primed-axis-overlay`**: CSS class on the overlay div — `position: absolute; pointer-events: none; z-index: 10; background: error 12%; border: error 30%; border-radius: 4px`. Requires `.dayplan-grid { position: relative; overflow: hidden }` (already set).
 - **Row / column cost totals**: `GetRowTotal(DateOnly)` and `GetColumnTotal(MealType)` compute `ceil(qty/PackageSize)*UnitPrice` in C# from loaded data. Displayed as `.dayplan-cost-total` badge (info-colored, green-tinted border) — in the right date cell (below date label, inside `.date-right-inner`) and in each MealType header cell.
 
 ### Month navigation bar
@@ -235,8 +236,8 @@ A `_saving` bool shows a full-screen dark overlay (`dayplan-overlay`) during any
 - `getAndClearFooterDragSource()` → `"date|mealType|1|0"` string or `null`.
 - `addCellDragOverHandler(element)` / `removeCellDragOverHandler(element)` — native `dragover/enter/leave/drop` handlers; adds `meal-cell-drag-copy` or `meal-cell-drag-move` CSS class on both footer-drag and SortableJS hover.
 - SortableJS `onStart` tracks `_sortableDragItem` + shows `.sortable-copy-ghost` at source. `onEnd` reads Ctrl at drop time → `isCopy`; on copy, moves element back to source before Blazor reconciles.
-- `addRowPrimed(date)` / `removeRowPrimed(date)` — query all `[data-rowdate="date"]` elements, toggle `row-primed` class + `total-primed` on contained `.meal-cell-slot-total`. Clears any active column-primed before activating.
-- `addColumnPrimed(mealType)` / `removeColumnPrimed(mealType)` — query all `[data-colmealtype="X"]` elements, toggle `column-primed` class + `total-primed` on contained slot totals. Clears any active row-primed before activating.
+- `addRowPrimed(date)` / `removeRowPrimed(date)` — overlay-based: computes bounding box of all `[data-rowdate="date"]` elements, injects a single `.primed-axis-overlay` div into `.dayplan-grid`; remove clears it. No CSS class toggling on individual cells.
+- `addColumnPrimed(mealType)` / `removeColumnPrimed(mealType)` — same overlay mechanism over `[data-colmealtype="X"]` elements. Only one `_primedOverlay` exists at a time — activating one axis automatically replaces any previous overlay.
 
 ### Bulk clear / random fill operations (DayPlan/Index)
 

@@ -210,56 +210,59 @@
         if (element.__cellDrop) { element.removeEventListener('drop', element.__cellDrop); delete element.__cellDrop; }
     };
 
-    // --- Row primed highlight (mousedown on date cell) ---
+    // --- Primed axis overlay (single overlay covering entire row or column) ---
+    var _primedOverlay = null;
+
+    function clearPrimedOverlay() {
+        if (_primedOverlay) {
+            _primedOverlay.remove();
+            _primedOverlay = null;
+        }
+    }
+
+    function createAxisOverlay(grid, elements) {
+        clearPrimedOverlay();
+        if (!elements.length) return;
+        var top = Infinity, left = Infinity, bottom = -Infinity, right = -Infinity;
+        elements.forEach(function (el) {
+            var t = el.offsetTop;
+            var l = el.offsetLeft;
+            top    = Math.min(top,    t);
+            left   = Math.min(left,   l);
+            bottom = Math.max(bottom, t + el.offsetHeight);
+            right  = Math.max(right,  l + el.offsetWidth);
+        });
+        if (top === Infinity) return;
+        var overlay = document.createElement('div');
+        overlay.className = 'primed-axis-overlay';
+        overlay.style.top    = top + 'px';
+        overlay.style.left   = left + 'px';
+        overlay.style.width  = (right - left) + 'px';
+        overlay.style.height = (bottom - top) + 'px';
+        grid.appendChild(overlay);
+        _primedOverlay = overlay;
+    }
+
+    // --- Row primed (mousedown on date cell) ---
     window.addRowPrimed = function (date) {
-        // Clear any active column-primed first — only one primed axis at a time
-        document.querySelectorAll('.column-primed').forEach(function (el) {
-            el.classList.remove('column-primed');
-            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
-                t.classList.remove('total-primed');
-            });
-        });
-        document.querySelectorAll('[data-rowdate="' + date + '"]').forEach(function (el) {
-            el.classList.add('row-primed');
-            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
-                t.classList.add('total-primed');
-            });
-        });
+        var grid = document.querySelector('.dayplan-grid');
+        if (!grid) return;
+        createAxisOverlay(grid, Array.from(document.querySelectorAll('[data-rowdate="' + date + '"]')));
     };
 
     window.removeRowPrimed = function (date) {
-        document.querySelectorAll('[data-rowdate="' + date + '"]').forEach(function (el) {
-            el.classList.remove('row-primed');
-            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
-                t.classList.remove('total-primed');
-            });
-        });
+        clearPrimedOverlay();
     };
 
-    // --- Column primed highlight (mousedown on MealType header) ---
+    // --- Column primed (mousedown on MealType header) ---
     window.addColumnPrimed = function (mealType) {
-        // Clear any active row-primed first — only one primed axis at a time
-        document.querySelectorAll('.row-primed').forEach(function (el) {
-            el.classList.remove('row-primed');
-            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
-                t.classList.remove('total-primed');
-            });
-        });
-        document.querySelectorAll('[data-colmealtype="' + mealType + '"]').forEach(function (el) {
-            el.classList.add('column-primed');
-            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
-                t.classList.add('total-primed');
-            });
-        });
+        var grid = document.querySelector('.dayplan-grid');
+        if (!grid) return;
+        createAxisOverlay(grid, Array.from(document.querySelectorAll('[data-colmealtype="' + mealType + '"]')));
     };
 
     window.removeColumnPrimed = function (mealType) {
-        document.querySelectorAll('[data-colmealtype="' + mealType + '"]').forEach(function (el) {
-            el.classList.remove('column-primed');
-            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
-                t.classList.remove('total-primed');
-            });
-        });
+        clearPrimedOverlay();
     };
 
     window.destroySortable = function (element) {
