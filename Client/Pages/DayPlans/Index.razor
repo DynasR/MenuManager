@@ -71,8 +71,13 @@ else if (_parent is not null)
             var dateCssClass = isHoliday ? "dayplan-holiday" : isWeekend ? "dayplan-weekend" : "";
             var cellCssClass = isHoliday ? "dayplan-grid-cell dayplan-holiday" : isWeekend ? "dayplan-grid-cell dayplan-weekend" : "dayplan-grid-cell";
             var holidayName = isHoliday ? GetHolidayName(date) : null;
+            var rowDateStr = date.ToString("yyyy-MM-dd");
 
-            <div class="dayplan-grid-date @dateCssClass">
+            <div class="dayplan-grid-date @dateCssClass"
+                 data-rowdate="@rowDateStr"
+                 @onmousedown="@(() => { _ = JS.InvokeVoidAsync("addRowPrimed", rowDateStr); })"
+                 @onmouseup="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
+                 @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })">
                 @if (isHoliday)
                 {
                     <MudTooltip Text="@holidayName" Placement="Placement.Right">
@@ -96,7 +101,7 @@ else if (_parent is not null)
                 var slot = dp?.MealSlots.FirstOrDefault(ms => ms.MealType == mt);
                 var capturedDate = date;
                 var capturedMt = mt;
-                <div class="@cellCssClass">
+                <div class="@cellCssClass" data-rowdate="@rowDateStr">
                     <MealCell Date="capturedDate"
                               MealType="capturedMt"
                               MealSlotId="slot?.Id"
@@ -113,7 +118,11 @@ else if (_parent is not null)
                               OnCellClearRequested="ClearCellAsync" />
                 </div>
             }
-            <div class="dayplan-grid-date-right @dateCssClass">
+            <div class="dayplan-grid-date-right @dateCssClass"
+                 data-rowdate="@rowDateStr"
+                 @onmousedown="@(() => { _ = JS.InvokeVoidAsync("addRowPrimed", rowDateStr); })"
+                 @onmouseup="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
+                 @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })">
                 <div class="date-label">
                     <span class="date-label-dow @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
                     <span class="date-label-num @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", _frCulture)</span>
@@ -426,10 +435,33 @@ else if (_parent is not null)
     }
 
     .meal-cell-slot-total.total-primed,
-    .meal-cell-slot-total.total-primed:hover {
+    .meal-cell-slot-total.total-primed:hover,
+    .row-primed .meal-cell-slot-total,
+    .row-primed .meal-cell-slot-total:hover {
         color: var(--mud-palette-error);
         border-color: color-mix(in srgb, var(--mud-palette-error) 60%, transparent);
         background: color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
+    }
+
+    .dayplan-grid-date.row-primed,
+    .dayplan-grid-date-right.row-primed {
+        background: color-mix(in srgb, var(--mud-palette-error) 8%, var(--mud-palette-surface)) !important;
+        transition: background-color 80ms ease;
+    }
+
+    .dayplan-grid-date.row-primed .date-label-dow,
+    .dayplan-grid-date.row-primed .date-label-num,
+    .dayplan-grid-date-right.row-primed .date-label-dow,
+    .dayplan-grid-date-right.row-primed .date-label-num {
+        color: var(--mud-palette-error) !important;
+        opacity: 1 !important;
+    }
+
+    .dayplan-grid-cell.row-primed .meal-cell {
+        background: color-mix(in srgb, var(--mud-palette-error) 10%, var(--mud-palette-surface)) !important;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-error) 35%, transparent),
+                    inset 0 0 14px color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
+        transition: background-color 80ms ease, box-shadow 80ms ease;
     }
 
     .meal-cell:has(.total-primed) {
@@ -714,6 +746,7 @@ else if (_parent is not null)
             StateHasChanged();
         }
     }
+
 
     private void BuildMonthNav()
     {

@@ -210,6 +210,25 @@
         if (element.__cellDrop) { element.removeEventListener('drop', element.__cellDrop); delete element.__cellDrop; }
     };
 
+    // --- Row primed highlight (mousedown on date cell) ---
+    window.addRowPrimed = function (date) {
+        document.querySelectorAll('[data-rowdate="' + date + '"]').forEach(function (el) {
+            el.classList.add('row-primed');
+            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
+                t.classList.add('total-primed');
+            });
+        });
+    };
+
+    window.removeRowPrimed = function (date) {
+        document.querySelectorAll('[data-rowdate="' + date + '"]').forEach(function (el) {
+            el.classList.remove('row-primed');
+            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
+                t.classList.remove('total-primed');
+            });
+        });
+    };
+
     window.destroySortable = function (element) {
         var entry = registry.get(element);
         if (!entry) return;

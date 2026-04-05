@@ -150,7 +150,7 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 | Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
 | MenuPlan     | ✅      | ✅ cards        | 3-year cards, HasData coloring, MonthlyCost, unified button        |
-| DayPlan      | ✅      | ✅ calendar     | Month nav bar, SortableJS reorder/move/copy (immediate), shopping cart, cell-drag copy/move, Ctrl+click clone item, click item=add drawer, dbl-click item=delete, dbl-click total=clear cell, saving overlay, 7-col grid |
+| DayPlan      | ✅      | ✅ calendar     | Month nav bar, SortableJS reorder/move/copy (immediate), shopping cart, cell-drag copy/move, Ctrl+click clone item, click item=add drawer, dbl-click item=delete, dbl-click total=clear cell, row-primed highlight, saving overlay, 7-col grid |
 | MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 | MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
@@ -176,6 +176,7 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - One row per day of the month, FR locale, weekend/holiday coloring.
 - Date labels: `.date-label` flex column — DOW abbreviation (small, uppercase) + day number (large). Classes: `date-label-weekend` (opacity), `date-label-holiday` (warning color).
 - `FrenchHolidays.cs` helper for public holidays (fixed + Easter-based).
+- **Row-primed highlight**: mousedown on either date cell (left or right) calls `addRowPrimed(date)` JS — all elements sharing `data-rowdate="yyyy-MM-dd"` get `row-primed` class (date labels turn error-red, all meal cells get red tint + inset glow, all slot totals turn red). mouseup/mouseleave calls `removeRowPrimed(date)`. This is a visual confirm-intent pattern before a future "clear row" action. All date cells and meal cells carry `data-rowdate` attribute.
 
 ### Month navigation bar
 - Horizontal strip of ±6 circular chips above the calendar (13 months total).
@@ -227,6 +228,7 @@ A `_saving` bool shows a full-screen dark overlay (`dayplan-overlay`) during any
 - `getAndClearFooterDragSource()` → `"date|mealType|1|0"` string or `null`.
 - `addCellDragOverHandler(element)` / `removeCellDragOverHandler(element)` — native `dragover/enter/leave/drop` handlers; adds `meal-cell-drag-copy` or `meal-cell-drag-move` CSS class on both footer-drag and SortableJS hover.
 - SortableJS `onStart` tracks `_sortableDragItem` + shows `.sortable-copy-ghost` at source. `onEnd` reads Ctrl at drop time → `isCopy`; on copy, moves element back to source before Blazor reconciles.
+- `addRowPrimed(date)` / `removeRowPrimed(date)` — query all `[data-rowdate="date"]` elements, toggle `row-primed` class + `total-primed` on contained `.meal-cell-slot-total`.
 
 ---
 
