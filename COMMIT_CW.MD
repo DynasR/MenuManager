@@ -1,7 +1,7 @@
 Mise à jour des contextes et commit
 Exécuter dans l'ordre :
 
-base : résultat du brief précédant
+git diff HEAD — lire tout ce qui a changé, sans exception
 Mettre à jour CLAUDE.md avec les détails d'implémentation des chantiers de cette session
 Mettre à jour context_CW.md : état projet, décisions haut niveau, backlog — en déplaçant les chantiers terminés du backlog vers l'état projet
 Supprimer toute information redondante entre les deux fichiers
@@ -10,7 +10,6 @@ Afficher les commandes à exécuter manuellement :
 
 git add -A
 git commit -m "<MESSAGE COMMIT>"
-Contraintes
 
 message commit qui résume sur une ligne sans signature
 

@@ -233,6 +233,7 @@ public class MealItemService : IMealItemService
         RecipeId = mi.RecipeId,
         RecipeName = mi.Recipe?.Name,
         RecipeEstimatedCost = mi.Recipe != null ? RecipeService.ComputeRecipeCost(mi.Recipe) : null,
+        RecipeIngredientItemIds = mi.Recipe?.RecipeIngredients.Select(ri => ri.ItemId).ToList() ?? [],
         Quantity = mi.Quantity,
         Notes = mi.Notes,
         Order = mi.Order,
@@ -240,7 +241,7 @@ public class MealItemService : IMealItemService
         MealId = mi.MealId,
         UnitPrice = mi.Item?.ItemSuppliers
             .Where(s => s.IsAvailable)
-            .OrderBy(s => s.SupplierId)
+            .OrderBy(s => s.UnitPrice)
             .Select(s => (decimal?)s.UnitPrice)
             .FirstOrDefault(),
         ContentQuantity = mi.Item?.ContentQuantity ?? 1,

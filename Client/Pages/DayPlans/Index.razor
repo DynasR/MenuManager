@@ -58,7 +58,10 @@ else
     <div class="dayplan-grid">
         @* Header row *@
         <div class="dayplan-grid-header">
-            <MudText Typo="Typo.subtitle2">Date</MudText>
+            @if (_monthTotal > 0)
+            {
+                <span class="dayplan-cost-total">@_monthTotal.ToString("C", _frCulture)</span>
+            }
         </div>
         @foreach (var mt in _mealTypes)
         {
@@ -317,6 +320,7 @@ else
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: 2px;
         border-bottom: 2px solid var(--mud-palette-table-lines);
     }
@@ -442,13 +446,18 @@ else
         margin: 0;
         position: relative;
         z-index: 1;
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        column-gap: 3px;
+        align-items: center;
+        align-content: start;
     }
 
     .meal-cell-item {
+        grid-column: 1 / -1;
         display: grid;
-        grid-template-columns: 1fr 56px;
+        grid-template-columns: subgrid;
         align-items: center;
-        gap: 2px;
         padding: 2px 4px;
         font-size: 0.8rem;
         min-width: 0;
@@ -496,38 +505,38 @@ else
         white-space: nowrap;
     }
 
-    .meal-cell-item-price {
+    .meal-cell-item-badges {
         display: flex;
         align-items: center;
         justify-content: flex-end;
-        gap: 3px;
+        gap: 2px;
+    }
+
+    .meal-cell-item-price {
         font-size: 0.75rem;
+        font-variant-numeric: tabular-nums;
         color: var(--mud-palette-text-secondary);
+        text-align: right;
         white-space: nowrap;
     }
 
     .payment-badge {
         font-size: 0.6rem;
-        font-weight: 600;
+        font-weight: 700;
         opacity: 0.6;
         border-radius: 3px;
         padding: 0 3px;
         line-height: 1.5;
-        border: 1px solid;
         white-space: nowrap;
         flex-shrink: 0;
     }
 
     .payment-badge-tr {
         color: #1565C0;
-        border-color: #1565C0;
-        background: rgba(21, 101, 192, 0.07);
     }
 
     .payment-badge-cb {
         color: #6A1B9A;
-        border-color: #6A1B9A;
-        background: rgba(106, 27, 154, 0.07);
     }
 
     .meal-cell-footer {
@@ -606,6 +615,7 @@ else
     private (DateOnly date, MealType mealType)? _draggingCell;
     private List<DateOnly> _dates = [];
     private Dictionary<DateOnly, DailyMenuResponse> _dayMenuByDate = new();
+    private decimal _monthTotal;
     private List<ItemResponse> _allItems = [];
     private List<RecipeResponse> _allRecipes = [];
     private HashSet<DateOnly> _holidays = [];
@@ -686,6 +696,7 @@ else
             .Where(dm => dm.Date.Year == Year && dm.Date.Month == Month)
             .ToDictionary(dm => dm.Date);
 
+        _monthTotal = _dates.Sum(GetRowTotal);
         UpdateShoppingCart();
     }
 
@@ -700,6 +711,7 @@ else
         {
             builder.OpenComponent<ShoppingCart>(0);
             builder.AddAttribute(1, nameof(ShoppingCart.Items), (IEnumerable<MealItemResponse>)_allMealItems);
+            builder.AddAttribute(2, nameof(ShoppingCart.Recipes), (IEnumerable<RecipeResponse>)_allRecipes);
             builder.CloseComponent();
         });
     }
@@ -986,6 +998,7 @@ else
             var success = await MealSvc.DeleteBatchAsync(mealIds);
             if (!success) { Snackbar.Add("Suppression du mois échouée.", Severity.Error); return; }
             _dayMenuByDate.Clear();
+            _monthTotal = 0;
             _monthlySummary = await DailyMenuSvc.GetMonthlySummaryAsync(CustomerId);
             BuildMonthNav();
             UpdateShoppingCart();
@@ -1006,6 +1019,7 @@ else
             var result = await MealSvc.RandomFillAsync(CustomerId, Year, Month);
             if (result is null) { Snackbar.Add("Remplissage aléatoire échoué.", Severity.Error); return; }
             _dayMenuByDate = result.ToDictionary(dm => dm.Date);
+            _monthTotal = _dates.Sum(GetRowTotal);
             _monthlySummary = await DailyMenuSvc.GetMonthlySummaryAsync(CustomerId);
             BuildMonthNav();
             UpdateShoppingCart();
@@ -1031,14 +1045,8 @@ else
         }
     }
 
-    private static decimal ComputeItemCost(MealItemResponse i)
-    {
-        if (i.RecipeId.HasValue && i.RecipeEstimatedCost.HasValue)
-            return i.RecipeEstimatedCost.Value * i.Quantity;
-        if (i.UnitPrice.HasValue)
-            return (decimal)Math.Ceiling(i.Quantity / i.ContentQuantity) * i.UnitPrice.Value;
-        return 0m;
-    }
+    private decimal ComputeItemCost(MealItemResponse i) =>
+        CostHelper.ComputeItemCost(i, i.RecipeId.HasValue ? null : ItemSupplierCache.GetBestSupplier(i.ItemId)?.UnitPrice);
 
     private decimal GetRowTotal(DateOnly date) =>
         _dayMenuByDate.TryGetValue(date, out var dm)

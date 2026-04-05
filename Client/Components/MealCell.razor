@@ -1,4 +1,5 @@
 @using MenuManager.Shared.Enums
+@using MenuManager.Client.Helpers
 @implements IAsyncDisposable
 @inject IJSRuntime JS
 @inject ItemSupplierCache Cache
@@ -27,16 +28,24 @@
                     }
                     @(item.RecipeId.HasValue ? item.RecipeName : item.ItemName)
                 </span>
-                <span class="meal-cell-item-price">
-                    @{
-                        var payBadge = !capturedItem.RecipeId.HasValue ? Cache.GetBestSupplier(capturedItem.ItemId) : null;
-                    }
-                    @if (payBadge is not null)
+                <span class="meal-cell-item-badges">
+                    @if (!capturedItem.RecipeId.HasValue)
                     {
-                        <span class="payment-badge payment-badge-@(payBadge.PaymentType == PaymentType.TR ? "tr" : "cb")">@payBadge.PaymentType</span>
+                        var payBadge = Cache.GetBestSupplier(capturedItem.ItemId);
+                        if (payBadge is not null)
+                        {
+                            <span class="payment-badge payment-badge-@(payBadge.PaymentType == PaymentType.TR ? "tr" : "cb")">@payBadge.PaymentType</span>
+                        }
                     }
-                    @FormatItemPrice(item)
+                    else
+                    {
+                        foreach (var pt in GetRecipePaymentTypes(capturedItem))
+                        {
+                            <span class="payment-badge payment-badge-@(pt == PaymentType.TR ? "tr" : "cb")">@pt</span>
+                        }
+                    }
                 </span>
+                <span class="meal-cell-item-price">@FormatItemPrice(item)</span>
             </li>
         }
     </ul>
@@ -78,14 +87,8 @@
 
     private decimal SlotTotal => Items.Sum(ComputeItemCost);
 
-    private static decimal ComputeItemCost(MealItemResponse item)
-    {
-        if (item.RecipeId.HasValue && item.RecipeEstimatedCost.HasValue)
-            return item.RecipeEstimatedCost.Value * item.Quantity;
-        if (item.UnitPrice.HasValue)
-            return (decimal)Math.Ceiling(item.Quantity / item.ContentQuantity) * item.UnitPrice.Value;
-        return 0m;
-    }
+    private decimal ComputeItemCost(MealItemResponse item) =>
+        CostHelper.ComputeItemCost(item, item.RecipeId.HasValue ? null : Cache.GetBestSupplier(item.ItemId)?.UnitPrice);
 
     private string FormatItemPrice(MealItemResponse item)
     {
@@ -135,10 +138,26 @@
         return true;
     }
 
-    private Dictionary<int, PaymentType?> GetCurrentPaymentTypes() =>
-        Items.Where(i => !i.RecipeId.HasValue)
-             .DistinctBy(i => i.ItemId)
-             .ToDictionary(i => i.ItemId, i => Cache.GetBestSupplier(i.ItemId)?.PaymentType);
+    private IReadOnlyList<PaymentType> GetRecipePaymentTypes(MealItemResponse item) =>
+        item.RecipeIngredientItemIds
+            .Select(id => Cache.GetBestSupplier(id)?.PaymentType)
+            .Where(pt => pt.HasValue)
+            .Select(pt => pt!.Value)
+            .Distinct()
+            .Order()
+            .ToList();
+
+    private Dictionary<int, PaymentType?> GetCurrentPaymentTypes()
+    {
+        var d = Items.Where(i => !i.RecipeId.HasValue)
+                     .DistinctBy(i => i.ItemId)
+                     .ToDictionary(i => i.ItemId, i => Cache.GetBestSupplier(i.ItemId)?.PaymentType);
+        // include ingredient item IDs from recipe slots so ShouldRender detects cache changes
+        foreach (var item in Items.Where(i => i.RecipeId.HasValue))
+            foreach (var id in item.RecipeIngredientItemIds)
+                d.TryAdd(id, Cache.GetBestSupplier(id)?.PaymentType);
+        return d;
+    }
 
     private static bool PaymentTypesEqual(Dictionary<int, PaymentType?> a, Dictionary<int, PaymentType?> b)
     {

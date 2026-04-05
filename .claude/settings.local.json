@@ -15,7 +15,8 @@
       "Bash(head -25 /z/MenuManager/Shared/Validators/*.cs)",
       "Skill(update-config)",
       "Bash(wc:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git status:*)"
     ]
   }
 }

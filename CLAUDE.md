@@ -153,7 +153,7 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 
 **RecipeService**: All queries include `ItemSuppliers` via deep `ThenInclude` chain. `ComputeRecipeCost(Recipe r)` is a public static method (reused by `MealItemService`). Recipe response includes `EstimatedCost`. Ingredients ordered by `Order`.
 
-**MealItemService**: `CreateAsync` accepts `ItemId?` or `RecipeId?` (exactly one must be set). Response maps `RecipeName`, `RecipeEstimatedCost` (via `RecipeService.ComputeRecipeCost`), `Unit`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`.
+**MealItemService**: `CreateAsync` accepts `ItemId?` or `RecipeId?` (exactly one must be set). Response maps `RecipeName`, `RecipeEstimatedCost` (via `RecipeService.ComputeRecipeCost`), `RecipeIngredientItemIds`, `Unit`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`. `UnitPrice` mapped with `OrderBy(s => s.UnitPrice)` (cheapest available supplier — was incorrectly `OrderBy(s => s.SupplierId)`).
 
 **New endpoint**: `POST /api/itemsuppliers/by-items` — body: `ByItemsRequest { List<int> ItemIds }` → `List<ItemPricingResponse>`. Returns all **available** `ItemSupplier` rows for the requested item IDs, with `ContentQuantity` and `Supplier` info (`Id`, `CompanyName`, `PaymentType`).
 
@@ -168,7 +168,7 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 | Item         | ✅      | ✅              | FK CategoryId, PurchaseUnit + ContentQuantity + ContentUnit (3 cols) |
 | Supplier     | ✅      | ✅              | Party fields + CompanyName, Siret, PaymentType (editable in grid + Edit page) |
 | Customer     | ✅      | ✅              | Party fields + PaymentType — CalendarMonth button → `/menuplan/{id}` |
-| ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409                 |
+| ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409; dropdown shows `CompanyName ?? Name`; ItemName/SupplierName columns `Editable="false"` |
 | DailyMenu    | ✅      | ✅ via MenuPlan/Index | Route `/menuplan/{CustomerId}` — cards from `monthly-summary` endpoint |
 | Meal         | ✅      | ✅ via DayPlan/Index  | FK DailyMenuId                                                |
 | MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, ContentQuantity, Unit; ItemId? or RecipeId? |
@@ -196,7 +196,8 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
 - 3 years of cards grouped by year: current month → Dec, then full N+1 and N+2.
 - Unified "Voir le planning" button — navigates directly to `dayplans?customerId=X&year=Y&month=M` (no server-side creation).
-- **HasData coloring**: current month = green (`#1B5E20`), has data = filled blue, empty = outlined.
+- **HasData coloring**: current month = `Color.Success` green, has data = `Color.Primary` filled blue, empty = outlined.
+- **Dark mode**: `MenuPlan/Index` subscribes to `ThemeState.OnChange` (`IDisposable`). When `ThemeState.IsDarkMode`, buttons get inline dark styles — current: dark green bg `#0B2116` / text `#7EC89A`; hasData: dark blue bg `#071525` / text `#5B9EC9`; empty: dim outlined.
 - **MonthlyCost**: computed server-side (`ceil(qty / PackageSize) * cheapest available UnitPrice`), displayed on each card (EUR, FR locale).
 - Data source: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>` (`Year`, `Month`, `HasMeals`, `MonthlyCost`). Client service: `DailyMenuService.GetMonthlySummaryAsync`.
 
@@ -213,7 +214,8 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Row-primed highlight**: mousedown on either date cell (left or right) calls `addRowPrimed(date)` JS — creates a single absolutely-positioned `.primed-axis-overlay` div covering the bounding rect of all `[data-rowdate="yyyy-MM-dd"]` elements (red tint, pointer-events: none). mouseup/mouseleave calls `removeRowPrimed(date)` → removes overlay. dbl-click fires `ClearRowAsync(date)` (confirm-intent pattern). All date cells and meal cells carry `data-rowdate` attribute.
 - **Column-primed highlight**: mousedown on a MealType header calls `addColumnPrimed(mealTypeInt)` JS — same overlay mechanism over all `[data-colmealtype="X"]` elements. dbl-click fires `ClearColumnAsync(mealType)`. Row-primed and column-primed are mutually exclusive (only one `_primedOverlay` exists at a time). All meal cell wrapper divs carry `data-colmealtype` attribute.
 - **`.primed-axis-overlay`**: CSS class on the overlay div — `position: absolute; pointer-events: none; z-index: 10; background: error 12%; border: error 30%; border-radius: 4px`. Requires `.dayplan-grid { position: relative; overflow: hidden }` (already set).
-- **Row / column cost totals**: `GetRowTotal(DateOnly)` and `GetColumnTotal(MealType)` delegate to static `ComputeItemCost(MealItemResponse)` — returns `RecipeEstimatedCost * Quantity` for recipe items, `ceil(qty/ContentQuantity)*UnitPrice` for item items. Displayed as `.dayplan-cost-total` badge (info-colored, green-tinted border) — in the right date cell (below date label, inside `.date-right-inner`) and in each MealType header cell.
+- **Row / column cost totals**: `GetRowTotal(DateOnly)` and `GetColumnTotal(MealType)` delegate to `ComputeItemCost(MealItemResponse)` — delegates to `CostHelper.ComputeItemCost(item, ItemSupplierCache.GetBestSupplier(itemId)?.UnitPrice)`. Displayed as `.dayplan-cost-total` badge (info-colored, green-tinted border) — in the right date cell and in each MealType header cell.
+- **Month total badge**: `_monthTotal` (sum of `GetRowTotal` for all dates) is computed after each `LoadAsync()`, `ClearMonthAsync()`, and `RandomFillAsync()`. Displayed as `.dayplan-cost-total` badge in the **Date header** (top-left cell of the grid).
 
 ### Month navigation bar
 - Horizontal strip of ±6 circular chips above the calendar (13 months total).
@@ -235,8 +237,9 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Parameters**: `MealId` (int?), `Items` (List\<MealItemResponse\>), `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
 - **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `cell-drag-source` on source cell; `cell-drag-copy-mode` on source cell when Ctrl held.
 - **Callbacks**: `OnItemMoved(itemId, fromDate, fromMealType, toDate, toMealType, newIndex, isCopy)`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted(date, mealType)`, `OnDragEnded`, `OnCellClearRequested`.
-- **Payment badge**: each item line shows a small TR/CB badge (`.payment-badge-tr` blue / `.payment-badge-cb` purple) from `ItemSupplierCache.GetBestSupplier(itemId)`. CSS defined in `DayPlan/Index.razor` `<style>`.
-- **ShouldRender() optimisation**: MealCell overrides `ShouldRender()` — compares `_renderedItems` (via `ItemsEqual`: id/quantity/order), `_renderedMealId`, `_renderedIsBeingDragged`, `_renderedIsActionTarget`, `_renderedClearPrimed`, `_renderedPaymentTypes` (snapshot of `GetCurrentPaymentTypes()`) against current params. Snapshot updated in `OnAfterRenderAsync`. Skips re-render when parent rebuilds but cell data hasn't changed.
+- **Payment badge**: each item line shows small TR/CB badge(s) (`.payment-badge-tr` blue / `.payment-badge-cb` purple). Item slots: from `ItemSupplierCache.GetBestSupplier(itemId)`. Recipe slots: from `GetRecipePaymentTypes(item)` — iterates `item.RecipeIngredientItemIds`, calls `Cache.GetBestSupplier` per ingredient, returns distinct ordered `PaymentType` list. CSS: text-only colored label (no border/background). CSS defined in `DayPlan/Index.razor` `<style>`.
+- **CSS item row layout**: `.meal-cell` list uses `display: grid; grid-template-columns: 1fr auto auto`. Each `.meal-cell-item` spans all 3 columns via `subgrid` — name col 1, `.meal-cell-item-badges` col 2 (badges), `.meal-cell-item-price` col 3 (price). Ensures badges and prices align across all rows.
+- **ShouldRender() optimisation**: MealCell overrides `ShouldRender()` — compares `_renderedItems` (via `ItemsEqual`: id/quantity/order), `_renderedMealId`, `_renderedIsBeingDragged`, `_renderedIsActionTarget`, `_renderedClearPrimed`, `_renderedPaymentTypes` (snapshot of `GetCurrentPaymentTypes()`) against current params. `GetCurrentPaymentTypes()` includes both direct item IDs and recipe ingredient item IDs so ShouldRender detects cache changes for recipe slots. Snapshot updated in `OnAfterRenderAsync`. Skips re-render when parent rebuilds but cell data hasn't changed.
 - **Fire-and-forget JS drag calls**: `setFooterDragSource` and `clearFooterDragSource` use `_ = JS.InvokeVoidAsync(...)` (non-blocking) — drag start/end must not block Blazor's event thread.
 
 ### Add drawer (DayPlan/Index)
@@ -290,7 +293,7 @@ All operations use `_saving` overlay. Implemented as immediate API calls (no con
 
 **`DELETE /api/meals/batch`** — body: `DeleteMealsBatchRequest { List<int> Ids }`. Always returns 204 (unknown IDs silently ignored). Service: `DeleteBatchAsync(List<int>)` → `Task` (not `Task<bool>` — bulk delete is fire-and-forget at HTTP level).
 
-**`POST /api/meals/random-fill`** — body: `RandomFillRequest { CustomerId, Year, Month }`. Returns `List<DailyMenuResponse>` (only newly created + pre-existing daily menus for that month). Service skips days that already have ≥1 meal. Item ranges per type: Breakfast(0-2), MorningSnack(0-1), Lunch(1-3), AfternoonSnack(0-1), Dinner(1-3). Uses only items with at least one available `ItemSupplier`. Returns `[]` if customer not found or no available items.
+**`POST /api/meals/random-fill`** — body: `RandomFillRequest { CustomerId, Year, Month }`. Returns `List<DailyMenuResponse>` (only newly created + pre-existing daily menus for that month). Service skips days that already have ≥1 meal. Item ranges per type: Breakfast(0-2), MorningSnack(0-1), Lunch(1-3), AfternoonSnack(0-1), Dinner(1-3). Pool = available items (≥1 available `ItemSupplier`) **+ all recipes** — picked randomly from combined pool. Recipe MealItems get `Unit = Piece`. Response includes full recipe ThenInclude chain so `RecipeIngredientItemIds` is populated. Returns `[]` if customer not found and both pools empty.
 
 ---
 
@@ -301,21 +304,35 @@ All operations use `_saving` overlay. Implemented as immediate API calls (no con
 - SortableJS cross-cell drag supports Ctrl at drop time = copy (item added to target, source untouched).
 - Backend: `PATCH /mealitems/{id}/move` (cross-cell), `PATCH /mealitems/reorder` (same-slot).
 - `MealItem.Order` — 1-based, gap-free, auto-renumbered on move.
-- `MealItemResponse` includes `Order`, `UnitPrice`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`, `Unit`, `RecipeId?`, `RecipeName?`, `RecipeEstimatedCost?`.
+- `MealItemResponse` includes `Order`, `UnitPrice`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`, `Unit`, `RecipeId?`, `RecipeName?`, `RecipeEstimatedCost?`, `RecipeIngredientItemIds` (List\<int\>).
+
+---
+
+## CostHelper (`Client/Helpers/CostHelper.cs`)
+
+Static helper class — canonical cost formulas shared across `MealCell`, `DayPlan/Index`, `ShoppingCart`.
+
+- `PackageCost(totalQty, contentQty, unitPrice)` → `ceil(totalQty / contentQty) * unitPrice`. Guards `contentQty <= 0`.
+- `ComputeItemCost(MealItemResponse item, decimal? bestUnitPrice = null)` — recipe: `RecipeEstimatedCost * Quantity`; item: `PackageCost(Quantity, ContentQuantity, bestUnitPrice ?? item.UnitPrice)`. `bestUnitPrice` comes from `ItemSupplierCache` and takes priority over the DTO field.
 
 ---
 
 ## Shopping Cart (right panel)
 
 - `RightPanelState` — scoped service, global `MudDrawer` in `MainLayout`. Any page can push content.
-- `ShoppingCart.razor` — fed by DayPlan/Index on every `LoadAsync()`. Implements `IDisposable`; unsubscribes from `RightPanel.OnChange` on dispose.
+- `ShoppingCart.razor` — fed by DayPlan/Index on every `LoadAsync()`. Parameters: `Items` (`IEnumerable<MealItemResponse>`), `Recipes` (`IEnumerable<RecipeResponse>`). Implements `IDisposable`; unsubscribes from `RightPanel.OnChange` on dispose.
 - **`ItemSupplierCache`** (`Client/Services/ItemSupplierCache.cs`) — scoped service. Calls `GET /api/itemsuppliers/best-by-item` once per DayPlan load (`EnsureLoadedAsync()`), caches `Dictionary<int, BestSupplierInfo>`. `GetBestSupplier(itemId)` returns cheapest available supplier info. Shared by `ShoppingCart` and `MealCell`.
 - **Enriched display** (`_supplierDataLoaded = true`):
   - Items grouped by `(PaymentType, CompanyName)` of the **cheapest available supplier** per item. Group header color: TR = blue `#1565C0`, CB = purple `#6A1B9A`.
-  - `EnrichedShoppingLine` (private record): Name, TotalQuantity, Unit, ContentQuantity, PackagesToBuy, BestCost, RetainedSupplierName, RetainedPaymentType.
-  - Footer shows **best total** only (items + recipes combined). Worst/avg removed.
-- **Fallback display** (`_supplierDataLoaded = false`): classic flat list with `_hasMissingPrices` warning.
-- **Recettes** section unchanged: aggregated by `RecipeId`, line total = `RecipeEstimatedCost * totalQty`.
+  - Each item line: name + package chip | qty + unit price + price/kg or /L + cost + % of total.
+  - `EnrichedShoppingLine` (private record): Name, TotalQuantity, Unit, ContentQuantity, **ContentUnit**, PackagesToBuy, **UnitPrice**, BestCost, RetainedSupplierName, RetainedPaymentType.
+  - `ComputePricePerKgL(unitPrice, contentQty, contentUnit)` — returns formatted €/kg or €/L for Gram/Kilogram/Milliliter/Liter units; null otherwise.
+  - **Pinned footer** (sticky bottom): TR total | CB total | grand total. TR/CB computed per-item (via `ItemSupplierCache`) and per-recipe-ingredient (via `Recipes` param + `RecipeIngredientItemIds`). `_footerTotal = _trTotal + _cbTotal`.
+  - `_bestTotal` kept for per-line % computation (grouped items only, not used as footer total).
+  - Refresh: if item IDs unchanged but quantities or recipes changed, `ComputeEnrichedLines()` is called directly (no full reload).
+- **Fallback display** (`_supplierDataLoaded = false`): classic flat list with `_hasMissingPrices` warning (inline, above footer).
+- **Recettes** section: aggregated by `RecipeId`, line total = `RecipeEstimatedCost * totalQty`, shown as `×qty cost`.
+- `FmtMoney(decimal)` / `FmtQty(decimal, maxDec)` — shared formatting helpers (FR locale, no trailing zeros).
 
 ---
 

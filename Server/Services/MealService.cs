@@ -1,6 +1,7 @@
 using MenuManager.Server.Data;
 using MenuManager.Shared.DTOs;
 using MenuManager.Shared.Entities;
+using MenuManager.Shared.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace MenuManager.Server.Services;
@@ -117,7 +118,11 @@ public class MealService : IMealService
             .Select(i => new { i.Id, i.PurchaseUnit })
             .ToListAsync();
 
-        if (availableItems.Count == 0) return [];
+        var availableRecipes = await _db.Recipes
+            .Select(r => r.Id)
+            .ToListAsync();
+
+        if (availableItems.Count == 0 && availableRecipes.Count == 0) return [];
 
         var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
         var monthStart = new DateOnly(request.Year, request.Month, 1);
@@ -170,17 +175,23 @@ public class MealService : IMealService
                 var meal = new Meal { MealType = mealType, DailyMenu = dailyMenu };
                 _db.Meals.Add(meal);
 
-                var pickedItems = availableItems.OrderBy(_ => rng.Next()).Take(count).ToList();
+                // Build a combined pool: each entry is either an item or a recipe
+                var itemPool = availableItems.Select(i => (isRecipe: false, itemId: (int?)i.Id, recipeId: (int?)null, unit: i.PurchaseUnit));
+                var recipePool = availableRecipes.Select(r => (isRecipe: true, itemId: (int?)null, recipeId: (int?)r, unit: MeasurementUnit.Piece));
+                var pool = itemPool.Concat(recipePool).ToList();
+
+                var picked = pool.OrderBy(_ => rng.Next()).Take(count).ToList();
                 int order = 1;
-                foreach (var item in pickedItems)
+                foreach (var entry in picked)
                 {
                     _db.MealItems.Add(new MealItem
                     {
-                        ItemId = item.Id,
+                        ItemId = entry.itemId,
+                        RecipeId = entry.recipeId,
                         Meal = meal,
                         Quantity = 1,
                         Order = order++,
-                        Unit = item.PurchaseUnit
+                        Unit = entry.unit
                     });
                 }
             }
@@ -196,6 +207,12 @@ public class MealService : IMealService
                 .ThenInclude(m => m.MealItems)
                     .ThenInclude(mi => mi.Item)
                         .ThenInclude(i => i!.ItemSuppliers)
+            .Include(dm => dm.Meals)
+                .ThenInclude(m => m.MealItems)
+                    .ThenInclude(mi => mi.Recipe)
+                        .ThenInclude(r => r!.RecipeIngredients)
+                            .ThenInclude(ri => ri.Item)
+                                .ThenInclude(i => i!.ItemSuppliers)
             .AsNoTracking()
             .ToListAsync();
 
@@ -231,6 +248,10 @@ public class MealService : IMealService
         Id = mi.Id,
         ItemId = mi.ItemId ?? 0,
         ItemName = mi.Item?.Name ?? "",
+        RecipeId = mi.RecipeId,
+        RecipeName = mi.Recipe?.Name,
+        RecipeEstimatedCost = mi.Recipe != null ? RecipeService.ComputeRecipeCost(mi.Recipe) : null,
+        RecipeIngredientItemIds = mi.Recipe?.RecipeIngredients.Select(ri => ri.ItemId).ToList() ?? [],
         Quantity = mi.Quantity,
         Notes = mi.Notes,
         Order = mi.Order,
@@ -238,7 +259,7 @@ public class MealService : IMealService
         MealId = mi.MealId,
         UnitPrice = mi.Item?.ItemSuppliers
             .Where(s => s.IsAvailable)
-            .OrderBy(s => s.SupplierId)
+            .OrderBy(s => s.UnitPrice)
             .Select(s => (decimal?)s.UnitPrice)
             .FirstOrDefault(),
         ContentQuantity = mi.Item?.ContentQuantity ?? 1,

@@ -3,6 +3,8 @@
 @inject CustomerService CustomerSvc
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject ThemeState ThemeState
+@implements IDisposable
 
 <PageTitle>Menu Plans</PageTitle>
 
@@ -34,13 +36,19 @@ else
                         @{
                             var isCurrentMonth = slot.Month == DateTime.Now.Month && slot.Year == DateTime.Now.Year;
                             var hasData = slot.Summary?.HasMeals ?? false;
-                            var btnColor = isCurrentMonth ? Color.Default : hasData ? Color.Primary : Color.Default;
+                            var btnColor = isCurrentMonth ? Color.Success : hasData ? Color.Primary : Color.Default;
                             var btnVariant = isCurrentMonth || hasData ? Variant.Filled : Variant.Outlined;
-                            var btnClass = isCurrentMonth ? "btn-month-current" : "";
+                            var darkStyle = ThemeState.IsDarkMode
+                                ? isCurrentMonth
+                                    ? "background:#0B2116 !important; color:#7EC89A !important; border:1px solid #173D28 !important;"
+                                    : hasData
+                                        ? "background:#071525 !important; color:#5B9EC9 !important; border:1px solid #102844 !important;"
+                                        : "border-color:rgba(255,255,255,0.18) !important; color:rgba(255,255,255,0.38) !important;"
+                                : null;
                         }
                         <MudCardActions Style="display: flex; justify-content: space-between; align-items: center;">
                             <MudButton Variant="@btnVariant" Color="@btnColor" Size="Size.Small"
-                                       Class="@btnClass"
+                                       Style="@darkStyle"
                                        StartIcon="@Icons.Material.Filled.CalendarMonth"
                                        OnClick="@(() => Nav.NavigateTo($"dayplans?customerId={CustomerId}&year={slot.Year}&month={slot.Month}"))">
                                 Voir le planning
@@ -60,10 +68,6 @@ else
 }
 
 <style>
-    .btn-month-current {
-        background-color: #1B5E20 !important;
-        color: #fff !important;
-    }
     .monthly-cost {
         font-family: monospace;
         color: var(--mud-palette-text-secondary);
@@ -82,7 +86,13 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        ThemeState.OnChange += StateHasChanged;
         await LoadAsync();
+    }
+
+    public void Dispose()
+    {
+        ThemeState.OnChange -= StateHasChanged;
     }
 
     private async Task LoadAsync()

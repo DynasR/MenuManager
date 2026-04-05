@@ -22,7 +22,7 @@ Blazor WASM (PWA) + MudBlazor · ASP.NET Core Web API (.NET 9) · EF Core 9 + Po
 ## État du projet (2026-04-06)
 
 ### Backend — complet
-8 slices : Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem.
+9 slices : Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem, Recipe.
 Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory).
 
 ### Frontend — complet
@@ -33,13 +33,13 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Item         | FK Category, PurchaseUnit + ContentQuantity + ContentUnit (refactorisé)          |
 | Supplier     | Party + CompanyName, Siret, **PaymentType** (TR/CB)                              |
 | Customer     | Party + **PaymentType** (TR/CB) — CalendarMonth → `/menuplan/{id}`               |
-| ItemSupplier | PK composite, pattern 404/409                                                    |
-| MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards sur 3 ans. Données via `GET /api/dailymenus/{customerId}/monthly-summary` (HasMeals, MonthlyCost). Bouton "Voir le planning" → navigation directe `dayplans?customerId=X&year=Y&month=M`, pas de création serveur. |
-| DayPlan/Index | Calendrier mensuel. Tiroir d'ajout à **2 onglets (Items / Recettes)**. Recettes ajoutables dans les slots. Calcul coût via `ComputeItemCost`. Copy/clone/cell-drag recipe-aware. Dark mode chips inline via `ThemeState`. Charge `ItemSupplierCache` sur `OnInitializedAsync`. |
-| MealCell | **`ShouldRender()` override** — compare items (id/qty/order), MealId, IsBeingDragged, IsActionTarget, _clearPrimed, paymentTypes snapshot ; JS drag fire-and-forget. **Badge TR/CB** inline à côté du prix de chaque item. |
-| Recipe       | ✅ `/recipes` — MudDataGrid + HierarchyColumn (ingrédients inline), RecipeDialog (create/edit), coût estimé par recette |
-| Layout       | **3 thèmes** : Light (palette chaude), Dark (navy), Custom (noir pur). `ThemeState` + bouton CycleTheme dans AppBar. Persisté localStorage. AppBar dégradé marine fixe. |
-| Shopping Cart | **`ItemSupplierCache`** : chargé une fois au démarrage de DayPlan (`GET /api/itemsuppliers/best-by-item`). Items groupés par meilleur fournisseur (TR bleu / CB violet). Affiche **best total uniquement** (worst/avg supprimés). Fallback si non chargé. Partagé avec `MealCell` pour les badges TR/CB. |
+| ItemSupplier | PK composite, pattern 404/409 ; dropdown `CompanyName ?? Name` ; colonnes FK non-éditables |
+| MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards 3 ans. HasData coloring. **Dark mode** via `ThemeState` (inline styles dynamiques). |
+| DayPlan/Index | Calendrier mensuel. Tiroir 2 onglets (Items / Recettes). **_monthTotal badge** dans l'en-tête Date. `ComputeItemCost` via `CostHelper`. Badges TR/CB recipe-aware. |
+| MealCell | `ShouldRender()` override. Badges TR/CB : items via cache direct, recettes via `GetRecipePaymentTypes` (ingrédients). CSS subgrid (nom / badges / prix alignés). |
+| Recipe       | `/recipes` — MudDataGrid + HierarchyColumn, RecipeDialog, coût estimé par recette |
+| Layout       | 3 thèmes (Light/Dark/Custom). `ThemeState` + CycleTheme. Persisté localStorage. |
+| Shopping Cart | `ItemSupplierCache` partagé. Items groupés par fournisseur. **Footer épinglé TR/CB/Total**. `Recipes` param pour coûts par ingrédient. `ComputePricePerKgL` (€/kg, €/L). |
 
 ---
 
@@ -52,14 +52,17 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **MonthlyCost** calculé serveur-side (`ceil(qty / ContentQuantity) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
 - **Recettes dans les slots** — `MealItem` peut référencer un `Item` ou une `Recipe` (champs `ItemId?` / `RecipeId?`). Coût recette = `RecipeEstimatedCost * Quantity`. Shopping Cart distingue les deux sections.
 - **PaymentType** — enum `TR | CB` ajouté sur `Supplier` et `Customer`. Deux migrations séparées. Seed : Carrefour=TR, Leclerc=CB, Dynas=TR, Marlène=CB.
-- **Shopping Cart enrichi** — `ItemSupplierCache` (service scoped) chargé une fois sur `OnInitializedAsync` de DayPlan (`GET /api/itemsuppliers/best-by-item`). Meilleur fournisseur par item en mémoire → partagé avec `MealCell` (badge TR/CB). Shopping Cart groupe par fournisseur retenu, affiche best total. Endpoint `POST /api/itemsuppliers/by-items` conservé mais n'est plus utilisé par le panier.
+- **Shopping Cart enrichi** — `ItemSupplierCache` (service scoped) chargé une fois sur `OnInitializedAsync` de DayPlan (`GET /api/itemsuppliers/best-by-item`). Meilleur fournisseur par item en mémoire → partagé avec `MealCell` (badge TR/CB). Shopping Cart groupe par fournisseur retenu, **footer épinglé TR/CB/Total**. Endpoint `POST /api/itemsuppliers/by-items` conservé mais n'est plus utilisé par le panier.
 - **CHECK constraints PaymentType** — migration `AddPaymentTypeCheckConstraints` : `PaymentType IN (0, 1)` sur Suppliers et Customers.
 - **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
 - **Bulk clear** — `DELETE /api/meals/batch` (body JSON, toujours 204). Vider-ligne, vider-colonne, vider-mois utilisent tous ce même endpoint. Pattern confirm-intent : prime (mousedown rouge) + dbl-clic exécute.
-- **Random fill** — `POST /api/meals/random-fill`. Remplit les jours vides du mois avec des items disponibles aléatoires. Skip les jours qui ont déjà des repas.
+- **Random fill** — `POST /api/meals/random-fill`. Pool = items disponibles + **toutes les recettes**. Skip les jours qui ont déjà des repas.
 - **Drag & drop immédiat** — plus de "Save All" / `_pendingMoves`. Tout appel API se fait au moment du drop. Overlay sombre pendant l'async.
 - **SortableJS copy** — Ctrl au lâcher d'un item cross-cell = copie (ghost visible à la source pendant le drag).
-- **Thème** — 3 thèmes (Light/Dark/Custom), `ThemeState` scoped service, persisté localStorage.
+- **Thème** — 3 thèmes (Light/Dark/Custom), `ThemeState` scoped service, persisté localStorage. `MenuPlan/Index` dark mode : inline styles dynamiques via `ThemeState.OnChange`.
+- **CostHelper** — `Client/Helpers/CostHelper.cs` : `PackageCost` + `ComputeItemCost` — formules canoniques partagées par `MealCell`, `DayPlan/Index`, `ShoppingCart`. Fin de la duplication.
+- **Fix UnitPrice mapping** — les services (`MealItemService`, `DailyMenuService`, `MealService`) utilisaient `OrderBy(s => s.SupplierId)` pour le prix unitaire affiché → corrigé en `OrderBy(s => s.UnitPrice)` (vraiment le moins cher).
+- **MealItemResponse.RecipeIngredientItemIds** — liste des `ItemId` des ingrédients d'une recette, propagée depuis le serveur. Permet aux badges TR/CB de la `MealCell` et au footer TR/CB du `ShoppingCart` de coûter les recettes par ingrédient.
 - **Tests** — SQLite in-memory uniquement.
 
 ---
@@ -73,6 +76,7 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 ### DayPlan/Index
 - Total par semaine
 - Dialogue de confirmation pour les actions destructives (vider ligne/colonne/mois)
+- Affichage des ingrédients dans la MealCell (tooltip ou expand sur les recettes)
 
 ### Détails financiers
 - Coût moyen et médian par jour/semaine/mois
@@ -83,7 +87,6 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 
 ### Recettes
 - Calcul coût par portion (BaseServings)
-- Affichage des ingrédients dans la MealCell (tooltip ou expand)
 
 ---
 
