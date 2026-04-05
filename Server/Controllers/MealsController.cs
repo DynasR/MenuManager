@@ -58,4 +58,18 @@ public class MealsController : ControllerBase
         var deleted = await _service.DeleteAsync(id);
         return deleted ? NoContent() : NotFound();
     }
+
+    [HttpDelete("batch")]
+    public async Task<IActionResult> DeleteBatch(DeleteMealsBatchRequest request)
+    {
+        await _service.DeleteBatchAsync(request.Ids);
+        return NoContent();
+    }
+
+    [HttpPost("random-fill")]
+    public async Task<ActionResult<List<DailyMenuResponse>>> RandomFill(RandomFillRequest request)
+    {
+        var result = await _service.RandomFillAsync(request);
+        return Ok(result);
+    }
 }

@@ -12,6 +12,8 @@ public interface IMealService
     Task<CreateMealResult> CreateAsync(CreateMealRequest request);
     Task<MealResponse?> UpdateAsync(int id, UpdateMealRequest request);
     Task<bool> DeleteAsync(int id);
+    Task DeleteBatchAsync(List<int> ids);
+    Task<List<DailyMenuResponse>> RandomFillAsync(RandomFillRequest request);
 }
 
 public class MealService : IMealService
@@ -91,6 +93,114 @@ public class MealService : IMealService
         return true;
     }
 
+    public async Task DeleteBatchAsync(List<int> ids)
+    {
+        if (ids.Count == 0) return;
+
+        var meals = await _db.Meals
+            .Where(m => ids.Contains(m.Id))
+            .ToListAsync();
+
+        if (meals.Count == 0) return;
+
+        _db.Meals.RemoveRange(meals);
+        await _db.SaveChangesAsync();
+    }
+
+    public async Task<List<DailyMenuResponse>> RandomFillAsync(RandomFillRequest request)
+    {
+        var customerExists = await _db.Customers.AnyAsync(c => c.Id == request.CustomerId);
+        if (!customerExists) return [];
+
+        var availableItemIds = await _db.Items
+            .Where(i => i.ItemSuppliers.Any(s => s.IsAvailable))
+            .Select(i => i.Id)
+            .ToListAsync();
+
+        if (availableItemIds.Count == 0) return [];
+
+        var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
+        var monthStart = new DateOnly(request.Year, request.Month, 1);
+        var monthEnd = new DateOnly(request.Year, request.Month, daysInMonth);
+
+        // Load existing daily menus; skip days that already have at least one meal
+        var existingDailyMenus = await _db.DailyMenus
+            .Include(dm => dm.Meals)
+            .Where(dm => dm.CustomerId == request.CustomerId
+                      && dm.Date >= monthStart
+                      && dm.Date <= monthEnd)
+            .ToListAsync();
+
+        var datesWithMeals = existingDailyMenus
+            .Where(dm => dm.Meals.Count > 0)
+            .Select(dm => dm.Date)
+            .ToHashSet();
+
+        // Generate random meals
+        var rng = new Random();
+        (MealType type, int min, int max)[] ranges =
+        [
+            (MealType.Breakfast,      0, 2),
+            (MealType.MorningSnack,   0, 1),
+            (MealType.Lunch,          1, 3),
+            (MealType.AfternoonSnack, 0, 1),
+            (MealType.Dinner,         1, 3),
+        ];
+
+        var dailyMenusByDate = existingDailyMenus.ToDictionary(dm => dm.Date);
+
+        for (int day = 1; day <= daysInMonth; day++)
+        {
+            var date = new DateOnly(request.Year, request.Month, day);
+
+            if (datesWithMeals.Contains(date)) continue;
+
+            foreach (var (mealType, min, max) in ranges)
+            {
+                var count = rng.Next(min, max + 1);
+                if (count == 0) continue;
+
+                if (!dailyMenusByDate.TryGetValue(date, out var dailyMenu))
+                {
+                    dailyMenu = new DailyMenu { Date = date, CustomerId = request.CustomerId };
+                    _db.DailyMenus.Add(dailyMenu);
+                    dailyMenusByDate[date] = dailyMenu;
+                }
+
+                var meal = new Meal { MealType = mealType, DailyMenu = dailyMenu };
+                _db.Meals.Add(meal);
+
+                var pickedIds = availableItemIds.OrderBy(_ => rng.Next()).Take(count).ToList();
+                int order = 1;
+                foreach (var itemId in pickedIds)
+                {
+                    _db.MealItems.Add(new MealItem
+                    {
+                        ItemId = itemId,
+                        Meal = meal,
+                        Quantity = 1,
+                        Order = order++
+                    });
+                }
+            }
+        }
+
+        await _db.SaveChangesAsync();
+
+        var result = await _db.DailyMenus
+            .Where(dm => dm.CustomerId == request.CustomerId
+                      && dm.Date >= monthStart
+                      && dm.Date <= monthEnd)
+            .Include(dm => dm.Meals)
+                .ThenInclude(m => m.MealItems)
+                    .ThenInclude(mi => mi.Item)
+                        .ThenInclude(i => i!.ItemSuppliers)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return result.Select(MapDailyMenuToResponse).ToList();
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private IQueryable<Meal> QueryWithIncludes() =>
@@ -98,6 +208,14 @@ public class MealService : IMealService
             .Include(m => m.MealItems)
                 .ThenInclude(mi => mi.Item)
                     .ThenInclude(i => i.ItemSuppliers);
+
+    private static DailyMenuResponse MapDailyMenuToResponse(DailyMenu dm) => new()
+    {
+        Id = dm.Id,
+        Date = dm.Date,
+        CustomerId = dm.CustomerId,
+        Meals = dm.Meals.Select(MapToResponse).ToList()
+    };
 
     private static MealResponse MapToResponse(Meal m) => new()
     {

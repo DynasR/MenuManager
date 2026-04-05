@@ -51,11 +51,31 @@ else
         </div>
         @foreach (var mt in _mealTypes)
         {
-            <div class="dayplan-grid-header">
-                <MudText Typo="Typo.subtitle2">@mt</MudText>
+            var hmt = mt;
+            var hmtKey = ((int)hmt).ToString();
+            var colTotal = GetColumnTotal(hmt);
+            <div class="dayplan-grid-header"
+                 data-colmealtype="@((int)hmt)"
+                 @onmousedown="@(() => { _ = JS.InvokeVoidAsync("addColumnPrimed", hmtKey); })"
+                 @onmouseup="@(() => { _ = JS.InvokeVoidAsync("removeColumnPrimed", hmtKey); })"
+                 @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeColumnPrimed", hmtKey); })"
+                 @ondblclick="@(() => ClearColumnAsync(hmt))">
+                <MudText Typo="Typo.subtitle2">@hmt</MudText>
+                @if (colTotal > 0)
+                {
+                    <span class="dayplan-cost-total">@colTotal.ToString("C", _frCulture)</span>
+                }
             </div>
         }
         <div class="dayplan-grid-header">
+            <div style="display: flex; flex-direction: row; align-items: center; gap: 2px;">
+                <MudTooltip Text="Vider le mois">
+                    <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" Color="Color.Error" Size="Size.Small" OnClick="ClearMonthAsync" />
+                </MudTooltip>
+                <MudTooltip Text="Remplissage aléatoire">
+                    <MudIconButton Icon="@Icons.Material.Filled.Casino" Color="Color.Secondary" Size="Size.Small" OnClick="RandomFillAsync" />
+                </MudTooltip>
+            </div>
         </div>
 
         @* Day rows *@
@@ -73,7 +93,8 @@ else
                  data-rowdate="@rowDateStr"
                  @onmousedown="@(() => { _ = JS.InvokeVoidAsync("addRowPrimed", rowDateStr); })"
                  @onmouseup="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
-                 @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })">
+                 @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
+                 @ondblclick="@(() => ClearRowAsync(date))">
                 @if (isHoliday)
                 {
                     <MudTooltip Text="@holidayName" Placement="Placement.Right">
@@ -97,7 +118,7 @@ else
                 var meal = dm?.Meals.FirstOrDefault(m => m.MealType == mt);
                 var capturedDate = date;
                 var capturedMt = mt;
-                <div class="@cellCssClass" data-rowdate="@rowDateStr">
+                <div class="@cellCssClass" data-rowdate="@rowDateStr" data-colmealtype="@((int)capturedMt)">
                     <MealCell Date="capturedDate"
                               MealType="capturedMt"
                               MealId="meal?.Id"
@@ -114,14 +135,22 @@ else
                               OnCellClearRequested="ClearCellAsync" />
                 </div>
             }
+            var rowTotal = GetRowTotal(date);
             <div class="dayplan-grid-date-right @dateCssClass"
                  data-rowdate="@rowDateStr"
                  @onmousedown="@(() => { _ = JS.InvokeVoidAsync("addRowPrimed", rowDateStr); })"
                  @onmouseup="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
-                 @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })">
-                <div class="date-label">
-                    <span class="date-label-dow @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
-                    <span class="date-label-num @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", _frCulture)</span>
+                 @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
+                 @ondblclick="@(() => ClearRowAsync(date))">
+                <div class="date-right-inner">
+                    <div class="date-label">
+                        <span class="date-label-dow @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
+                        <span class="date-label-num @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", _frCulture)</span>
+                    </div>
+                    @if (rowTotal > 0)
+                    {
+                        <span class="dayplan-cost-total">@rowTotal.ToString("C", _frCulture)</span>
+                    }
                 </div>
             </div>
         }
@@ -243,6 +272,28 @@ else
         padding: 8px;
         text-align: center;
         font-weight: 600;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .date-right-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .dayplan-cost-total {
+        font-size: 0.68rem;
+        font-weight: 600;
+        color: var(--mud-palette-info);
+        white-space: nowrap;
+        border-radius: 4px;
+        border: 1px solid color-mix(in srgb, var(--mud-palette-success) 35%, transparent);
+        background: color-mix(in srgb, var(--mud-palette-success) 6%, transparent);
+        padding: 1px 5px;
     }
 
     .dayplan-grid-date {
@@ -454,6 +505,22 @@ else
     }
 
     .dayplan-grid-cell.row-primed .meal-cell {
+        background: color-mix(in srgb, var(--mud-palette-error) 10%, var(--mud-palette-surface)) !important;
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-error) 35%, transparent),
+                    inset 0 0 14px color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
+        transition: background-color 80ms ease, box-shadow 80ms ease;
+    }
+
+    .dayplan-grid-header.column-primed {
+        background: color-mix(in srgb, var(--mud-palette-error) 8%, var(--mud-palette-surface)) !important;
+        transition: background-color 80ms ease;
+    }
+
+    .dayplan-grid-header.column-primed .mud-typography {
+        color: var(--mud-palette-error) !important;
+    }
+
+    .dayplan-grid-cell.column-primed .meal-cell {
         background: color-mix(in srgb, var(--mud-palette-error) 10%, var(--mud-palette-surface)) !important;
         box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mud-palette-error) 35%, transparent),
                     inset 0 0 14px color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
@@ -742,6 +809,104 @@ else
         }
     }
 
+    private async Task ClearColumnAsync(MealType mealType)
+    {
+        _ = JS.InvokeVoidAsync("removeColumnPrimed", ((int)mealType).ToString());
+
+        var mealIds = _dayMenuByDate.Values
+            .SelectMany(dm => dm.Meals)
+            .Where(m => m.MealType == mealType)
+            .Select(m => m.Id)
+            .ToList();
+        if (mealIds.Count == 0) return;
+
+        _saving = true;
+        StateHasChanged();
+        try
+        {
+            var success = await MealSvc.DeleteBatchAsync(mealIds);
+            if (!success) Snackbar.Add("Suppression de la colonne échouée.", Severity.Error);
+            await LoadAsync();
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearRowAsync(DateOnly date)
+    {
+        var rowDateStr = date.ToString("yyyy-MM-dd");
+        _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr);
+
+        var dm = _dayMenuByDate.GetValueOrDefault(date);
+        if (dm is null) return;
+
+        var mealIds = dm.Meals.Select(m => m.Id).ToList();
+        if (mealIds.Count == 0) return;
+
+        _saving = true;
+        StateHasChanged();
+        try
+        {
+            var success = await MealSvc.DeleteBatchAsync(mealIds);
+            if (!success) Snackbar.Add("Suppression de la ligne échouée.", Severity.Error);
+            await LoadAsync();
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearMonthAsync()
+    {
+        var mealIds = _dayMenuByDate.Values
+            .SelectMany(dm => dm.Meals)
+            .Select(m => m.Id)
+            .ToList();
+        if (mealIds.Count == 0) return;
+
+        _saving = true;
+        StateHasChanged();
+        try
+        {
+            var success = await MealSvc.DeleteBatchAsync(mealIds);
+            if (!success) { Snackbar.Add("Suppression du mois échouée.", Severity.Error); return; }
+            _dayMenuByDate.Clear();
+            _monthlySummary = await DailyMenuSvc.GetMonthlySummaryAsync(CustomerId);
+            BuildMonthNav();
+            UpdateShoppingCart();
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RandomFillAsync()
+    {
+        _saving = true;
+        StateHasChanged();
+        try
+        {
+            var result = await MealSvc.RandomFillAsync(CustomerId, Year, Month);
+            if (result is null) { Snackbar.Add("Remplissage aléatoire échoué.", Severity.Error); return; }
+            _dayMenuByDate = result.ToDictionary(dm => dm.Date);
+            _monthlySummary = await DailyMenuSvc.GetMonthlySummaryAsync(CustomerId);
+            BuildMonthNav();
+            UpdateShoppingCart();
+        }
+        finally
+        {
+            _saving = false;
+            StateHasChanged();
+        }
+    }
+
     private void BuildMonthNav()
     {
         _monthNav = [];
@@ -755,6 +920,20 @@ else
             _monthNav.Add(new MonthNavItem(d.Month, d.Year, label, abbr, match?.HasMeals ?? false));
         }
     }
+
+    private decimal GetRowTotal(DateOnly date) =>
+        _dayMenuByDate.TryGetValue(date, out var dm)
+            ? dm.Meals.SelectMany(m => m.MealItems)
+                .Where(i => i.UnitPrice.HasValue)
+                .Sum(i => Math.Ceiling(i.Quantity / i.PackageSize) * i.UnitPrice!.Value)
+            : 0;
+
+    private decimal GetColumnTotal(MealType mealType) =>
+        _dayMenuByDate.Values
+            .SelectMany(dm => dm.Meals.Where(m => m.MealType == mealType))
+            .SelectMany(m => m.MealItems)
+            .Where(i => i.UnitPrice.HasValue)
+            .Sum(i => Math.Ceiling(i.Quantity / i.PackageSize) * i.UnitPrice!.Value);
 
     private void NavigateToMonth(MonthNavItem month)
     {

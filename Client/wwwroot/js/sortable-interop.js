@@ -212,6 +212,13 @@
 
     // --- Row primed highlight (mousedown on date cell) ---
     window.addRowPrimed = function (date) {
+        // Clear any active column-primed first — only one primed axis at a time
+        document.querySelectorAll('.column-primed').forEach(function (el) {
+            el.classList.remove('column-primed');
+            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
+                t.classList.remove('total-primed');
+            });
+        });
         document.querySelectorAll('[data-rowdate="' + date + '"]').forEach(function (el) {
             el.classList.add('row-primed');
             el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
@@ -223,6 +230,32 @@
     window.removeRowPrimed = function (date) {
         document.querySelectorAll('[data-rowdate="' + date + '"]').forEach(function (el) {
             el.classList.remove('row-primed');
+            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
+                t.classList.remove('total-primed');
+            });
+        });
+    };
+
+    // --- Column primed highlight (mousedown on MealType header) ---
+    window.addColumnPrimed = function (mealType) {
+        // Clear any active row-primed first — only one primed axis at a time
+        document.querySelectorAll('.row-primed').forEach(function (el) {
+            el.classList.remove('row-primed');
+            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
+                t.classList.remove('total-primed');
+            });
+        });
+        document.querySelectorAll('[data-colmealtype="' + mealType + '"]').forEach(function (el) {
+            el.classList.add('column-primed');
+            el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
+                t.classList.add('total-primed');
+            });
+        });
+    };
+
+    window.removeColumnPrimed = function (mealType) {
+        document.querySelectorAll('[data-colmealtype="' + mealType + '"]').forEach(function (el) {
+            el.classList.remove('column-primed');
             el.querySelectorAll('.meal-cell-slot-total').forEach(function (t) {
                 t.classList.remove('total-primed');
             });

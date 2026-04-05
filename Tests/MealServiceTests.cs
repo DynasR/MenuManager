@@ -224,4 +224,161 @@ public class MealServiceTests : IDisposable
         result.Should().BeTrue();
         _db.Meals.Should().BeEmpty();
     }
+
+    // ── DeleteBatchAsync ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DeleteBatchAsync_RemovesKnownIds_IgnoresUnknownIds()
+    {
+        var dailyMenu = await SeedDailyMenuAsync();
+        var meal1 = await SeedMealAsync(dailyMenu, MealType.Breakfast);
+        var meal2 = await SeedMealAsync(dailyMenu, MealType.Lunch);
+
+        await _service.DeleteBatchAsync([meal1.Id, 999]);
+
+        _db.Meals.Should().HaveCount(1);
+        _db.Meals.Single().Id.Should().Be(meal2.Id);
+    }
+
+    [Fact]
+    public async Task DeleteBatchAsync_EmptyList_DoesNothing()
+    {
+        var dailyMenu = await SeedDailyMenuAsync();
+        await SeedMealAsync(dailyMenu);
+
+        await _service.DeleteBatchAsync([]);
+
+        _db.Meals.Should().HaveCount(1);
+    }
+
+    // ── RandomFillAsync ──────────────────────────────────────────────────────
+
+    private async Task<(Customer customer, Item item)> SeedCustomerAndAvailableItemAsync()
+    {
+        var customer = new Customer
+        {
+            Name = "Bob",
+            PasswordHash = [],
+            PasswordSalt = [],
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Customers.Add(customer);
+
+        var category = new Category { Name = "Food" };
+        _db.Categories.Add(category);
+
+        await _db.SaveChangesAsync();
+
+        var supplier = new Supplier
+        {
+            Name = "Shop",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Suppliers.Add(supplier);
+
+        var item = new Item
+        {
+            Name = "Apple",
+            Unit = MeasurementUnit.Piece,
+            PackageSize = 1,
+            CategoryId = category.Id,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Items.Add(item);
+
+        await _db.SaveChangesAsync();
+
+        _db.ItemSuppliers.Add(new ItemSupplier
+        {
+            ItemId = item.Id,
+            SupplierId = supplier.Id,
+            UnitPrice = 1.50m,
+            IsAvailable = true,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
+
+        return (customer, item);
+    }
+
+    [Fact]
+    public async Task RandomFillAsync_CustomerNotFound_ReturnsEmpty()
+    {
+        var result = await _service.RandomFillAsync(new RandomFillRequest
+        {
+            CustomerId = 999,
+            Year = 2026,
+            Month = 3
+        });
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RandomFillAsync_NoAvailableItems_ReturnsEmpty()
+    {
+        var dailyMenu = await SeedDailyMenuAsync(); // seeds a customer
+
+        var result = await _service.RandomFillAsync(new RandomFillRequest
+        {
+            CustomerId = dailyMenu.CustomerId,
+            Year = 2026,
+            Month = 3
+        });
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task RandomFillAsync_CreatesOneDailyMenuPerDayOfMonth()
+    {
+        var (customer, _) = await SeedCustomerAndAvailableItemAsync();
+        var daysInMonth = DateTime.DaysInMonth(2026, 3);
+
+        var result = await _service.RandomFillAsync(new RandomFillRequest
+        {
+            CustomerId = customer.Id,
+            Year = 2026,
+            Month = 3
+        });
+
+        // Lunch (1-3) and Dinner (1-3) guarantee every day has at least one meal
+        result.Should().HaveCount(daysInMonth);
+        result.Should().AllSatisfy(dm => dm.CustomerId.Should().Be(customer.Id));
+        result.Should().AllSatisfy(dm => dm.Meals.Should().NotBeEmpty());
+    }
+
+    [Fact]
+    public async Task RandomFillAsync_SkipsDaysWithExistingMeals()
+    {
+        var (customer, _) = await SeedCustomerAndAvailableItemAsync();
+
+        // Seed an existing daily menu with a meal for March 1
+        var existing = new DailyMenu { Date = new DateOnly(2026, 3, 1), CustomerId = customer.Id };
+        _db.DailyMenus.Add(existing);
+        await _db.SaveChangesAsync();
+        var existingMeal = new Meal { MealType = MealType.Breakfast, DailyMenuId = existing.Id };
+        _db.Meals.Add(existingMeal);
+        await _db.SaveChangesAsync();
+
+        await _service.RandomFillAsync(new RandomFillRequest
+        {
+            CustomerId = customer.Id,
+            Year = 2026,
+            Month = 3
+        });
+
+        // Existing meal on March 1 must still be there (day was skipped)
+        var stillExists = await _db.Meals.AnyAsync(m => m.Id == existingMeal.Id);
+        stillExists.Should().BeTrue();
+
+        // Only Breakfast was seeded on March 1 — no new meals added for that day
+        var mealsOnMarch1 = await _db.Meals
+            .Where(m => m.DailyMenuId == existing.Id)
+            .ToListAsync();
+        mealsOnMarch1.Should().HaveCount(1);
+    }
 }

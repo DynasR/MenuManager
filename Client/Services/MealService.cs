@@ -25,4 +25,23 @@ public class MealService
         var response = await _http.DeleteAsync($"api/meals/{id}");
         return response.IsSuccessStatusCode;
     }
+
+    public async Task<bool> DeleteBatchAsync(List<int> ids)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, "api/meals/batch")
+        {
+            Content = JsonContent.Create(new DeleteMealsBatchRequest { Ids = ids })
+        };
+        var response = await _http.SendAsync(request);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<List<DailyMenuResponse>?> RandomFillAsync(int customerId, int year, int month)
+    {
+        var response = await _http.PostAsJsonAsync("api/meals/random-fill",
+            new RandomFillRequest { CustomerId = customerId, Year = year, Month = month });
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<List<DailyMenuResponse>>()
+            : null;
+    }
 }

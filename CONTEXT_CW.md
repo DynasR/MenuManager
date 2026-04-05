@@ -35,7 +35,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Bouton CalendarMonth → `/menuplan/{id}`                                          |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards sur 3 ans. Données via `GET /api/dailymenus/{customerId}/monthly-summary` (HasMeals, MonthlyCost). Bouton "Voir le planning" → navigation directe `dayplans?customerId=X&year=Y&month=M`, pas de création serveur. |
-| DayPlan/Index | Query params : `customerId`, `year`, `month`. Calendrier mensuel, barre nav mois (±6, HasMeals via monthly-summary), SortableJS reorder/move/**copy** (Ctrl au lâcher), panier, **cell-drag copy/move** (Ctrl=copie, zone latérale footer), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), **row-primed** (mousedown sur date = rouge sur toute la ligne, prépare vider-ligne), overlay sauvegarde, grille 7 col (80px dates) |
+| DayPlan/Index | Query params : `customerId`, `year`, `month`. Calendrier mensuel, barre nav mois (±6, HasMeals), SortableJS reorder/move/**copy** (Ctrl), panier, **cell-drag copy/move** (Ctrl=copie), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), **row-primed + dbl-clic date=vider ligne**, **column-primed + dbl-clic header=vider colonne**, **totaux ligne et colonne** (coût affiché dans label date droite et en-tête MealType), **bouton vider-mois** (DeleteSweep), **bouton remplissage aléatoire** (Casino), overlay sauvegarde, grille 7 col (80px dates) |
 | Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
 
 ---
@@ -47,6 +47,8 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **Shopping Cart** (panneau droit global, `RightPanelState`).
 - **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
 - **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
+- **Bulk clear** — `DELETE /api/meals/batch` (body JSON, toujours 204). Vider-ligne, vider-colonne, vider-mois utilisent tous ce même endpoint. Pattern confirm-intent : prime (mousedown rouge) + dbl-clic exécute.
+- **Random fill** — `POST /api/meals/random-fill`. Remplit les jours vides du mois avec des items disponibles aléatoires. Skip les jours qui ont déjà des repas.
 - **Drag & drop immédiat** — plus de "Save All" / `_pendingMoves`. Tout appel API se fait au moment du drop. Overlay sombre pendant l'async.
 - **SortableJS copy** — Ctrl au lâcher d'un item cross-cell = copie (ghost visible à la source pendant le drag).
 - **Tests** — SQLite in-memory uniquement.
@@ -60,9 +62,8 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - Option voir les mois passés
 
 ### DayPlan/Index
-- Coût par type de repas (ligne de total par colonne MealType)
 - Total par semaine
-- Vider-ligne (action confirmée par row-primed — UI déjà en place)
+- Dialogue de confirmation pour les actions destructives (vider ligne/colonne/mois)
 
 ### Détails financiers
 - Coût moyen et médian par jour/semaine/mois
@@ -72,7 +73,6 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - Revue globale du style
 
 ### Paramétrage utilisateur
-- Dialogue de confirmation (destructive actions)
 - 3 thèmes : Light / Medium / Dark
 
 ---

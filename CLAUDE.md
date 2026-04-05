@@ -178,7 +178,9 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - One row per day of the month, FR locale, weekend/holiday coloring.
 - Date labels: `.date-label` flex column — DOW abbreviation (small, uppercase) + day number (large). Classes: `date-label-weekend` (opacity), `date-label-holiday` (warning color).
 - `FrenchHolidays.cs` helper for public holidays (fixed + Easter-based).
-- **Row-primed highlight**: mousedown on either date cell (left or right) calls `addRowPrimed(date)` JS — all elements sharing `data-rowdate="yyyy-MM-dd"` get `row-primed` class (date labels turn error-red, all meal cells get red tint + inset glow, all slot totals turn red). mouseup/mouseleave calls `removeRowPrimed(date)`. This is a visual confirm-intent pattern before a future "clear row" action. All date cells and meal cells carry `data-rowdate` attribute.
+- **Row-primed highlight**: mousedown on either date cell (left or right) calls `addRowPrimed(date)` JS — all elements sharing `data-rowdate="yyyy-MM-dd"` get `row-primed` class (date labels turn error-red, all meal cells get red tint + inset glow, all slot totals turn red). mouseup/mouseleave calls `removeRowPrimed(date)`. dbl-click on either date cell fires `ClearRowAsync(date)` (confirm-intent pattern: prime then execute). All date cells and meal cells carry `data-rowdate` attribute.
+- **Column-primed highlight**: mousedown on a MealType header calls `addColumnPrimed(mealTypeInt)` JS — all elements sharing `data-colmealtype="X"` (header + all meal cell divs in that column) get `column-primed` class (header label turns error-red, all cells get red tint + inset glow). dbl-click on header fires `ClearColumnAsync(mealType)`. Row-primed and column-primed are mutually exclusive: activating one clears the other in JS. All meal cell wrapper divs carry `data-colmealtype` attribute.
+- **Row / column cost totals**: `GetRowTotal(DateOnly)` and `GetColumnTotal(MealType)` compute `ceil(qty/PackageSize)*UnitPrice` in C# from loaded data. Displayed as `.dayplan-cost-total` badge (info-colored, green-tinted border) — in the right date cell (below date label, inside `.date-right-inner`) and in each MealType header cell.
 
 ### Month navigation bar
 - Horizontal strip of ±6 circular chips above the calendar (13 months total).
@@ -230,7 +232,23 @@ A `_saving` bool shows a full-screen dark overlay (`dayplan-overlay`) during any
 - `getAndClearFooterDragSource()` → `"date|mealType|1|0"` string or `null`.
 - `addCellDragOverHandler(element)` / `removeCellDragOverHandler(element)` — native `dragover/enter/leave/drop` handlers; adds `meal-cell-drag-copy` or `meal-cell-drag-move` CSS class on both footer-drag and SortableJS hover.
 - SortableJS `onStart` tracks `_sortableDragItem` + shows `.sortable-copy-ghost` at source. `onEnd` reads Ctrl at drop time → `isCopy`; on copy, moves element back to source before Blazor reconciles.
-- `addRowPrimed(date)` / `removeRowPrimed(date)` — query all `[data-rowdate="date"]` elements, toggle `row-primed` class + `total-primed` on contained `.meal-cell-slot-total`.
+- `addRowPrimed(date)` / `removeRowPrimed(date)` — query all `[data-rowdate="date"]` elements, toggle `row-primed` class + `total-primed` on contained `.meal-cell-slot-total`. Clears any active column-primed before activating.
+- `addColumnPrimed(mealType)` / `removeColumnPrimed(mealType)` — query all `[data-colmealtype="X"]` elements, toggle `column-primed` class + `total-primed` on contained slot totals. Clears any active row-primed before activating.
+
+### Bulk clear / random fill operations (DayPlan/Index)
+
+All operations use `_saving` overlay. Implemented as immediate API calls (no confirm dialog — primed highlight is the confirmation UX).
+
+| Action | Trigger | Implementation |
+|--------|---------|----------------|
+| Clear row | dbl-click date label (left or right) | `ClearRowAsync(date)` → `MealSvc.DeleteBatchAsync(mealIds)` |
+| Clear column | dbl-click MealType header | `ClearColumnAsync(mealType)` → `DeleteBatchAsync` |
+| Clear month | DeleteSweep button (top-right header) | `ClearMonthAsync()` → `DeleteBatchAsync` |
+| Random fill | Casino button (top-right header) | `RandomFillAsync()` → `MealSvc.RandomFillAsync(customerId, year, month)` |
+
+**`DELETE /api/meals/batch`** — body: `DeleteMealsBatchRequest { List<int> Ids }`. Always returns 204 (unknown IDs silently ignored). Service: `DeleteBatchAsync(List<int>)` → `Task` (not `Task<bool>` — bulk delete is fire-and-forget at HTTP level).
+
+**`POST /api/meals/random-fill`** — body: `RandomFillRequest { CustomerId, Year, Month }`. Returns `List<DailyMenuResponse>` (only newly created + pre-existing daily menus for that month). Service skips days that already have ≥1 meal. Item ranges per type: Breakfast(0-2), MorningSnack(0-1), Lunch(1-3), AfternoonSnack(0-1), Dinner(1-3). Uses only items with at least one available `ItemSupplier`. Returns `[]` if customer not found or no available items.
 
 ---
 

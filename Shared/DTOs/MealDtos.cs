@@ -28,3 +28,15 @@ public class UpdateMealRequest
     public MealType MealType { get; set; }
     public int DailyMenuId { get; set; }
 }
+
+public class DeleteMealsBatchRequest
+{
+    public List<int> Ids { get; set; } = [];
+}
+
+public class RandomFillRequest
+{
+    public int CustomerId { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+}
