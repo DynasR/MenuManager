@@ -1,25 +1,70 @@
 (function () {
     var registry = new Map();
 
+    // --- SortableJS item drag state ---
+    var _sortableDragItem = null;
+    var _sortableDragFrom = null;
+    var _sortableCopyGhost = null;
+
+    function showDragGhost() {
+        if (!_sortableDragFrom || !_sortableDragItem || _sortableCopyGhost) return;
+        var clone = _sortableDragItem.cloneNode(true);
+        clone.classList.add('sortable-copy-ghost');
+        clone.removeAttribute('data-item-id'); // exclude from OnReorder id list
+        _sortableDragFrom.appendChild(clone);
+        _sortableCopyGhost = clone;
+    }
+
+    function hideDragGhost() {
+        if (_sortableCopyGhost) {
+            _sortableCopyGhost.remove();
+            _sortableCopyGhost = null;
+        }
+    }
+
+    function clearSortableState() {
+        hideDragGhost();
+        _sortableDragItem = null;
+        _sortableDragFrom = null;
+    }
+
     window.initSortable = function (element, group) {
         // Destroy existing instance if any — one instance per element at all times
         var existing = registry.get(element);
         if (existing) {
             existing.sortable.destroy();
             if (existing.moveHandler)
-                element.removeEventListener("sortmove", existing.moveHandler);
-            if (existing.reorderHandler)
-                element.removeEventListener("sortreorder", existing.reorderHandler);
+                element.removeEventListener("sortcomplete", existing.moveHandler);
             registry.delete(element);
         }
 
         var sortable = new Sortable(element, {
             group: group,
             animation: 150,
+            filter: '.sortable-copy-ghost', // ghost is not draggable
+            onStart: function (evt) {
+                _sortableDragItem = evt.item;
+                _sortableDragFrom = evt.from;
+                // Ghost appears immediately at dragstart and never moves until dragend
+                showDragGhost();
+            },
             onEnd: function (evt) {
+                // ctrlKey read at drop time — single source of truth for copy vs move
+                var isCopy = !!(evt.originalEvent && evt.originalEvent.ctrlKey);
+                clearSortableState(); // removes ghost before we count siblings
+
+                if (isCopy && evt.from !== evt.to) {
+                    // Copy: SortableJS moved the element to target — put it back in source
+                    // at its original index so Blazor's DOM stays consistent.
+                    var siblings = Array.from(evt.from.children);
+                    var refChild = siblings[evt.oldIndex] || null;
+                    evt.from.insertBefore(evt.item, refChild);
+                }
+
                 evt.from.dispatchEvent(new CustomEvent("sortcomplete", {
                     detail: {
                         isCrossCell: evt.from !== evt.to,
+                        isCopy: isCopy,
                         itemId: parseInt(evt.item.dataset.itemId),
                         fromDate: evt.from.dataset.date,
                         fromMealType: evt.from.dataset.mealtype,
@@ -40,11 +85,12 @@
         function moveHandler(e) {
             var d = e.detail;
             if (d.isCrossCell) {
-                dotNetRef.invokeMethodAsync("OnDrop", d.itemId, d.fromDate, d.fromMealType, d.toDate, d.toMealType, d.newIndex);
+                dotNetRef.invokeMethodAsync("OnDrop", d.itemId, d.fromDate, d.fromMealType, d.toDate, d.toMealType, d.newIndex, d.isCopy === true);
             } else {
-                var ids = Array.from(element.children).map(function (li) {
-                    return parseInt(li.dataset.itemId);
-                });
+                // Filter out the copy ghost (no data-item-id) before sending ids
+                var ids = Array.from(element.children)
+                    .filter(function (li) { return li.dataset.itemId; })
+                    .map(function (li) { return parseInt(li.dataset.itemId); });
                 dotNetRef.invokeMethodAsync("OnReorder", ids);
             }
         }
@@ -59,67 +105,81 @@
         }
     };
 
-    // Footer drag-and-drop source storage — { element, date, mealType, isCopy, _keyDown, _keyUp }
+    // --- Footer cell drag-and-drop (zone latérale → copie/déplace cellule entière) ---
     var footerDragSource = null;
 
     function clearFooterDragSource() {
         if (!footerDragSource) return;
-        if (footerDragSource.element) {
-            footerDragSource.element.classList.remove('footer-drag-active', 'footer-copy-mode');
-            footerDragSource.element.removeEventListener('dragend', footerDragSource._dragEnd);
-        }
         document.removeEventListener('keydown', footerDragSource._keyDown);
         document.removeEventListener('keyup', footerDragSource._keyUp);
+        document.removeEventListener('dragover', footerDragSource._dragOver);
         footerDragSource = null;
     }
+    window.clearFooterDragSource = clearFooterDragSource;
 
-    window.setFooterDragSource = function (element, date, mealType, isCopy) {
+    window.setFooterDragSource = function (element, date, mealType, initialCopy) {
         clearFooterDragSource();
-
-        var src = { element: element, date: date, mealType: mealType, isCopy: isCopy };
-
+        // element = .meal-cell-footer; parentElement = .meal-cell
+        var cell = element.parentElement;
+        var src = {
+            date: date,
+            mealType: mealType,
+            isCopy: !!initialCopy,
+            cell: cell,
+            sourceList: cell ? cell.querySelector('.meal-cell-list') : null
+        };
         src._keyDown = function (e) {
             if (e.key === 'Control' && footerDragSource) {
                 footerDragSource.isCopy = true;
-                footerDragSource.element.classList.add('footer-copy-mode');
+                footerDragSource.cell.classList.add('cell-drag-copy-mode');
             }
         };
         src._keyUp = function (e) {
             if (e.key === 'Control' && footerDragSource) {
                 footerDragSource.isCopy = false;
-                footerDragSource.element.classList.remove('footer-copy-mode');
+                footerDragSource.cell.classList.remove('cell-drag-copy-mode');
             }
         };
-        src._dragEnd = function () { clearFooterDragSource(); };
-
-        element.classList.add('footer-drag-active');
-        if (isCopy) element.classList.add('footer-copy-mode');
-
+        src._dragOver = function (e) {
+            if (footerDragSource) {
+                footerDragSource.isCopy = !!e.ctrlKey;
+                footerDragSource.cell.classList.toggle('cell-drag-copy-mode', !!e.ctrlKey);
+            }
+        };
         document.addEventListener('keydown', src._keyDown);
         document.addEventListener('keyup', src._keyUp);
-        element.addEventListener('dragend', src._dragEnd);
-
+        document.addEventListener('dragover', src._dragOver);
         footerDragSource = src;
     };
 
     window.getAndClearFooterDragSource = function () {
         if (!footerDragSource) return null;
-        var result = footerDragSource.date + '|' + footerDragSource.mealType + '|' + (footerDragSource.isCopy ? 'true' : 'false');
+        var result = footerDragSource.date + '|' + footerDragSource.mealType + '|' + (footerDragSource.isCopy ? '1' : '0');
         clearFooterDragSource();
         return result;
     };
 
-    // Synchronous dragover handler + copy/move visual indicator via CSS classes
+    // --- Cell dragover handlers (footer drag + sortable copy/move visual) ---
     window.addCellDragOverHandler = function (element) {
         function dragoverHandler(e) {
-            if (footerDragSource) e.preventDefault();
+            if (footerDragSource) { e.preventDefault(); return; }
+            if (_sortableDragItem) {
+                // Live copy/move visual on target cell — does not affect the ghost
+                element.classList.remove('meal-cell-drag-copy', 'meal-cell-drag-move');
+                element.classList.add(e.ctrlKey ? 'meal-cell-drag-copy' : 'meal-cell-drag-move');
+            }
         }
 
         function dragenterHandler(e) {
-            if (!footerDragSource) return;
             if (element.contains(e.relatedTarget)) return;
-            element.classList.remove('meal-cell-drag-copy', 'meal-cell-drag-move');
-            element.classList.add(footerDragSource.isCopy ? 'meal-cell-drag-copy' : 'meal-cell-drag-move');
+            if (footerDragSource) {
+                if (element === footerDragSource.cell) return;
+                element.classList.remove('meal-cell-drag-copy', 'meal-cell-drag-move');
+                element.classList.add('meal-cell-drag-move');
+            } else if (_sortableDragItem) {
+                element.classList.remove('meal-cell-drag-copy', 'meal-cell-drag-move');
+                element.classList.add(e.ctrlKey ? 'meal-cell-drag-copy' : 'meal-cell-drag-move');
+            }
         }
 
         function dragleaveHandler(e) {
@@ -149,14 +209,6 @@
         if (element.__cellDragLeave) { element.removeEventListener('dragleave', element.__cellDragLeave); delete element.__cellDragLeave; }
         if (element.__cellDrop) { element.removeEventListener('drop', element.__cellDrop); delete element.__cellDrop; }
     };
-
-    // Global dragover handler for the trash zone — Blazor's @ondragover:preventDefault
-    // is not reliably synchronous in WASM; we need a native JS listener.
-    document.addEventListener('dragover', function (e) {
-        if (footerDragSource && e.target.closest('.dayplan-delete-zone')) {
-            e.preventDefault();
-        }
-    });
 
     window.destroySortable = function (element) {
         var entry = registry.get(element);

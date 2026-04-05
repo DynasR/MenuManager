@@ -150,7 +150,7 @@ Category, Item, Supplier, Customer, ItemSupplier, MenuPlan, DayPlan, MealSlot, M
 | Customer     | ✅      | ✅ patched      | Party fields only — CalendarMonth button → `/menuplan/{id}`        |
 | ItemSupplier | ✅      | ✅ patched      | Double FK dropdown, composite PK, snackbar 404/409                 |
 | MenuPlan     | ✅      | ✅ cards        | 3-year cards, HasData coloring, MonthlyCost, unified button        |
-| DayPlan      | ✅      | ✅ calendar     | Month nav bar, SortableJS reorder/move, shopping cart, footer-drag copy/move cell, Ctrl+click clone item, dbl-click delete, trash-zone clear, 7-col grid |
+| DayPlan      | ✅      | ✅ calendar     | Month nav bar, SortableJS reorder/move/copy (immediate), shopping cart, cell-drag copy/move, Ctrl+click clone item, click item=add drawer, dbl-click item=delete, dbl-click total=clear cell, saving overlay, 7-col grid |
 | MealSlot     | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 | MealSlotItem | ✅      | ❌ deleted      | Logic embedded in DayPlan/Index                                    |
 
@@ -172,8 +172,9 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 ## DayPlan/Index — monthly calendar view
 
 ### Layout
-- CSS grid: 7 columns — Date + 5 MealTypes + Date-right label (repeats date on right for readability). Wrapped in `.dayplan-grid-wrapper` (flex).
+- CSS grid: 7 columns — Date (80px) + 5 MealTypes + Date-right (80px). Wrapped in `.dayplan-grid-wrapper` (flex, `user-select: none`).
 - One row per day of the month, FR locale, weekend/holiday coloring.
+- Date labels: `.date-label` flex column — DOW abbreviation (small, uppercase) + day number (large). Classes: `date-label-weekend` (opacity), `date-label-holiday` (warning color).
 - `FrenchHolidays.cs` helper for public holidays (fixed + Easter-based).
 
 ### Month navigation bar
@@ -188,12 +189,14 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - Ordered list of items (SortableJS drag & drop for reorder within/across slots).
 - `meal-cell-empty` class when no items; `.meal-cell:not(.meal-cell-empty)` gets subtle green tint.
 - Displays price per item + slot total (EUR, FR locale, `ceil(qty/PackageSize)*UnitPrice`).
-- **Footer**: `draggable="true"` — drag to copy/move cell (Ctrl held during drag = copy, default = move). Slot total displayed; double-click slot total = clear all items (`OnCellClearRequested`). Click footer = open add drawer.
-- **Item interactions**: click item with Ctrl = clone in same slot (`OnItemCloneRequested`); double-click item = delete (`OnItemRemoved`).
-- **Hover states**: `.meal-cell:hover` green glow (inset box-shadow, excludes drag-source/target classes); `.meal-cell-item:hover` blue wash.
-- **Parameters**: `IsActionTarget` (bool, simplest — set externally when cell is a drop target).
-- **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `footer-drag-active`, `footer-copy-mode` on footer during drag.
-- **Callbacks**: `OnItemMoved`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted`, `OnDragEnded`, `OnCellClearRequested`.
+- **Whole cell is `draggable="true"`** — drag cell anywhere to move; Ctrl held = copy. Footer has two `.footer-zone-side` draggable divs flanking the slot total.
+- **Slot total**: double-click = clear all items (`OnCellClearRequested`). `_clearPrimed` state: mousedown turns total red (`total-primed` CSS) to confirm intent.
+- **Item interactions**: click item = open add drawer; Ctrl+click = clone in same slot (`OnItemCloneRequested`); double-click = delete (`OnItemRemoved`).
+- **Click anywhere on cell** (non-item area) = open add drawer.
+- **Hover states**: `.meal-cell:hover` subtle tint; `.meal-cell:not(.meal-cell-empty):hover` green glow; `.meal-cell-item:hover` blue wash.
+- **Parameters**: `IsActionTarget` (bool — set externally when cell is a drop target); `IsBeingDragged` (bool — set externally when this cell is the drag source → `cell-drag-source` CSS, items show dashed border).
+- **CSS visual states**: `meal-cell-drag-copy`, `meal-cell-drag-move` on target cell during drag; `cell-drag-source` on source cell; `cell-drag-copy-mode` on source cell when Ctrl held.
+- **Callbacks**: `OnItemMoved(itemId, fromDate, fromMealType, toDate, toMealType, newIndex, isCopy)`, `OnItemRemoved`, `OnAddRequested`, `OnOrderChanged`, `OnCellFooterDrop`, `OnItemCloneRequested`, `OnDragStarted(date, mealType)`, `OnDragEnded`, `OnCellClearRequested`.
 
 ### AddItemToSlotAsync — on-demand creation (shared helper)
 - Private `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)`.
@@ -202,29 +205,36 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
 ### Cell drag-and-drop (DayPlan/Index — fully implemented)
 
-Footer-drag UX — immediate (not deferred):
-- Drag a cell footer to another cell → `HandleCellDragDropAsync` → `ExecuteCellActionAsync` (move by default, Ctrl held = copy).
-- Drag a cell footer to a trash zone (date col, header row) → `HandleTrashDropAsync` → `ClearCellAsync` (deletes all items in slot).
-- `_isDragging` bool → trash zones (`.dayplan-delete-zone`) shown on all date/header cells during drag.
-- No `CellPendingAction` record — no click-based 2-step flow.
+All drag & drop operations are **immediate** (no deferred save, no Save All button).
+A `_saving` bool shows a full-screen dark overlay (`dayplan-overlay`) during any async operation.
 
-**Item-level operations (within same slot):**
+**Cell-level (footer drag):**
+- Drag a cell (via `.footer-zone-side` handles) to another cell → `HandleCellDragDropAsync` → `ExecuteCellActionAsync` (move by default, Ctrl held = copy).
+- Dragging onto the same cell with Ctrl = copy-in-place (allowed).
+- No trash zone — clear via double-click on slot total instead.
+- `_draggingCell` (nullable tuple) tracks which cell is dragging; passed as `IsBeingDragged` to MealCell.
+
+**Item-level operations:**
 - `Ctrl+Click` on item → `CloneItemAsync` (adds duplicate with same quantity in same slot).
-- `Double-click` on item → delete (`OnItemRemoved`).
-- Cross-cell item move is deferred (SortableJS) — see Drag & drop section.
+- `Click` on item (no Ctrl) → open add drawer.
+- `Double-click` on item → delete (`RemoveItemAsync`).
+- Cross-cell item drag via SortableJS → **immediate** `HandleMoveItemAsync` (supports Ctrl at drop = copy).
+- Same-slot reorder via SortableJS → **immediate** `HandleOrderChanged` (calls API directly; reloads on failure).
 
 **JS interop (`sortable-interop.js`):**
-- `setFooterDragSource(element, date, mealType, isCopy)` — registers drag source, attaches keydown/keyup for live copy-mode toggle.
-- `getAndClearFooterDragSource()` → `"date|mealType|isCopy"` string or `null`.
-- `addCellDragOverHandler(element)` / `removeCellDragOverHandler(element)` — native `dragover/enter/leave/drop` handlers; adds `meal-cell-drag-copy` or `meal-cell-drag-move` CSS class on hover.
-- Global `document.dragover` listener allows drop on `.dayplan-delete-zone` (Blazor WASM's `@ondragover:preventDefault` is not reliably synchronous).
+- `setFooterDragSource(element, date, mealType, initialCopy)` — registers drag source; `element` is the footer, `cell = element.parentElement`. Attaches keydown/keyup/dragover listeners for live Ctrl tracking. Applies `cell-drag-copy-mode` CSS on source cell.
+- `clearFooterDragSource()` — exposed as `window.clearFooterDragSource`; called on `HandleFooterDragEnd`.
+- `getAndClearFooterDragSource()` → `"date|mealType|1|0"` string or `null`.
+- `addCellDragOverHandler(element)` / `removeCellDragOverHandler(element)` — native `dragover/enter/leave/drop` handlers; adds `meal-cell-drag-copy` or `meal-cell-drag-move` CSS class on both footer-drag and SortableJS hover.
+- SortableJS `onStart` tracks `_sortableDragItem` + shows `.sortable-copy-ghost` at source. `onEnd` reads Ctrl at drop time → `isCopy`; on copy, moves element back to source before Blazor reconciles.
 
 ---
 
 ## Drag & drop (fully implemented)
 
 - SortableJS via JS interop (`sortable-interop.js`).
-- **Deferred save**: moves and reorders buffered locally (`_pendingMoves`, `_pendingReorders`), sent on Save All.
+- **Immediate save**: all moves and reorders call the API directly; no buffering, no Save All.
+- SortableJS cross-cell drag supports Ctrl at drop time = copy (item added to target, source untouched).
 - Backend: `PATCH /mealslotitem/{id}/move` (cross-cell), `PATCH /mealslotitems/reorder` (same-slot).
 - `MealSlotItem.Order` — 1-based, gap-free, auto-renumbered on move.
 - `MealSlotItemResponse` includes `Order`, `UnitPrice`, `PackageSize`, `Unit`.

@@ -2,14 +2,18 @@
 @inject IJSRuntime JS
 
 <div @ref="_cellRef"
-     class="meal-cell @(Items.Count == 0 ? "meal-cell-empty" : "")"
+     draggable="true"
+     class="meal-cell @(Items.Count == 0 ? "meal-cell-empty" : "") @(IsBeingDragged ? "cell-drag-source" : "")"
+     @ondragstart="HandleFooterDragStart"
+     @ondragend="HandleFooterDragEnd"
      @ondrop="HandleCellDropAsync"
      @onclick="HandleCellClick">
-    <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list">
+    <ul @ref="_listRef" data-date="@Date.ToString("yyyy-MM-dd")" data-mealtype="@MealType.ToString()" class="meal-cell-list"
+        @ondragstart:stopPropagation="true">
         @foreach (var item in Items)
         {
             var capturedItem = item;
-            <li @key="item.Id" data-item-id="@item.Id" class="meal-cell-item"
+            <li @key="item.Id" data-item-id="@item.Id" class="meal-cell-item @(item.Id == 0 ? "meal-cell-item-no-id" : "")"
                 @onclick="@(e => HandleItemClick(e, capturedItem.Id))"
                 @onclick:stopPropagation="true"
                 @ondblclick="@(() => OnItemRemoved.InvokeAsync(capturedItem.Id))"
@@ -19,21 +23,29 @@
             </li>
         }
     </ul>
-    <div class="meal-cell-footer" @ref="_footerRef" draggable="true"
-         @ondragstart="HandleFooterDragStart"
-         @ondragend="HandleFooterDragEnd"
-         @onclick:stopPropagation="true" @onclick="HandleFooterClick">
-        <span class="footer-drag-icon footer-drag-icon-move">
-            <MudIcon Icon="@Icons.Material.Outlined.OpenWith" Size="Size.Small" />
-        </span>
-        <span class="footer-drag-icon footer-drag-icon-copy">
-            <MudIcon Icon="@Icons.Material.Outlined.ContentCopy" Size="Size.Small" />
-        </span>
-        <span class="meal-cell-slot-total" style="flex:1; text-align:center;"
-              @ondblclick="@(() => { if (Items.Count > 0) OnCellClearRequested.InvokeAsync((Date, MealType)); })"
-              @ondblclick:stopPropagation="true">
+    <div class="meal-cell-footer" @ref="_footerRef"
+         @ondragstart:stopPropagation="true"
+         @ondragend:stopPropagation="true"
+         @onclick:stopPropagation="true">
+        <div class="footer-zone-side" draggable="true"
+             @ondragstart="HandleFooterDragStart" @ondragend="HandleFooterDragEnd"
+             @onclick="HandleFooterZoneClick" @onclick:stopPropagation="true"></div>
+        <span class="meal-cell-slot-total @(_clearPrimed ? "total-primed" : "")"
+              draggable="true"
+              @ondragstart:preventDefault="true"
+              @ondragstart:stopPropagation="true"
+              @onmousedown="HandleTotalMouseDown"
+              @onmousedown:stopPropagation="true"
+              @onmouseup="@(() => { _clearPrimed = false; })"
+              @onmouseup:stopPropagation="true"
+              @ondblclick="HandleTotalDblClick"
+              @ondblclick:stopPropagation="true"
+              @onmouseleave="@(() => { _clearPrimed = false; })">
             @(SlotTotal > 0 ? SlotTotal.ToString("C", _fr) : "")
         </span>
+        <div class="footer-zone-side" draggable="true"
+             @ondragstart="HandleFooterDragStart" @ondragend="HandleFooterDragEnd"
+             @onclick="HandleFooterZoneClick" @onclick:stopPropagation="true"></div>
     </div>
 </div>
 
@@ -45,6 +57,7 @@
     [Parameter] public int? MealSlotId { get; set; }
     [Parameter] public List<MealSlotItemResponse> Items { get; set; } = [];
     [Parameter] public bool IsActionTarget { get; set; }
+    [Parameter] public bool IsBeingDragged { get; set; }
 
     private decimal SlotTotal => Items
         .Where(i => i.UnitPrice.HasValue)
@@ -57,19 +70,21 @@
         return cost.ToString("C", _fr);
     }
 
-    [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex)> OnItemMoved { get; set; }
+    [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex, bool isCopy)> OnItemMoved { get; set; }
     [Parameter] public EventCallback<int> OnItemRemoved { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnAddRequested { get; set; }
     [Parameter] public EventCallback<(int? mealSlotId, List<int> orderedIds)> OnOrderChanged { get; set; }
     [Parameter] public EventCallback<(DateOnly fromDate, MealType fromMealType, bool isCopy)> OnCellFooterDrop { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType, int mealSlotItemId)> OnItemCloneRequested { get; set; }
-    [Parameter] public EventCallback OnDragStarted { get; set; }
+    [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnDragStarted { get; set; }
     [Parameter] public EventCallback OnDragEnded { get; set; }
     [Parameter] public EventCallback<(DateOnly date, MealType mealType)> OnCellClearRequested { get; set; }
 
+    private bool _clearPrimed;
+
     private async Task HandleCellClick()
     {
-        if (Items.Count == 0 && !IsActionTarget)
+        if (!IsActionTarget)
             await OnAddRequested.InvokeAsync((Date, MealType));
     }
 
@@ -77,19 +92,37 @@
     {
         if (e.CtrlKey)
             await OnItemCloneRequested.InvokeAsync((Date, MealType, mealSlotItemId));
+        else
+            await OnAddRequested.InvokeAsync((Date, MealType));
+    }
+
+    private void HandleTotalMouseDown()
+    {
+        if (Items.Count > 0) _clearPrimed = true;
+    }
+
+    private async Task HandleTotalDblClick()
+    {
+        if (Items.Count > 0)
+        {
+            _clearPrimed = false;
+            await OnCellClearRequested.InvokeAsync((Date, MealType));
+        }
     }
 
     private async Task HandleFooterDragStart(DragEventArgs e)
     {
-        var isCopy = e.ShiftKey || e.CtrlKey;
-        await JS.InvokeVoidAsync("setFooterDragSource", _footerRef, Date.ToString("yyyy-MM-dd"), MealType.ToString(), isCopy);
-        await OnDragStarted.InvokeAsync();
+        await JS.InvokeVoidAsync("setFooterDragSource", _footerRef, Date.ToString("yyyy-MM-dd"), MealType.ToString(), e.CtrlKey);
+        await OnDragStarted.InvokeAsync((Date, MealType));
     }
 
     private async Task HandleFooterDragEnd(DragEventArgs _)
-        => await OnDragEnded.InvokeAsync();
+    {
+        await JS.InvokeVoidAsync("clearFooterDragSource");
+        await OnDragEnded.InvokeAsync();
+    }
 
-    private async Task HandleCellDropAsync(DragEventArgs e)
+    private async Task HandleCellDropAsync(DragEventArgs _)
     {
         var raw = await JS.InvokeAsync<string?>("getAndClearFooterDragSource");
         if (raw is null) return;
@@ -97,11 +130,11 @@
         if (parts.Length != 3) return;
         if (!DateOnly.TryParse(parts[0], out var fromDate)) return;
         if (!Enum.TryParse<MealType>(parts[1], out var fromMealType)) return;
-        var isCopy = parts[2] == "true" || e.CtrlKey;
+        var isCopy = parts[2] == "1";
         await OnCellFooterDrop.InvokeAsync((fromDate, fromMealType, isCopy));
     }
 
-    private async Task HandleFooterClick()
+    private async Task HandleFooterZoneClick()
         => await OnAddRequested.InvokeAsync((Date, MealType));
 
     private ElementReference _cellRef;
@@ -121,14 +154,14 @@
     }
 
     [JSInvokable("OnDrop")]
-    public async Task HandleDrop(int itemId, string fromDate, string fromMealType, string toDate, string toMealType, int newIndex)
+    public async Task HandleDrop(int itemId, string fromDate, string fromMealType, string toDate, string toMealType, int newIndex, bool isCopy)
     {
         if (DateOnly.TryParse(fromDate, out var fd) &&
             DateOnly.TryParse(toDate, out var td) &&
             Enum.TryParse<MealType>(fromMealType, out var fmt) &&
             Enum.TryParse<MealType>(toMealType, out var tmt))
         {
-            await OnItemMoved.InvokeAsync((itemId, fd, fmt, td, tmt, newIndex));
+            await OnItemMoved.InvokeAsync((itemId, fd, fmt, td, tmt, newIndex, isCopy));
         }
     }
 

@@ -35,7 +35,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Bouton CalendarMonth → MenuPlan                                                  |
 | ItemSupplier | PK composite, pattern 404/409                                                    |
 | MenuPlan     | 3 ans de cards groupées par année, HasData, MonthlyCost, bouton unifié           |
-| DayPlan      | Calendrier, barre nav mois (±6), SortableJS reorder/move, panier, **footer-drag copy/move cellule** (Ctrl=copie, défaut=déplace), **Ctrl+clic clone item** (même slot), **dbl-clic item=suppr**, **dbl-clic total=vider cellule**, trash-zone sur colonnes date/header pendant drag, grille 7 colonnes |
+| DayPlan      | Calendrier, barre nav mois (±6), SortableJS reorder/move/**copy** (Ctrl au lâcher), panier, **cell-drag copy/move** (Ctrl=copie, zone latérale footer), **clic item=ajouter**, **Ctrl+clic clone**, **dbl-clic item=suppr**, **dbl-clic total=vider cellule** (total-primed), overlay sauvegarde, grille 7 col (80px dates) |
 | Layout       | Thème: Success=#1B5E20, Secondary=#7C3AED, Info=#1565C0, AppBar dégradé bleu-violet, NavMenu splitté (principal haut / admin bas) |
 
 ---
@@ -46,7 +46,9 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **Shared** pur (zéro EF), pas de repository, on-demand DayPlan/MealSlot.
 - **Deferred drag & drop**, **Shopping Cart** (panneau droit global).
 - **MonthlyCost** calculé serveur-side (`ceil(qty / PackageSize) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
-- **Copy/Move cellule** — HTML5 drag-and-drop natif (footer draggable). Ctrl tenu = copie, défaut = déplace. Drop sur trash-zone = clear. Plus de `CellPendingAction`, plus de boutons par item.
+- **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
+- **Drag & drop immédiat** — plus de "Save All" / `_pendingMoves`. Tout appel API se fait au moment du drop. Overlay sombre pendant l'async.
+- **SortableJS copy** — Ctrl au lâcher d'un item cross-cell = copie (ghost visible à la source pendant le drag).
 - **Tests** — SQLite in-memory uniquement.
 
 ---
