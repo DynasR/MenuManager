@@ -620,10 +620,6 @@ else
 
     private sealed record MonthNavItem(int Month, int Year, string Label, string Short, bool HasData);
 
-    // Add dialog state
-    private DateOnly _selectedDate;
-    private MealType _selectedMealType;
-
     private (int customerId, int year, int month) _lastKey;
 
     protected override async Task OnInitializedAsync()
@@ -694,8 +690,9 @@ else
 
     private async Task OpenAddDialog((DateOnly date, MealType mealType) args)
     {
-        _selectedDate = args.date;
-        _selectedMealType = args.mealType;
+        var dm = _dayMenuByDate.GetValueOrDefault(args.date);
+        var currentMeal = dm?.Meals.FirstOrDefault(m => m.MealType == args.mealType);
+        var currentItems = currentMeal?.MealItems ?? [];
 
         var parameters = new DialogParameters<AddItemDialog>
         {
@@ -703,8 +700,12 @@ else
             { x => x.SelectedMealType, args.mealType },
             { x => x.AllItems, _allItems },
             { x => x.AllRecipes, _allRecipes },
-            { x => x.OnItemAdd, (Func<ItemResponse, Task>)AddItemAsync },
-            { x => x.OnRecipeAdd, (Func<RecipeResponse, Task>)AddRecipeAsync },
+            { x => x.CurrentMealItems, currentItems },
+            { x => x.OnSave, (Func<AddItemDialogSaveDiff, Task>)(async diff =>
+            {
+                await ApplyDialogSaveAsync(args.date, args.mealType, currentItems, diff);
+                await LoadAsync();
+            }) },
         };
         var options = new DialogOptions
         {
@@ -716,18 +717,39 @@ else
         await DialogSvc.ShowAsync<AddItemDialog>("", parameters, options);
     }
 
-    private async Task AddItemAsync(ItemResponse item)
+    private async Task ApplyDialogSaveAsync(DateOnly date, MealType mealType, List<MealItemResponse> initial, AddItemDialogSaveDiff diff)
     {
-        var success = await AddItemToSlotAsync(_selectedDate, _selectedMealType, item.Id, 1);
-        if (!success) Snackbar.Add("Failed to add item.", Severity.Error);
-        await LoadAsync();
-    }
+        var byId = initial.ToDictionary(mi => mi.Id);
 
-    private async Task AddRecipeAsync(RecipeResponse recipe)
-    {
-        var success = await AddRecipeToSlotAsync(_selectedDate, _selectedMealType, recipe.Id, 1);
-        if (!success) Snackbar.Add("Échec de l'ajout de la recette.", Severity.Error);
-        await LoadAsync();
+        foreach (var id in diff.ToDelete)
+            await MealItemSvc.DeleteAsync(id);
+
+        foreach (var (mealItemId, newQty) in diff.ToUpdate)
+        {
+            if (!byId.TryGetValue(mealItemId, out var mi)) continue;
+            if (mi.RecipeId.HasValue)
+            {
+                await MealItemSvc.DeleteAsync(mealItemId);
+                await AddRecipeToSlotAsync(date, mealType, mi.RecipeId.Value, newQty);
+            }
+            else
+            {
+                await MealItemSvc.UpdateAsync(mealItemId, new UpdateMealItemRequest
+                {
+                    Quantity = newQty,
+                    Notes = mi.Notes,
+                    MealId = mi.MealId,
+                    ItemId = mi.ItemId,
+                    Unit = mi.Unit,
+                });
+            }
+        }
+
+        foreach (var (itemId, qty) in diff.ToAddItems)
+            await AddItemToSlotAsync(date, mealType, itemId, qty);
+
+        foreach (var (recipeId, qty) in diff.ToAddRecipes)
+            await AddRecipeToSlotAsync(date, mealType, recipeId, qty);
     }
 
     private async Task<bool> AddItemToSlotAsync(DateOnly date, MealType mealType, int itemId, decimal quantity)

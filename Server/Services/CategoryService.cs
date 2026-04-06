@@ -110,7 +110,8 @@ public class CategoryService : ICategoryService
         Id = c.Id,
         Name = c.Name,
         Description = c.Description,
-        ParentCategoryId = c.ParentCategoryId
+        ParentCategoryId = c.ParentCategoryId,
+        AllowedMealTypes = (int)c.AllowedMealTypes
     };
 
     private static List<CategoryResponse> BuildTree(List<Category> all, int? parentId)
@@ -123,6 +124,7 @@ public class CategoryService : ICategoryService
                 Name = c.Name,
                 Description = c.Description,
                 ParentCategoryId = c.ParentCategoryId,
+                AllowedMealTypes = (int)c.AllowedMealTypes,
                 SubCategories = BuildTree(all, c.Id)
             })
             .ToList();

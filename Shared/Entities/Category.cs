@@ -1,3 +1,5 @@
+using MenuManager.Shared.Enums;
+
 namespace MenuManager.Shared.Entities;
 
 public class Category
@@ -9,4 +11,5 @@ public class Category
     public Category? ParentCategory { get; set; }
     public ICollection<Category> SubCategories { get; set; } = [];
     public ICollection<Item> Items { get; set; } = [];
+    public MealTypeFlags AllowedMealTypes { get; set; } = MealTypeFlags.Breakfast | MealTypeFlags.Lunch | MealTypeFlags.Dinner | MealTypeFlags.Snack;
 }

@@ -1,0 +1,263 @@
+@using MenuManager.Shared.Enums
+@using MenuManager.Client.Helpers
+@inject ItemSupplierCache Cache
+
+<style>
+    .mr-wrap {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+    }
+
+    .mr-header {
+        background: #0F172A;
+        color: white;
+        padding: 10px 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+
+    .mr-col-labels, .mr-row, .mr-footer-row {
+        display: grid;
+        grid-template-columns: 1fr 36px 58px;
+        gap: 4px;
+        padding-left: 10px;
+        padding-right: 10px;
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .mr-col-labels {
+        flex-shrink: 0;
+        padding-top: 5px;
+        padding-bottom: 2px;
+        font-size: 0.62rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--mud-palette-text-secondary);
+    }
+    .mr-col-labels > span:not(:first-child) { text-align: right; }
+
+    .mr-scroll {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+    }
+
+    .mr-row {
+        padding-top: 5px;
+        padding-bottom: 5px;
+        align-items: start;
+        border-top: 1px solid color-mix(in srgb, var(--mud-palette-text-secondary) 12%, transparent);
+    }
+    .mr-row:hover { background: color-mix(in srgb, var(--mud-palette-text-primary) 5%, transparent); }
+    .mr-row-alt { background: color-mix(in srgb, var(--mud-palette-text-primary) 2%, transparent); }
+    .mr-row-alt:hover { background: color-mix(in srgb, var(--mud-palette-text-primary) 6%, transparent); }
+
+    .mr-cell-name {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+        overflow: hidden;
+    }
+
+    .mr-name {
+        font-size: 0.78rem;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .mr-qty-ctrl {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+    }
+
+    .mr-qty-btn {
+        width: 18px;
+        height: 18px;
+        border: 1px solid color-mix(in srgb, var(--mud-palette-text-secondary) 50%, transparent);
+        border-radius: 3px;
+        background: transparent;
+        cursor: pointer;
+        font-size: 0.75rem;
+        line-height: 1;
+        padding: 0;
+        color: var(--mud-palette-text-primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.1s;
+        flex-shrink: 0;
+    }
+    .mr-qty-btn:hover {
+        background: color-mix(in srgb, var(--mud-palette-primary) 18%, transparent);
+        border-color: var(--mud-palette-primary);
+    }
+
+    .mr-qty-val {
+        min-width: 1.4rem;
+        text-align: center;
+        font-size: 0.72rem;
+        font-weight: 600;
+        color: var(--mud-palette-text-primary);
+    }
+
+    .mr-cell-num {
+        font-size: 0.75rem;
+        text-align: right;
+        padding-top: 4px;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    .mr-cell-total {
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-align: right;
+        padding-top: 4px;
+        white-space: nowrap;
+    }
+
+    .mr-footer-wrap {
+        flex-shrink: 0;
+        border-top: 2px solid color-mix(in srgb, var(--mud-palette-text-secondary) 20%, transparent);
+        background: var(--mud-palette-background, #fff);
+    }
+
+    .mr-footer-row {
+        padding-top: 7px;
+        padding-bottom: 7px;
+        align-items: baseline;
+    }
+
+    .mr-footer-total {
+        font-size: 0.88rem;
+        font-weight: 700;
+        text-align: right;
+        white-space: nowrap;
+    }
+</style>
+
+<div class="mr-wrap">
+
+    <div class="mr-header">
+        <MudIcon Icon="@Icons.Material.Filled.Receipt" Style="font-size:1.1rem; color:white;" />
+        <MudText Typo="Typo.body2" Style="font-weight:700; color:white; margin:0;">Ce repas</MudText>
+    </div>
+
+    <div class="mr-col-labels">
+        <span>Article</span>
+        <span>Pkgs</span>
+        <span>Total</span>
+    </div>
+
+    <div class="mr-scroll">
+        @if (!_lines.Any())
+        {
+            <MudText Class="pa-3" Style="font-size:0.75rem;" Color="Color.Secondary">Aucun item.</MudText>
+        }
+        else
+        {
+            @foreach (var (line, idx) in _lines.Select((l, i) => (l, i)))
+            {
+                var cl = line;
+                <div class="mr-row @(idx % 2 == 1 ? "mr-row-alt" : "")">
+                    <div class="mr-cell-name">
+                        <span class="mr-name">@line.Name</span>
+                        <div class="mr-qty-ctrl">
+                            <button class="mr-qty-btn" @onclick="@(() => ChangeQtyAsync(cl, -1))">−</button>
+                            <span class="mr-qty-val">@FmtQty(line.Quantity)</span>
+                            <button class="mr-qty-btn" @onclick="@(() => ChangeQtyAsync(cl, +1))">+</button>
+                        </div>
+                    </div>
+                    <span class="mr-cell-num">@(line.IsRecipe ? "—" : line.PackageCount.ToString())</span>
+                    <span class="mr-cell-total">@FmtMoney(line.Cost)</span>
+                </div>
+            }
+        }
+        <div style="height:8px;"></div>
+    </div>
+
+    <div class="mr-footer-wrap">
+        @if (_lines.Any())
+        {
+            <div class="mr-footer-row">
+                <span></span>
+                <span></span>
+                <span class="mr-footer-total">@FmtMoney(_total)</span>
+            </div>
+        }
+    </div>
+
+</div>
+
+@code {
+    [Parameter]
+    public IEnumerable<MealItemResponse> Items { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<(int Id, decimal Qty, bool IsRecipe)> OnQtyChange { get; set; }
+
+    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
+
+    private List<RecapLine> _lines = [];
+    private decimal _total;
+
+    protected override async Task OnInitializedAsync()
+        => await Cache.EnsureLoadedAsync();
+
+    protected override void OnParametersSet()
+        => ComputeLines();
+
+    private void ComputeLines()
+    {
+        _lines = Items.Select(item =>
+        {
+            if (item.RecipeId.HasValue)
+            {
+                return new RecapLine(
+                    Id: item.RecipeId.Value,
+                    IsRecipe: true,
+                    Name: item.RecipeName ?? "Recette",
+                    Quantity: item.Quantity,
+                    PackageCount: 0,
+                    Cost: CostHelper.ComputeItemCost(item));
+            }
+            else
+            {
+                var bestPrice = Cache.GetBestSupplier(item.ItemId)?.UnitPrice;
+                var pkgs = (int)Math.Ceiling(item.Quantity / Math.Max(item.ContentQuantity, 0.001m));
+                return new RecapLine(
+                    Id: item.ItemId,
+                    IsRecipe: false,
+                    Name: item.ItemName,
+                    Quantity: item.Quantity,
+                    PackageCount: pkgs,
+                    Cost: CostHelper.ComputeItemCost(item, bestPrice));
+            }
+        }).ToList();
+
+        _total = _lines.Sum(l => l.Cost);
+    }
+
+    private async Task ChangeQtyAsync(RecapLine line, int delta)
+        => await OnQtyChange.InvokeAsync((line.Id, line.Quantity + delta, line.IsRecipe));
+
+    private static string FmtMoney(decimal v) => v.ToString("0.00 €", _fr);
+    private static string FmtQty(decimal v) => v.ToString("0.##", _fr);
+
+    private sealed record RecapLine(
+        int Id,
+        bool IsRecipe,
+        string Name,
+        decimal Quantity,
+        int PackageCount,
+        decimal Cost);
+}

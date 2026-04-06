@@ -35,11 +35,11 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Party + **PaymentType** (TR/CB) — CalendarMonth → `/menuplan/{id}`               |
 | ItemSupplier | PK composite, pattern 404/409 ; dropdown `CompanyName ?? Name` ; colonnes FK non-éditables |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards 3 ans. HasData coloring. **Dark mode** via `ThemeState` (inline styles dynamiques). |
-| DayPlan/Index | Calendrier mensuel. `AddItemDialog` (dialog). **Breakdowns TR/CB** dans cellule-date et en-têtes colonnes. **Random fill scindé** : Casino (items) + MenuBook (recettes). Unique constraint `DailyMenu(CustomerId,Date)`. |
+| DayPlan/Index | Calendrier mensuel. **`AddItemDialog` diff-based** : édition des qtés existantes + ajout/suppression, tout validé en une passe. Random fill scindé : Casino (items) + MenuBook (recettes). Unique constraint `DailyMenu(CustomerId,Date)`. |
 | MealCell | `ShouldRender()` override. Badges TR/CB : items via cache direct, recettes via `GetRecipePaymentTypes`. CSS subgrid. **TR/CB mini-badges dans le footer du slot** (total centré, breakdown à droite). |
 | Recipe       | `/recipes` — MudDataGrid + HierarchyColumn, RecipeDialog, coût estimé par recette |
 | Layout       | 3 thèmes (Light/Dark/Custom). `ThemeState` + CycleTheme. Persisté localStorage. |
-| Shopping Cart | **Refactorisé** : `Recipes` param supprimé. Record unifié `CartLine`. Pas de fallback. CSS grid 4 col. Footer 4 col (TR\|CB à gauche, total à droite). Coût = ceil par slot. |
+| Shopping Cart | Refactorisé. `CartLine` unifié. CSS grid 4 col. Footer TR\|CB + total. Coût = ceil par slot. **Colonne qty = nb de colis** (`PackageCount`, computed). |
 
 ---
 
@@ -68,7 +68,9 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **TR/CB breakdowns** — visibles partout : (1) slot footer de `MealCell` (total centré, TR|CB à droite), (2) cellule-date gauche dans DayPlan (par jour), (3) en-têtes colonnes MealType (par repas). Recette à ingrédients mixtes → coût 50/50. Helpers : `BucketRecipeCost`, `GetRowTrCb`, `GetColumnTrCb` dans DayPlan/Index ; `SlotTrCb` dans MealCell.
 - **Random fill scindé** — `RandomFillMode` enum (`Items` | `Recipes`) dans `Shared/DTOs/MealDtos.cs`. Deux boutons : Casino (items disponibles) et MenuBook (toutes les recettes). Pool construit **une fois** avant la boucle de jours.
 - **Unique constraint DailyMenu** — migration `AddUniqueDailyMenuDateConstraint` : index unique sur `(CustomerId, Date)`. `ToDictionary` corrigé côté client avec `GroupBy().First()` pour robustesse.
-- **ShoppingCart refactorisé** — `Recipes` param supprimé. `CartLine` remplace `ShoppingLine`/`RecipeLine`/`EnrichedShoppingLine`. Pas de fallback (toujours enrichi). CSS grid 4 colonnes. Footer 4-col. Coût = somme des `ComputeItemCost` par slot (ceil/slot, plus précis qu'un ceil global).
+- **ShoppingCart refactorisé** — `Recipes` param supprimé. `CartLine` unifié. Pas de fallback. CSS grid 4 colonnes. Footer 4-col. Coût = ceil/slot. **Colonne qty affiche `PackageCount`** (nb de colis = `ceil(TotalQty / ContentQuantity)`, propriété calculée sur `CartLine`).
+- **MealTypeFlags** — flags enum (`Shared/Enums/MealTypeFlags.cs`) : `None=0, Breakfast=1, Snack=2, Lunch=4, Dinner=8`. `Category.AllowedMealTypes` (EF, migration `AddMealTypesToCategory`). `CategoryResponse.AllowedMealTypes (int)` + `ItemResponse.CategoryAllowedMealTypes (int)`. SeedData : flags par catégorie (ex. Biscuits = Breakfast|Snack, Viandes = Lunch|Dinner).
+- **AddItemDialog diff-based** — refactorisé de add-immédiat vers panier local + Valider. Dialog reçoit `CurrentMealItems` (snapshot du slot), calcule un diff (add/update/delete), envoie à `ApplyDialogSaveAsync` dans DayPlan/Index. Panel `MealRecap` intégré (sidebar 230px) : affiche et édite les qtés sélectionnées. Toggle `_showAll` filtre les items par `CategoryAllowedMealTypes` (utilise `MealTypeFlags`). Clic sur ligne/card → incrémente toujours la qté de 1.
 - **Tests** — SQLite in-memory uniquement.
 
 ---

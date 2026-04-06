@@ -7,6 +7,7 @@ public class CategoryResponse
     public string? Description { get; set; }
     public int? ParentCategoryId { get; set; }
     public List<CategoryResponse> SubCategories { get; set; } = [];
+    public int AllowedMealTypes { get; set; }
 }
 
 public class CreateCategoryRequest

@@ -12,6 +12,7 @@ public class ItemResponse
     public MeasurementUnit ContentUnit { get; set; }
     public int CategoryId { get; set; }
     public string CategoryName { get; set; } = "";
+    public int CategoryAllowedMealTypes { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

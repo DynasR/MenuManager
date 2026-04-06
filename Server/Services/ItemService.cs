@@ -134,6 +134,7 @@ public class ItemService : IItemService
         ContentUnit = i.ContentUnit,
         CategoryId = i.CategoryId,
         CategoryName = i.Category.Name,
+        CategoryAllowedMealTypes = (int)i.Category.AllowedMealTypes,
         CreatedAt = i.CreatedAt,
         UpdatedAt = i.UpdatedAt
     };

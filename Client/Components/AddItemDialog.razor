@@ -8,7 +8,7 @@
         <div style="display:flex; align-items:flex-start; justify-content:space-between; width:100%; gap:16px; flex-wrap:wrap;">
             <div>
                 <MudText Typo="Typo.h6" Style="font-weight:700; line-height:1.2;">
-                    Ajouter — @SelectedDate.ToString("dddd d MMMM yyyy", _fr)
+                    @SelectedDate.ToString("dddd d MMMM yyyy", _fr)
                 </MudText>
                 <MudText Typo="Typo.subtitle2" Style="color:var(--mud-palette-text-secondary);">
                     @SelectedMealType.ToFrenchLabel()
@@ -25,6 +25,11 @@
                                StartIcon="@Icons.Material.Filled.MenuBook"
                                OnClick="@(() => { _tab = 1; _search = ""; })">Recettes</MudButton>
                 </MudButtonGroup>
+                <MudTooltip Text="@(_showAll ? "Filtrer par repas" : "Voir tout")">
+                    <MudIconButton Icon="@(_showAll ? Icons.Material.Outlined.FilterAlt : Icons.Material.Filled.FilterAlt)"
+                                   Color="@(_showAll ? Color.Default : Color.Primary)"
+                                   Size="Size.Small" OnClick="@(() => _showAll = !_showAll)" />
+                </MudTooltip>
                 <MudTooltip Text="@(_denseView ? "Vue cards" : "Vue liste")">
                     <MudIconButton Icon="@(_denseView ? Icons.Material.Filled.ViewModule : Icons.Material.Filled.ViewList)"
                                    Size="Size.Small" OnClick="ToggleDenseViewAsync" />
@@ -38,16 +43,20 @@
                       Immediate="true" FullWidth="true" Margin="Margin.Dense" Class="mt-2" />
     </TitleContent>
     <DialogContent>
+    <div style="display:flex; min-height:450px; gap:0;">
+    <div style="flex:1; min-width:0; overflow:hidden;">
         @if (_tab == 0)
         {
             var filtered = AllItems
                 .Where(i => i.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+                .Where(i => _showAll || PassesMealTypeFilter(i))
                 .ToList();
             @if (_denseView)
             {
                 <MudDataGrid T="ItemResponse" Items="filtered" Dense="true" ReadOnly="true"
                              SortMode="SortMode.Single" Hover="true"
                              RowClass="cursor-pointer"
+                             RowClassFunc="@((item, _) => GetItemQty(item.Id) > 0 ? "qty-row-selected" : "")"
                              RowClick="HandleItemRowClick">
                     <Columns>
                         <PropertyColumn Property="x => x.Name" Title="Nom" />
@@ -72,6 +81,21 @@
                                 @GetPricePerKgL(context.Item)
                             </CellTemplate>
                         </TemplateColumn>
+                        <TemplateColumn Title="Qté" Sortable="false">
+                            <CellTemplate>
+                                @{var ci = context.Item; var cq = GetItemQty(ci.Id);}
+                                <div @onclick:stopPropagation="true" style="display:flex;align-items:center;gap:2px;white-space:nowrap;">
+                                    @if (cq > 0)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                       OnClick="@(() => DecrItemQty(ci.Id))" />
+                                        <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@cq.ToString("0.#", _fr)</span>
+                                    }
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                   OnClick="@(() => IncrItemQty(ci.Id))" />
+                                </div>
+                            </CellTemplate>
+                        </TemplateColumn>
                     </Columns>
                 </MudDataGrid>
             }
@@ -82,9 +106,11 @@
                     {
                         var ci = item;
                         var best = Cache.GetBestSupplier(item.Id);
+                        var cq = GetItemQty(ci.Id);
                         <MudItem xs="6" sm="3">
-                            <MudCard Outlined="true" Style="cursor:pointer; height:100%;"
-                                     @onclick="@(() => _ = OnItemAdd(ci))">
+                            <MudCard Outlined="true"
+                                     Style="@($"cursor:pointer; height:100%;{(cq > 0 ? " border:1.5px solid var(--mud-palette-primary) !important;" : "")}")"
+                                     @onclick="@(() => IncrItemQty(ci.Id))">
                                 <div style="height:160px; @GetGradientStyle(item.CategoryName); display:flex; align-items:center; justify-content:center;">
                                     <MudIcon Icon="@Icons.Material.Filled.Restaurant"
                                              Style="font-size:3rem; color:rgba(255,255,255,0.45);" />
@@ -104,6 +130,17 @@
                                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
                                         @FmtQty(item.ContentQuantity) @FormatUnit(item.ContentUnit) / @FormatUnit(item.PurchaseUnit)
                                     </MudText>
+                                    <div @onclick:stopPropagation="true"
+                                         style="display:flex;align-items:center;justify-content:flex-end;gap:2px;margin-top:4px;">
+                                        @if (GetItemQty(ci.Id) > 0)
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                           OnClick="@(() => DecrItemQty(ci.Id))" />
+                                            <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@GetItemQty(ci.Id).ToString("0.#", _fr)</span>
+                                        }
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                       OnClick="@(() => IncrItemQty(ci.Id))" />
+                                    </div>
                                 </MudCardContent>
                             </MudCard>
                         </MudItem>
@@ -121,6 +158,7 @@
                 <MudDataGrid T="RecipeResponse" Items="filtered" Dense="true" ReadOnly="true"
                              SortMode="SortMode.Single" Hover="true"
                              RowClass="cursor-pointer"
+                             RowClassFunc="@((recipe, _) => GetRecipeQty(recipe.Id) > 0 ? "qty-row-selected" : "")"
                              RowClick="HandleRecipeRowClick">
                     <Columns>
                         <PropertyColumn Property="x => x.Name" Title="Nom" />
@@ -140,6 +178,21 @@
                         <TemplateColumn Title="Ingrédients" Sortable="false">
                             <CellTemplate>@context.Item.Ingredients.Count</CellTemplate>
                         </TemplateColumn>
+                        <TemplateColumn Title="Qté" Sortable="false">
+                            <CellTemplate>
+                                @{var cr = context.Item; var cq = GetRecipeQty(cr.Id);}
+                                <div @onclick:stopPropagation="true" style="display:flex;align-items:center;gap:2px;white-space:nowrap;">
+                                    @if (cq > 0)
+                                    {
+                                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                       OnClick="@(() => DecrRecipeQty(cr.Id))" />
+                                        <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@cq.ToString("0.#", _fr)</span>
+                                    }
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                   OnClick="@(() => IncrRecipeQty(cr.Id))" />
+                                </div>
+                            </CellTemplate>
+                        </TemplateColumn>
                     </Columns>
                 </MudDataGrid>
             }
@@ -149,9 +202,11 @@
                     @foreach (var recipe in filtered)
                     {
                         var cr = recipe;
+                        var cq = GetRecipeQty(cr.Id);
                         <MudItem xs="6" sm="3">
-                            <MudCard Outlined="true" Style="cursor:pointer; height:100%;"
-                                     @onclick="@(() => _ = OnRecipeAdd(cr))">
+                            <MudCard Outlined="true"
+                                     Style="@($"cursor:pointer; height:100%;{(cq > 0 ? " border:1.5px solid var(--mud-palette-secondary) !important;" : "")}")"
+                                     @onclick="@(() => IncrRecipeQty(cr.Id))">
                                 <div style="height:160px; @GetGradientStyle(recipe.Name); display:flex; align-items:center; justify-content:center;">
                                     <MudIcon Icon="@Icons.Material.Filled.MenuBook"
                                              Style="font-size:3rem; color:rgba(255,255,255,0.45);" />
@@ -180,6 +235,17 @@
                                     <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-1">
                                         @recipe.BaseServings pers. · @recipe.Ingredients.Count ingréd.
                                     </MudText>
+                                    <div @onclick:stopPropagation="true"
+                                         style="display:flex;align-items:center;justify-content:flex-end;gap:2px;margin-top:4px;">
+                                        @if (GetRecipeQty(cr.Id) > 0)
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                           OnClick="@(() => DecrRecipeQty(cr.Id))" />
+                                            <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@GetRecipeQty(cr.Id).ToString("0.#", _fr)</span>
+                                        }
+                                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                                       OnClick="@(() => IncrRecipeQty(cr.Id))" />
+                                    </div>
                                 </MudCardContent>
                             </MudCard>
                         </MudItem>
@@ -187,7 +253,17 @@
                 </MudGrid>
             }
         }
+    </div>
+    <div style="width:230px; flex-shrink:0; border-left:1px solid var(--mud-palette-divider); display:flex; flex-direction:column;">
+        <MealRecap Items="BuildRecapItems().ToList()" OnQtyChange="HandleRecapQtyChange" />
+    </div>
+    </div>
     </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => MudDialog.Cancel())" Disabled="_saving">Annuler</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="ConfirmAsync" Disabled="_saving">Valider</MudButton>
+    </DialogActions>
 </MudDialog>
 
 <style>
@@ -202,6 +278,13 @@
     }
     .add-dialog-badge-tr { color: #1565C0; }
     .add-dialog-badge-cb { color: #6A1B9A; }
+
+    .qty-row-selected {
+        background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent) !important;
+    }
+    .qty-row-selected:hover {
+        background: color-mix(in srgb, var(--mud-palette-primary) 20%, transparent) !important;
+    }
 </style>
 
 @code {
@@ -214,17 +297,41 @@
     [Parameter] public MealType SelectedMealType { get; set; }
     [Parameter] public List<ItemResponse> AllItems { get; set; } = [];
     [Parameter] public List<RecipeResponse> AllRecipes { get; set; } = [];
-    [Parameter] public Func<ItemResponse, Task> OnItemAdd { get; set; } = null!;
-    [Parameter] public Func<RecipeResponse, Task> OnRecipeAdd { get; set; } = null!;
+    [Parameter] public List<MealItemResponse> CurrentMealItems { get; set; } = [];
+    [Parameter] public Func<AddItemDialogSaveDiff, Task> OnSave { get; set; } = null!;
 
     private int _tab;
     private bool _denseView = true;
+    private bool _showAll;
     private string _search = "";
+    private bool _saving;
+
+    // Local quantity state (ItemId/RecipeId → quantity)
+    private readonly Dictionary<int, decimal> _itemQty = new();
+    private readonly Dictionary<int, decimal> _recipeQty = new();
+
+    // Existing MealItems from current meal, keyed for diff computation
+    private Dictionary<int, MealItemResponse> _existingByItemId = new();
+    private Dictionary<int, MealItemResponse> _existingByRecipeId = new();
 
     protected override async Task OnInitializedAsync()
     {
         var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "add-dialog-dense");
         if (stored == "false") _denseView = false;
+
+        foreach (var mi in CurrentMealItems)
+        {
+            if (mi.RecipeId.HasValue)
+            {
+                _recipeQty[mi.RecipeId.Value] = mi.Quantity;
+                _existingByRecipeId[mi.RecipeId.Value] = mi;
+            }
+            else
+            {
+                _itemQty[mi.ItemId] = mi.Quantity;
+                _existingByItemId[mi.ItemId] = mi;
+            }
+        }
     }
 
     private async Task ToggleDenseViewAsync()
@@ -233,11 +340,212 @@
         await JS.InvokeVoidAsync("localStorage.setItem", "add-dialog-dense", _denseView ? "true" : "false");
     }
 
-    private async Task HandleItemRowClick(DataGridRowClickEventArgs<ItemResponse> args)
-        => await OnItemAdd(args.Item);
+    // ── Meal-type filter ─────────────────────────────────────────────────────
 
-    private async Task HandleRecipeRowClick(DataGridRowClickEventArgs<RecipeResponse> args)
-        => await OnRecipeAdd(args.Item);
+    private bool PassesMealTypeFilter(ItemResponse item)
+    {
+        var flag = ToMealTypeFlag(SelectedMealType);
+        return ((MealTypeFlags)item.CategoryAllowedMealTypes).HasFlag(flag);
+    }
+
+    private static MealTypeFlags ToMealTypeFlag(MealType mealType) => mealType switch
+    {
+        MealType.Breakfast      => MealTypeFlags.Breakfast,
+        MealType.MorningSnack   => MealTypeFlags.Snack,
+        MealType.Lunch          => MealTypeFlags.Lunch,
+        MealType.AfternoonSnack => MealTypeFlags.Snack,
+        MealType.Dinner         => MealTypeFlags.Dinner,
+        _                       => MealTypeFlags.None
+    };
+
+    // ── Quantity helpers ──────────────────────────────────────────────────────
+
+    private decimal GetItemQty(int itemId) => _itemQty.GetValueOrDefault(itemId, 0);
+    private decimal GetRecipeQty(int recipeId) => _recipeQty.GetValueOrDefault(recipeId, 0);
+
+    private void IncrItemQty(int id) => _itemQty[id] = GetItemQty(id) + 1;
+    private void DecrItemQty(int id)
+    {
+        var v = GetItemQty(id);
+        if (v <= 1) _itemQty.Remove(id);
+        else _itemQty[id] = v - 1;
+    }
+
+    private void IncrRecipeQty(int id) => _recipeQty[id] = GetRecipeQty(id) + 1;
+    private void DecrRecipeQty(int id)
+    {
+        var v = GetRecipeQty(id);
+        if (v <= 1) _recipeQty.Remove(id);
+        else _recipeQty[id] = v - 1;
+    }
+
+    // ── Recap qty change (bidirectional) ─────────────────────────────────────
+
+    private void HandleRecapQtyChange((int Id, decimal Qty, bool IsRecipe) args)
+    {
+        if (args.IsRecipe)
+        {
+            if (args.Qty <= 0) _recipeQty.Remove(args.Id);
+            else _recipeQty[args.Id] = args.Qty;
+        }
+        else
+        {
+            if (args.Qty <= 0) _itemQty.Remove(args.Id);
+            else _itemQty[args.Id] = args.Qty;
+        }
+    }
+
+    // ── Row click handlers ────────────────────────────────────────────────────
+
+    private void HandleItemRowClick(DataGridRowClickEventArgs<ItemResponse> args)
+        => IncrItemQty(args.Item.Id);
+
+    private void HandleRecipeRowClick(DataGridRowClickEventArgs<RecipeResponse> args)
+        => IncrRecipeQty(args.Item.Id);
+
+    // ── MealRecap feed ────────────────────────────────────────────────────────
+
+    private List<MealItemResponse> BuildRecapItems()
+    {
+        var result = new List<MealItemResponse>();
+
+        foreach (var (itemId, qty) in _itemQty.Where(kv => kv.Value > 0))
+        {
+            if (_existingByItemId.TryGetValue(itemId, out var ex))
+            {
+                result.Add(new MealItemResponse
+                {
+                    Id = ex.Id,
+                    ItemId = ex.ItemId,
+                    ItemName = ex.ItemName,
+                    Quantity = qty,
+                    Unit = ex.Unit,
+                    ContentQuantity = ex.ContentQuantity,
+                    PurchaseUnit = ex.PurchaseUnit,
+                    ContentUnit = ex.ContentUnit,
+                    UnitPrice = ex.UnitPrice,
+                    MealId = ex.MealId,
+                });
+            }
+            else
+            {
+                var item = AllItems.FirstOrDefault(i => i.Id == itemId);
+                if (item == null) continue;
+                result.Add(new MealItemResponse
+                {
+                    ItemId = itemId,
+                    ItemName = item.Name,
+                    Quantity = qty,
+                    Unit = MeasurementUnit.Piece,
+                    ContentQuantity = item.ContentQuantity,
+                    PurchaseUnit = item.PurchaseUnit,
+                    ContentUnit = item.ContentUnit,
+                    UnitPrice = Cache.GetBestSupplier(itemId)?.UnitPrice,
+                });
+            }
+        }
+
+        foreach (var (recipeId, qty) in _recipeQty.Where(kv => kv.Value > 0))
+        {
+            if (_existingByRecipeId.TryGetValue(recipeId, out var ex))
+            {
+                result.Add(new MealItemResponse
+                {
+                    Id = ex.Id,
+                    RecipeId = recipeId,
+                    RecipeName = ex.RecipeName,
+                    RecipeEstimatedCost = ex.RecipeEstimatedCost,
+                    RecipeIngredientItemIds = ex.RecipeIngredientItemIds,
+                    Quantity = qty,
+                    Unit = MeasurementUnit.Piece,
+                    MealId = ex.MealId,
+                });
+            }
+            else
+            {
+                var recipe = AllRecipes.FirstOrDefault(r => r.Id == recipeId);
+                if (recipe == null) continue;
+                result.Add(new MealItemResponse
+                {
+                    RecipeId = recipeId,
+                    RecipeName = recipe.Name,
+                    RecipeEstimatedCost = recipe.EstimatedCost,
+                    RecipeIngredientItemIds = recipe.Ingredients.Select(i => i.ItemId).ToList(),
+                    Quantity = qty,
+                    Unit = MeasurementUnit.Piece,
+                });
+            }
+        }
+
+        return result;
+    }
+
+    // ── Diff computation ──────────────────────────────────────────────────────
+
+    private AddItemDialogSaveDiff ComputeDiff()
+    {
+        var toAddItems = new List<(int ItemId, decimal Qty)>();
+        var toAddRecipes = new List<(int RecipeId, decimal Qty)>();
+        var toUpdate = new List<(int MealItemId, decimal NewQty)>();
+        var toDelete = new List<int>();
+
+        foreach (var (itemId, qty) in _itemQty)
+        {
+            if (qty <= 0) continue;
+            if (_existingByItemId.TryGetValue(itemId, out var ex))
+            {
+                if (ex.Quantity != qty)
+                    toUpdate.Add((ex.Id, qty));
+            }
+            else
+            {
+                toAddItems.Add((itemId, qty));
+            }
+        }
+        foreach (var (itemId, ex) in _existingByItemId)
+        {
+            if (!_itemQty.TryGetValue(itemId, out var qty) || qty <= 0)
+                toDelete.Add(ex.Id);
+        }
+
+        foreach (var (recipeId, qty) in _recipeQty)
+        {
+            if (qty <= 0) continue;
+            if (_existingByRecipeId.TryGetValue(recipeId, out var ex))
+            {
+                if (ex.Quantity != qty)
+                    toUpdate.Add((ex.Id, qty));
+            }
+            else
+            {
+                toAddRecipes.Add((recipeId, qty));
+            }
+        }
+        foreach (var (recipeId, ex) in _existingByRecipeId)
+        {
+            if (!_recipeQty.TryGetValue(recipeId, out var qty) || qty <= 0)
+                toDelete.Add(ex.Id);
+        }
+
+        return new AddItemDialogSaveDiff(toAddItems, toAddRecipes, toUpdate, toDelete);
+    }
+
+    // ── Confirm / cancel ──────────────────────────────────────────────────────
+
+    private async Task ConfirmAsync()
+    {
+        var diff = ComputeDiff();
+        if (diff.ToAddItems.Count > 0 || diff.ToAddRecipes.Count > 0 ||
+            diff.ToUpdate.Count > 0 || diff.ToDelete.Count > 0)
+        {
+            _saving = true;
+            try { await OnSave(diff); }
+            finally { _saving = false; }
+        }
+        MudDialog.Close();
+    }
+
+    // ── Display helpers ───────────────────────────────────────────────────────
 
     private string GetBestUnitPrice(ItemResponse item)
     {

@@ -11,20 +11,26 @@ public static class SeedData
         if (db.Categories.Any()) return;
 
         // --- Categories ---
+        var bf = MealTypeFlags.Breakfast;
+        var lu = MealTypeFlags.Lunch;
+        var di = MealTypeFlags.Dinner;
+        var sn = MealTypeFlags.Snack;
+        var all = bf | lu | di | sn;
+
         db.Categories.AddRange(
-            new Category { Id = 1,  Name = "Biscuits & Goûters" },
-            new Category { Id = 2,  Name = "Surgelés" },
-            new Category { Id = 3,  Name = "Charcuterie" },
-            new Category { Id = 4,  Name = "Viandes" },
-            new Category { Id = 5,  Name = "Boissons" },
-            new Category { Id = 6,  Name = "Fruits & Légumes" },
-            new Category { Id = 7,  Name = "Épicerie Salée" },
-            new Category { Id = 8,  Name = "Féculents", ParentCategoryId = 7 },
-            new Category { Id = 9,  Name = "Produits Laitiers & Œufs" },
-            new Category { Id = 10, Name = "Boulangerie & Viennoiserie" },
-            new Category { Id = 11, Name = "Matières Grasses" },
-            new Category { Id = 12, Name = "Entretien & Hygiène" },
-            new Category { Id = 13, Name = "Sucre & Pâtisserie", ParentCategoryId = 1 }
+            new Category { Id = 1,  Name = "Biscuits & Goûters",        AllowedMealTypes = bf | sn          },  // 9
+            new Category { Id = 2,  Name = "Surgelés",                   AllowedMealTypes = lu | di | sn     },  // 14
+            new Category { Id = 3,  Name = "Charcuterie",                AllowedMealTypes = bf | lu | di     },  // 7
+            new Category { Id = 4,  Name = "Viandes",                    AllowedMealTypes = lu | di          },  // 6
+            new Category { Id = 5,  Name = "Boissons",                   AllowedMealTypes = all              },  // 15
+            new Category { Id = 6,  Name = "Fruits & Légumes",           AllowedMealTypes = all              },  // 15
+            new Category { Id = 7,  Name = "Épicerie Salée",             AllowedMealTypes = lu | di          },  // 6
+            new Category { Id = 8,  Name = "Féculents",                  AllowedMealTypes = lu | di,          ParentCategoryId = 7 },  // 6
+            new Category { Id = 9,  Name = "Produits Laitiers & Œufs",  AllowedMealTypes = all              },  // 15
+            new Category { Id = 10, Name = "Boulangerie & Viennoiserie", AllowedMealTypes = bf | sn          },  // 9
+            new Category { Id = 11, Name = "Matières Grasses",           AllowedMealTypes = lu | di          },  // 6
+            new Category { Id = 12, Name = "Entretien & Hygiène",        AllowedMealTypes = MealTypeFlags.None },  // 0
+            new Category { Id = 13, Name = "Sucre & Pâtisserie",         AllowedMealTypes = bf | sn,          ParentCategoryId = 1 }  // 9
         );
         db.SaveChanges();
 
@@ -47,8 +53,8 @@ public static class SeedData
         // --- Items ---
         var now = DateTime.UtcNow;
         db.Items.AddRange(
-            new Item { Id = 1,  Name = "Pims Orange",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
-            new Item { Id = 2,  Name = "Pims Fraise",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 1,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 1,  Name = "Pims Orange",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 20,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
+            new Item { Id = 2,  Name = "Pims Fraise",                  PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 20,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 1,  CreatedAt = now, UpdatedAt = now },
             new Item { Id = 3,  Name = "Glace Fraise",                 PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 6,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 2,  CreatedAt = now, UpdatedAt = now },
             new Item { Id = 4,  Name = "Jambon x4",                    PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 4,    ContentUnit = MeasurementUnit.Piece,       CategoryId = 3,  CreatedAt = now, UpdatedAt = now },
             new Item { Id = 5,  Name = "Jambon x10",                   PurchaseUnit = MeasurementUnit.Piece,       ContentQuantity = 10,   ContentUnit = MeasurementUnit.Piece,       CategoryId = 3,  CreatedAt = now, UpdatedAt = now },

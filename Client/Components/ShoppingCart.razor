@@ -164,7 +164,7 @@
                             @if (pricePer != null) { <text>· @pricePer</text> }
                         </span>
                     </div>
-                    <span class="sc-cell-num">@FmtQty(line.TotalQuantity) @FormatUnit(line.Unit)</span>
+                    <span class="sc-cell-num">@line.PackageCount</span>
                     <span class="sc-cell-num">@FmtMoney(line.UnitPrice)</span>
                     <div class="sc-cell-total">
                         <span class="sc-total-amount">@FmtMoney(line.Cost)</span>
@@ -292,16 +292,6 @@
         };
     }
 
-    private static string FormatUnit(MeasurementUnit unit) => unit switch
-    {
-        MeasurementUnit.Piece      => "pcs",
-        MeasurementUnit.Gram       => "g",
-        MeasurementUnit.Kilogram   => "kg",
-        MeasurementUnit.Milliliter => "mL",
-        MeasurementUnit.Liter      => "L",
-        _ => unit.ToString()
-    };
-
     private sealed record CartLine(
         string Name,
         decimal TotalQuantity,
@@ -312,5 +302,8 @@
         decimal UnitPrice,
         decimal Cost,
         string SupplierName,
-        PaymentType PaymentType);
+        PaymentType PaymentType)
+    {
+        public int PackageCount => (int)Math.Ceiling(TotalQuantity / Math.Max(ContentQuantity, 0.001m));
+    }
 }

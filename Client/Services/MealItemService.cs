@@ -31,6 +31,14 @@ public class MealItemService
         return response.IsSuccessStatusCode;
     }
 
+    public async Task<MealItemResponse?> UpdateAsync(int id, UpdateMealItemRequest request)
+    {
+        var response = await _http.PutAsJsonAsync($"api/mealitems/{id}", request);
+        return response.IsSuccessStatusCode
+            ? await response.Content.ReadFromJsonAsync<MealItemResponse>()
+            : null;
+    }
+
     public async Task<bool> DeleteAsync(int id)
     {
         var response = await _http.DeleteAsync($"api/mealitems/{id}");

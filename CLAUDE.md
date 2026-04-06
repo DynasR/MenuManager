@@ -42,7 +42,8 @@ Party (abstract, TPT)
   ├── Customer   — PasswordHash, PasswordSalt, PaymentType, ICollection<DailyMenu>
   └── Supplier   — CompanyName, Siret, PaymentType, ICollection<ItemSupplier>
 
-Category         — Id, Name, Description, ParentCategoryId (self-ref), SubCategories, Items
+Category         — Id, Name, Description, ParentCategoryId (self-ref), SubCategories, Items,
+                   AllowedMealTypes(MealTypeFlags, default=Breakfast|Lunch|Dinner|Snack)
 Item             — Id, Name, Description, PurchaseUnit(MeasurementUnit), ContentQuantity(decimal, default=1),
                    ContentUnit(MeasurementUnit), CategoryId(int), CreatedAt, UpdatedAt, ItemSuppliers, MealItems
 ItemSupplier     — PK composite (ItemId+SupplierId), UnitPrice(10,2), SupplierRef, IsAvailable, UpdatedAt
@@ -55,6 +56,7 @@ RecipeIngredient — PK composite (RecipeId+ItemId), Quantity, Unit(MeasurementU
 MealType        (enum, Shared/Entities/) — Breakfast, MorningSnack, Lunch, AfternoonSnack, Dinner
 MeasurementUnit (enum, Shared/Enums/) — Piece, Gram, Kilogram, Milliliter, Liter
 PaymentType     (enum, Shared/Enums/) — TR, CB
+MealTypeFlags   (flags enum, Shared/Enums/) — None=0, Breakfast=1, Snack=2, Lunch=4, Dinner=8
 ```
 
 Hierarchy: **Customer → DailyMenu → Meal → MealItem** (MenuPlan removed).
@@ -85,6 +87,7 @@ All EF config (precision, indexes, TPT, composite PKs) lives **exclusively** in
 | AddPaymentTypeToCustomer                   | Customer: add PaymentType(int)                                                 |
 | AddPaymentTypeCheckConstraints             | CHECK constraints `PaymentType IN (0, 1)` on Suppliers and Customers tables    |
 | AddUniqueDailyMenuDateConstraint           | Unique index on `DailyMenu(CustomerId, Date)`                                  |
+| AddMealTypesToCategory                     | Category: add AllowedMealTypes(int, default=15). SeedData updated per category.|
 
 ---
 
@@ -156,6 +159,9 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 
 **MealItemService**: `CreateAsync` accepts `ItemId?` or `RecipeId?` (exactly one must be set). Response maps `RecipeName`, `RecipeEstimatedCost` (via `RecipeService.ComputeRecipeCost`), `RecipeIngredientItemIds`, `Unit`, `ContentQuantity`, `PurchaseUnit`, `ContentUnit`. `UnitPrice` mapped with `OrderBy(s => s.UnitPrice)` (cheapest available supplier — was incorrectly `OrderBy(s => s.SupplierId)`).
 
+**CategoryResponse** includes `AllowedMealTypes (int)` — cast from `MealTypeFlags`.
+**ItemResponse** includes `CategoryAllowedMealTypes (int)` — mapped from `item.Category.AllowedMealTypes`.
+
 **New endpoint**: `POST /api/itemsuppliers/by-items` — body: `ByItemsRequest { List<int> ItemIds }` → `List<ItemPricingResponse>`. Returns all **available** `ItemSupplier` rows for the requested item IDs, with `ContentQuantity` and `Supplier` info (`Id`, `CompanyName`, `PaymentType`).
 
 **New endpoint**: `GET /api/itemsuppliers/best-by-item` → `Dictionary<int, BestSupplierInfo>`. Returns the cheapest available supplier per item (globally, not filtered by item list). `BestSupplierInfo` DTO (`Shared/DTOs/ItemSupplierDtos.cs`): `ItemId`, `PaymentType`, `UnitPrice`, `SupplierName`. Used by `ItemSupplierCache` on DayPlan load.
@@ -172,7 +178,7 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 | ItemSupplier | ✅      | ✅              | Double FK dropdown, composite PK, snackbar 404/409; dropdown shows `CompanyName ?? Name`; ItemName/SupplierName columns `Editable="false"` |
 | DailyMenu    | ✅      | ✅ via MenuPlan/Index | Route `/menuplan/{CustomerId}` — cards from `monthly-summary` endpoint |
 | Meal         | ✅      | ✅ via DayPlan/Index  | FK DailyMenuId                                                |
-| MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, ContentQuantity, Unit; ItemId? or RecipeId?; add via `AddItemDialog` (dual view: cards/dense, localStorage) |
+| MealItem     | ✅      | ✅ via DayPlan/Index  | FK MealId, Order, UnitPrice, ContentQuantity, Unit; ItemId? or RecipeId?; add/edit via `AddItemDialog` (diff-based, MealRecap panel, meal-type filter) |
 | Recipe       | ✅      | ✅ `/recipes`   | MudDataGrid + HierarchyColumn (inline ingredient editing per row) + RecipeDialog (create/edit) |
 
 ---
@@ -246,18 +252,20 @@ Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 - **Fire-and-forget JS drag calls**: `setFooterDragSource` and `clearFooterDragSource` use `_ = JS.InvokeVoidAsync(...)` (non-blocking) — drag start/end must not block Blazor's event thread.
 
 ### Add dialog (`Client/Components/AddItemDialog.razor`)
-- `MudDialog` opened via `IDialogService.ShowAsync<AddItemDialog>` from `DayPlan/Index.OpenAddDialog`. Replaces the old inline `MudDrawer`.
-- Parameters: `SelectedDate`, `SelectedMealType`, `AllItems`, `AllRecipes`, `OnItemAdd` (Func), `OnRecipeAdd` (Func).
+- `MudDialog` opened via `IDialogService.ShowAsync<AddItemDialog>` from `DayPlan/Index.OpenAddDialog`.
+- **Parameters**: `SelectedDate`, `SelectedMealType`, `AllItems`, `AllRecipes`, `CurrentMealItems` (List\<MealItemResponse\> — existing items in slot), `OnSave` (Func\<AddItemDialogSaveDiff, Task\>).
+- **Diff-based save**: dialog holds local `_itemQty`/`_recipeQty` dictionaries. `OnInitializedAsync` pre-fills them from `CurrentMealItems`. `ComputeDiff()` produces `AddItemDialogSaveDiff` (record in `Client/Components/AddItemDialogSaveDiff.cs`): `ToAddItems`, `ToAddRecipes`, `ToUpdate (MealItemId, NewQty)`, `ToDelete (MealItemId)`. `ConfirmAsync` calls `OnSave(diff)` then closes.
 - **Two tabs**: Items / Recettes — switched via `MudButtonGroup` (single `_search` field shared, cleared on tab switch).
+- **`_showAll` toggle** (FilterAlt icon button): when false (default), Items tab filters by `CategoryAllowedMealTypes` via `PassesMealTypeFilter`. Uses `MealTypeFlags` bit test on `ItemResponse.CategoryAllowedMealTypes`. Recettes tab always shows all.
 - **Dual view mode** (`_denseView`, default `true`): toggled by icon button, persisted to `localStorage` key `add-dialog-dense`.
-  - Dense (list): `MudDataGrid` — Items columns: Nom, Catégorie, Fournisseur, Prix unitaire, Unité, €/kg ou /L. Recettes: Nom, Portions, Coût estimé, Coût/portion, Ingrédients. Row click triggers add.
-  - Cards: `MudGrid` xs=6 sm=3 — gradient thumbnail (hue derived from category/name hash), price, supplier, TR/CB badge, content info. Recettes: gradient, description excerpt (2-line clamp), cost/pers.
+  - Dense (list): `MudDataGrid` — Items columns: Nom, Catégorie, Fournisseur, Prix unitaire, Unité, €/kg ou /L, **Qté** (stepper: `+` always visible, `−`+count shown when qty>0). Recettes: Nom, Portions, Coût estimé, Coût/portion, Ingrédients, **Qté**. Row click → `IncrItemQty`/`IncrRecipeQty` (always increments, no guard). `RowClassFunc` adds `qty-row-selected` CSS when qty>0.
+  - Cards: `MudGrid` xs=6 sm=3 — gradient thumbnail (hue derived from category/name hash), price, supplier, TR/CB badge, content info, stepper at bottom. Card border highlighted (primary/secondary) when qty>0. Card click → `IncrItemQty`/`IncrRecipeQty` (always increments).
+- **`MealRecap` sidebar** (230px, right of list): `Client/Components/MealRecap.razor`. Shows all items/recipes with qty>0. `OnQtyChange` callback → bidirectional: changes in recap update `_itemQty`/`_recipeQty` in parent.
+- **`ApplyDialogSaveAsync`** (in `DayPlan/Index`): processes `AddItemDialogSaveDiff` — deletes, updates (item: `MealItemSvc.UpdateAsync`; recipe: delete+re-add since no recipe update endpoint), adds items via `AddItemToSlotAsync`, adds recipes via `AddRecipeToSlotAsync`. `OpenAddDialog` passes `currentItems` captured in closure; `_selectedDate`/`_selectedMealType` fields removed.
+- **`MealItemService` client `UpdateAsync(int id, UpdateMealItemRequest)`** — `PUT /api/mealitems/{id}` → `MealItemResponse?`. Added to `Client/Services/MealItemService.cs`.
 - `ComputePricePerKgL` duplicated locally (same formula as `ShoppingCart`).
-- `MealTypeHelper.ToFrenchLabel()` used in subtitle.
-- Month nav chips apply dark mode inline styles from `ThemeState.IsDarkMode` — current=dark green, hasData=dark blue, empty=outlined dim. `DayPlan/Index` subscribes to `ThemeState.OnChange`.
-
-### OpenAddDialog
-- `RightPanel.Close()` no longer called when opening the add dialog — shopping cart stays visible.
+- `MealTypeHelper.ToFrenchLabel()` used in subtitle. Title no longer prefixed with "Ajouter — ".
+- `RightPanel.Close()` not called when opening the add dialog — shopping cart stays visible.
 
 ### AddItemToSlotAsync / AddRecipeToSlotAsync — on-demand creation helpers
 - `Task<bool> AddItemToSlotAsync(date, mealType, itemId, quantity)` — creates DailyMenu → Meal → MealItem lazily.
@@ -341,7 +349,7 @@ Extension method `ToFrenchLabel(this MealType)` — maps enum values to French d
 - **Unified display** (always enriched — no fallback):
   - Items (plain only, no recipe section) grouped by `(PaymentType, SupplierName)` of the cheapest available supplier. Items where `GetBestSupplier` returns null are excluded. Group header uses `--sc-accent` CSS var (TR=`#1565C0`, CB=`#6A1B9A`).
   - CSS grid layout: `.sc-col-labels`, `.sc-row`, `.sc-footer-row` share `grid-template-columns: 1fr 52px 58px 62px` (article / qty / /u / total). Alternating `.sc-row-alt` zebra. Scrollable `.sc-scroll` flex area + pinned `.sc-footer-wrap`.
-  - `CartLine` private record: Name, TotalQuantity, Unit, ContentQuantity, ContentUnit, PackagesToBuy, UnitPrice, **Cost**, SupplierName, PaymentType. Cost = sum of `CostHelper.ComputeItemCost(i, best.UnitPrice)` per slot (ceil per slot, not global ceil).
+  - `CartLine` private record: Name, TotalQuantity, Unit, ContentQuantity, ContentUnit, UnitPrice, **Cost**, SupplierName, PaymentType + computed property `PackageCount = ceil(TotalQuantity / ContentQuantity)`. Qty column displays `PackageCount` (nb de colis). Cost = sum of `CostHelper.ComputeItemCost(i, best.UnitPrice)` per slot (ceil per slot, not global ceil).
   - `ComputePricePerKgL(unitPrice, contentQty, contentUnit)` — returns formatted €/kg or €/L; null otherwise.
   - **Pinned footer** (`.sc-footer-row`): TR | CB left-aligned; grand total right-aligned. `_total = _trTotal + _cbTotal`.
   - `_loaded` bool replaces `_supplierDataLoaded`. `LoadAsync()` called when panel opens; `ComputeLines()` called on `OnParametersSet` if already loaded.
