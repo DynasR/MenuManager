@@ -35,7 +35,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Customer     | Party + **PaymentType** (TR/CB) — CalendarMonth → `/menuplan/{id}`               |
 | ItemSupplier | PK composite, pattern 404/409 ; dropdown `CompanyName ?? Name` ; colonnes FK non-éditables |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards 3 ans. HasData coloring. **Dark mode** via `ThemeState` (inline styles dynamiques). |
-| DayPlan/Index | Calendrier mensuel. **`AddItemDialog` diff-based** : édition des qtés existantes + ajout/suppression, tout validé en une passe. Random fill scindé : Casino (items) + MenuBook (recettes). Unique constraint `DailyMenu(CustomerId,Date)`. |
+| DayPlan/Index | Calendrier mensuel. **`AddItemDialog` diff-based** : colonnes triables (fournisseur, prix, qté), stepper toujours rendu (`visibility:hidden` quand 0). Random fill scindé : Casino (items) + MenuBook (recettes). Unique constraint `DailyMenu(CustomerId,Date)`. |
 | MealCell | `ShouldRender()` override. Badges TR/CB : items via cache direct, recettes via `GetRecipePaymentTypes`. CSS subgrid. **TR/CB mini-badges dans le footer du slot** (total centré, breakdown à droite). |
 | Recipe       | `/recipes` — MudDataGrid + HierarchyColumn, RecipeDialog, coût estimé par recette |
 | Layout       | 3 thèmes (Light/Dark/Custom). `ThemeState` + CycleTheme. Persisté localStorage. |
@@ -70,31 +70,32 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **Unique constraint DailyMenu** — migration `AddUniqueDailyMenuDateConstraint` : index unique sur `(CustomerId, Date)`. `ToDictionary` corrigé côté client avec `GroupBy().First()` pour robustesse.
 - **ShoppingCart refactorisé** — `Recipes` param supprimé. `CartLine` unifié. Pas de fallback. CSS grid 4 colonnes. Footer 4-col. Coût = ceil/slot. **Colonne qty affiche `PackageCount`** (nb de colis = `ceil(TotalQty / ContentQuantity)`, propriété calculée sur `CartLine`).
 - **MealTypeFlags** — flags enum (`Shared/Enums/MealTypeFlags.cs`) : `None=0, Breakfast=1, Snack=2, Lunch=4, Dinner=8`. `Category.AllowedMealTypes` (EF, migration `AddMealTypesToCategory`). `CategoryResponse.AllowedMealTypes (int)` + `ItemResponse.CategoryAllowedMealTypes (int)`. SeedData : flags par catégorie (ex. Biscuits = Breakfast|Snack, Viandes = Lunch|Dinner).
-- **AddItemDialog diff-based** — refactorisé de add-immédiat vers panier local + Valider. Dialog reçoit `CurrentMealItems` (snapshot du slot), calcule un diff (add/update/delete), envoie à `ApplyDialogSaveAsync` dans DayPlan/Index. Panel `MealRecap` intégré (sidebar 230px) : affiche et édite les qtés sélectionnées. Toggle `_showAll` filtre les items par `CategoryAllowedMealTypes` (utilise `MealTypeFlags`). Clic sur ligne/card → incrémente toujours la qté de 1.
+- **AddItemDialog diff-based** — Dialog reçoit `CurrentMealItems`, calcule un diff (add/update/delete), envoie à `ApplyDialogSaveAsync`. Colonnes denses triables (`SortBy` sur fournisseur, prix unitaire, qté via lambda cache). Stepper toujours rendu — `visibility:hidden` quand qty=0 (pas de layout shift). `LoadSlot()` extrait de `OnInitializedAsync` pour clarté. Panel `MealRecap` sidebar 460px : grille 5 col (`× | Nom | €/U | U | Total`), bouton `×` remove (envoie qty=0), header affiche MealType + date, footer TR/CB/Total comme DayPlan. Toggle `_showAll` filtre par `CategoryAllowedMealTypes`.
 - **Tests** — SQLite in-memory uniquement.
 
 ---
 
 ## Prochains chantiers (backlog CW)
 
+### MenuPlan/Index — duplication de planning (analyse de faisabilité demandée)
+UX cible (style ModX) :
+- Dbl-clic sur une carte = sélection source (highlight identique aux MealCards de DayPlan)
+- Clic sur une autre carte = sélection secondaire (légère)
+- Clic sur une carte cible = copie jour par jour — warning si mois source et mois cible n'ont pas le même nombre de jours correspondants
+- Si la cible a déjà des données : confirmation de remplacement
+- Clic hors cartes = quitter le mode duplication
+
 ### MenuPlan/Index
-- Duplication d'un planning vers un autre mois
 - Option voir les mois passés
+- Cards : clic sur toute la carte pour voir le planning (pas seulement le bouton)
+- Améliorer style des détails : coût par MealType, coût moyen, coût médian, style cohérent avec les totaux DayPlan
 
 ### DayPlan/Index
 - Total par semaine
 - Dialogue de confirmation pour les actions destructives (vider ligne/colonne/mois)
-- Affichage des ingrédients dans la MealCell (tooltip ou expand sur les recettes)
 
-### Détails financiers
-- Coût moyen et médian par jour/semaine/mois
-
-### Style global
-- Clic sur toute la carte MenuPlan → voir le planning (pas seulement le bouton)
-- Revue globale du style
-
-### Recettes
-- Calcul coût par portion (BaseServings)
+### Gestion Catégories
+- Tree view
 
 ---
 

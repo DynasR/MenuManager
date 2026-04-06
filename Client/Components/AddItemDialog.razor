@@ -10,7 +10,7 @@
                 <MudText Typo="Typo.h6" Style="font-weight:700; line-height:1.2;">
                     @SelectedDate.ToString("dddd d MMMM yyyy", _fr)
                 </MudText>
-                <MudText Typo="Typo.subtitle2" Style="color:var(--mud-palette-text-secondary);">
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
                     @SelectedMealType.ToFrenchLabel()
                 </MudText>
             </div>
@@ -59,38 +59,39 @@
                              RowClassFunc="@((item, _) => GetItemQty(item.Id) > 0 ? "qty-row-selected" : "")"
                              RowClick="HandleItemRowClick">
                     <Columns>
-                        <PropertyColumn Property="x => x.Name" Title="Nom" />
-                        <PropertyColumn Property="x => x.CategoryName" Title="Catégorie" />
-                        <TemplateColumn Title="Fournisseur" Sortable="false">
+                        <PropertyColumn Property="x => x.Name" Title="Nom" HeaderStyle="text-align:center;" />
+                        <PropertyColumn Property="x => x.CategoryName" Title="Catégorie" HeaderStyle="text-align:center;" />
+                        <TemplateColumn Title="Fournisseur" Sortable="true" HeaderStyle="text-align:center;"
+                                        SortBy="@(x => Cache.GetBestSupplier(x.Id)?.SupplierName ?? string.Empty)">
                             <CellTemplate>
                                 @(Cache.GetBestSupplier(context.Item.Id)?.SupplierName ?? "—")
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Prix unitaire" Sortable="false">
+                        <TemplateColumn Title="Prix unitaire" Sortable="true" HeaderStyle="text-align:center;"
+                                        SortBy="@(x => Cache.GetBestSupplier(x.Id)?.UnitPrice ?? 0m)">
                             <CellTemplate>
                                 @GetBestUnitPrice(context.Item)
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Unité" Sortable="false">
+                        <TemplateColumn Title="Unité" Sortable="false" HeaderStyle="text-align:center;">
                             <CellTemplate>
                                 @FormatUnit(context.Item.PurchaseUnit)
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="€/kg ou /L" Sortable="false">
+                        <TemplateColumn Title="€/kg ou /L" Sortable="false" HeaderStyle="text-align:center;">
                             <CellTemplate>
                                 @GetPricePerKgL(context.Item)
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Qté" Sortable="false">
+                        <TemplateColumn Title="Qté" HeaderStyle="text-align:center;"
+                                        SortBy="@(x => GetItemQty(x.Id))">
                             <CellTemplate>
                                 @{var ci = context.Item; var cq = GetItemQty(ci.Id);}
-                                <div @onclick:stopPropagation="true" style="display:flex;align-items:center;gap:2px;white-space:nowrap;">
-                                    @if (cq > 0)
-                                    {
-                                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
-                                                       OnClick="@(() => DecrItemQty(ci.Id))" />
-                                        <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@cq.ToString("0.#", _fr)</span>
-                                    }
+                                <div @onclick:stopPropagation="true" style="display:flex;align-items:center;gap:2px;white-space:nowrap;min-width:90px;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                   Style="@(cq <= 0 ? "visibility:hidden;pointer-events:none;" : "")"
+                                                   OnClick="@(() => DecrItemQty(ci.Id))" />
+                                    <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;visibility:@(cq > 0 ? "visible" : "hidden");">@cq.ToString("0.#", _fr)</span>
                                     <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
                                                    OnClick="@(() => IncrItemQty(ci.Id))" />
                                 </div>
@@ -161,33 +162,32 @@
                              RowClassFunc="@((recipe, _) => GetRecipeQty(recipe.Id) > 0 ? "qty-row-selected" : "")"
                              RowClick="HandleRecipeRowClick">
                     <Columns>
-                        <PropertyColumn Property="x => x.Name" Title="Nom" />
-                        <PropertyColumn Property="x => x.BaseServings" Title="Portions" />
-                        <TemplateColumn Title="Coût estimé" Sortable="false">
+                        <PropertyColumn Property="x => x.Name" Title="Nom" HeaderStyle="text-align:center;" />
+                        <PropertyColumn Property="x => x.BaseServings" Title="Portions" HeaderStyle="text-align:center;" />
+                        <TemplateColumn Title="Coût estimé" Sortable="false" HeaderStyle="text-align:center;">
                             <CellTemplate>
                                 @(context.Item.EstimatedCost > 0 ? FmtMoney(context.Item.EstimatedCost) : "—")
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Coût/portion" Sortable="false">
+                        <TemplateColumn Title="Coût/portion" Sortable="false" HeaderStyle="text-align:center;">
                             <CellTemplate>
                                 @(context.Item.EstimatedCost > 0 && context.Item.BaseServings > 0
                                     ? FmtMoney(context.Item.EstimatedCost / context.Item.BaseServings)
                                     : "—")
                             </CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Ingrédients" Sortable="false">
+                        <TemplateColumn Title="Ingrédients" Sortable="false" HeaderStyle="text-align:center;">
                             <CellTemplate>@context.Item.Ingredients.Count</CellTemplate>
                         </TemplateColumn>
-                        <TemplateColumn Title="Qté" Sortable="false">
+                        <TemplateColumn Title="Qté" HeaderStyle="text-align:center;"
+                                        SortBy="@(x => GetRecipeQty(x.Id))">
                             <CellTemplate>
                                 @{var cr = context.Item; var cq = GetRecipeQty(cr.Id);}
-                                <div @onclick:stopPropagation="true" style="display:flex;align-items:center;gap:2px;white-space:nowrap;">
-                                    @if (cq > 0)
-                                    {
-                                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
-                                                       OnClick="@(() => DecrRecipeQty(cr.Id))" />
-                                        <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@cq.ToString("0.#", _fr)</span>
-                                    }
+                                <div @onclick:stopPropagation="true" style="display:flex;align-items:center;gap:2px;white-space:nowrap;min-width:90px;">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                                   Style="@(cq <= 0 ? "visibility:hidden;pointer-events:none;" : "")"
+                                                   OnClick="@(() => DecrRecipeQty(cr.Id))" />
+                                    <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;visibility:@(cq > 0 ? "visible" : "hidden");">@cq.ToString("0.#", _fr)</span>
                                     <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
                                                    OnClick="@(() => IncrRecipeQty(cr.Id))" />
                                 </div>
@@ -254,8 +254,8 @@
             }
         }
     </div>
-    <div style="width:230px; flex-shrink:0; border-left:1px solid var(--mud-palette-divider); display:flex; flex-direction:column;">
-        <MealRecap Items="BuildRecapItems().ToList()" OnQtyChange="HandleRecapQtyChange" />
+    <div style="width:460px; flex-shrink:0; border-left:1px solid var(--mud-palette-divider); display:flex; flex-direction:column;">
+        <MealRecap Items="BuildRecapItems().ToList()" MealType="SelectedMealType" CurrentDate="SelectedDate" OnQtyChange="HandleRecapQtyChange" />
     </div>
     </div>
     </DialogContent>
@@ -319,7 +319,25 @@
         var stored = await JS.InvokeAsync<string?>("localStorage.getItem", "add-dialog-dense");
         if (stored == "false") _denseView = false;
 
-        foreach (var mi in CurrentMealItems)
+        LoadSlot(CurrentMealItems);
+    }
+
+    private async Task ToggleDenseViewAsync()
+    {
+        _denseView = !_denseView;
+        await JS.InvokeVoidAsync("localStorage.setItem", "add-dialog-dense", _denseView ? "true" : "false");
+    }
+
+    // ── Slot loading ──────────────────────────────────────────────────────────
+
+    private void LoadSlot(List<MealItemResponse> items)
+    {
+        _itemQty.Clear();
+        _recipeQty.Clear();
+        _existingByItemId.Clear();
+        _existingByRecipeId.Clear();
+
+        foreach (var mi in items)
         {
             if (mi.RecipeId.HasValue)
             {
@@ -332,12 +350,6 @@
                 _existingByItemId[mi.ItemId] = mi;
             }
         }
-    }
-
-    private async Task ToggleDenseViewAsync()
-    {
-        _denseView = !_denseView;
-        await JS.InvokeVoidAsync("localStorage.setItem", "add-dialog-dense", _denseView ? "true" : "false");
     }
 
     // ── Meal-type filter ─────────────────────────────────────────────────────

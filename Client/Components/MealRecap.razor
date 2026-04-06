@@ -20,9 +20,10 @@
         flex-shrink: 0;
     }
 
-    .mr-col-labels, .mr-row, .mr-footer-row {
+    /* 5-col grid: × | Nom | €/U | U | Total */
+    .mr-col-labels, .mr-row {
         display: grid;
-        grid-template-columns: 1fr 36px 58px;
+        grid-template-columns: 18px 1fr 56px 32px 58px;
         gap: 4px;
         padding-left: 10px;
         padding-right: 10px;
@@ -40,7 +41,7 @@
         text-transform: uppercase;
         color: var(--mud-palette-text-secondary);
     }
-    .mr-col-labels > span:not(:first-child) { text-align: right; }
+    .mr-col-labels > span:nth-child(n+3) { text-align: right; }
 
     .mr-scroll {
         flex: 1;
@@ -84,7 +85,7 @@
         width: 18px;
         height: 18px;
         border: 1px solid color-mix(in srgb, var(--mud-palette-text-secondary) 50%, transparent);
-        border-radius: 3px;
+        border-radius: 50%;
         background: transparent;
         cursor: pointer;
         font-size: 0.75rem;
@@ -110,6 +111,14 @@
         color: var(--mud-palette-text-primary);
     }
 
+    .mr-cell-price {
+        font-size: 0.72rem;
+        text-align: right;
+        padding-top: 4px;
+        color: var(--mud-palette-text-secondary);
+        white-space: nowrap;
+    }
+
     .mr-cell-num {
         font-size: 0.75rem;
         text-align: right;
@@ -125,36 +134,36 @@
         white-space: nowrap;
     }
 
+    /* Pinned footer — always visible, flex row */
     .mr-footer-wrap {
         flex-shrink: 0;
         border-top: 2px solid color-mix(in srgb, var(--mud-palette-text-secondary) 20%, transparent);
         background: var(--mud-palette-background, #fff);
-    }
-
-    .mr-footer-row {
-        padding-top: 7px;
-        padding-bottom: 7px;
+        display: flex;
         align-items: baseline;
+        gap: 6px;
+        padding: 7px 10px;
     }
 
-    .mr-footer-total {
-        font-size: 0.88rem;
-        font-weight: 700;
-        text-align: right;
-        white-space: nowrap;
-    }
+    .mr-footer-tr    { font-size: 0.78rem; font-weight: 700; color: #1565C0; white-space: nowrap; }
+    .mr-footer-cb    { font-size: 0.78rem; font-weight: 700; color: #6A1B9A; white-space: nowrap; }
+    .mr-footer-sep   { font-size: 0.78rem; opacity: 0.4; }
+    .mr-footer-total { font-size: 0.88rem; font-weight: 700; white-space: nowrap; margin-left: auto; }
 </style>
 
 <div class="mr-wrap">
 
     <div class="mr-header">
         <MudIcon Icon="@Icons.Material.Filled.Receipt" Style="font-size:1.1rem; color:white;" />
-        <MudText Typo="Typo.body2" Style="font-weight:700; color:white; margin:0;">Ce repas</MudText>
+        <MudText Typo="Typo.body2" Style="font-weight:700; color:white; margin:0;">@MealType.ToFrenchLabel()</MudText>
+        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.55); margin:0;">— @CurrentDate.ToString("dd MMM", _fr)</MudText>
     </div>
 
     <div class="mr-col-labels">
+        <span></span>
         <span>Article</span>
-        <span>Pkgs</span>
+        <span>€/U</span>
+        <span>U</span>
         <span>Total</span>
     </div>
 
@@ -169,6 +178,12 @@
             {
                 var cl = line;
                 <div class="mr-row @(idx % 2 == 1 ? "mr-row-alt" : "")">
+                    <div style="display:flex;align-items:flex-start;padding-top:2px;">
+                        <MudIconButton Icon="@Icons.Material.Filled.Close" Color="Color.Error"
+                                       Size="Size.Small"
+                                       Style="padding:0;width:18px;height:18px;min-width:18px;font-size:14px;opacity:0.5;"
+                                       OnClick="@(() => RemoveFromRecapAsync(cl))" />
+                    </div>
                     <div class="mr-cell-name">
                         <span class="mr-name">@line.Name</span>
                         <div class="mr-qty-ctrl">
@@ -177,6 +192,7 @@
                             <button class="mr-qty-btn" @onclick="@(() => ChangeQtyAsync(cl, +1))">+</button>
                         </div>
                     </div>
+                    <span class="mr-cell-price">@(line.UnitPrice.HasValue ? FmtMoney(line.UnitPrice.Value) : "—")</span>
                     <span class="mr-cell-num">@(line.IsRecipe ? "—" : line.PackageCount.ToString())</span>
                     <span class="mr-cell-total">@FmtMoney(line.Cost)</span>
                 </div>
@@ -186,14 +202,10 @@
     </div>
 
     <div class="mr-footer-wrap">
-        @if (_lines.Any())
-        {
-            <div class="mr-footer-row">
-                <span></span>
-                <span></span>
-                <span class="mr-footer-total">@FmtMoney(_total)</span>
-            </div>
-        }
+        @if (_trTotal > 0) { <span class="mr-footer-tr">TR @FmtMoney(_trTotal)</span> }
+        @if (_trTotal > 0 && _cbTotal > 0) { <span class="mr-footer-sep">|</span> }
+        @if (_cbTotal > 0) { <span class="mr-footer-cb">CB @FmtMoney(_cbTotal)</span> }
+        <span class="mr-footer-total">@FmtMoney(_total)</span>
     </div>
 
 </div>
@@ -203,12 +215,18 @@
     public IEnumerable<MealItemResponse> Items { get; set; } = [];
 
     [Parameter]
+    public MealType MealType { get; set; }
+
+    [Parameter]
+    public DateOnly CurrentDate { get; set; }
+
+    [Parameter]
     public EventCallback<(int Id, decimal Qty, bool IsRecipe)> OnQtyChange { get; set; }
 
     private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
 
     private List<RecapLine> _lines = [];
-    private decimal _total;
+    private decimal _total, _trTotal, _cbTotal;
 
     protected override async Task OnInitializedAsync()
         => await Cache.EnsureLoadedAsync();
@@ -218,37 +236,48 @@
 
     private void ComputeLines()
     {
-        _lines = Items.Select(item =>
+        decimal tr = 0, cb = 0;
+        var lines = new List<RecapLine>();
+
+        foreach (var item in Items)
         {
             if (item.RecipeId.HasValue)
             {
-                return new RecapLine(
-                    Id: item.RecipeId.Value,
-                    IsRecipe: true,
-                    Name: item.RecipeName ?? "Recette",
-                    Quantity: item.Quantity,
-                    PackageCount: 0,
-                    Cost: CostHelper.ComputeItemCost(item));
+                var cost = CostHelper.ComputeItemCost(item);
+                var types = item.RecipeIngredientItemIds
+                    .Select(id => Cache.GetBestSupplier(id)?.PaymentType)
+                    .Where(pt => pt.HasValue)
+                    .Select(pt => pt!.Value)
+                    .Distinct().ToList();
+                if (types.Count == 1) { if (types[0] == PaymentType.TR) tr += cost; else cb += cost; }
+                else { tr += cost / 2; cb += cost / 2; }
+                lines.Add(new RecapLine(item.RecipeId.Value, true,
+                    item.RecipeName ?? "Recette", item.Quantity, 0, null, cost));
             }
             else
             {
-                var bestPrice = Cache.GetBestSupplier(item.ItemId)?.UnitPrice;
+                var best = Cache.GetBestSupplier(item.ItemId);
+                var bestPrice = best?.UnitPrice;
                 var pkgs = (int)Math.Ceiling(item.Quantity / Math.Max(item.ContentQuantity, 0.001m));
-                return new RecapLine(
-                    Id: item.ItemId,
-                    IsRecipe: false,
-                    Name: item.ItemName,
-                    Quantity: item.Quantity,
-                    PackageCount: pkgs,
-                    Cost: CostHelper.ComputeItemCost(item, bestPrice));
+                var cost = CostHelper.ComputeItemCost(item, bestPrice);
+                if (best?.PaymentType == PaymentType.TR) tr += cost;
+                else if (best?.PaymentType == PaymentType.CB) cb += cost;
+                lines.Add(new RecapLine(item.ItemId, false,
+                    item.ItemName, item.Quantity, pkgs, bestPrice, cost));
             }
-        }).ToList();
+        }
 
+        _lines = lines;
         _total = _lines.Sum(l => l.Cost);
+        _trTotal = tr;
+        _cbTotal = cb;
     }
 
     private async Task ChangeQtyAsync(RecapLine line, int delta)
         => await OnQtyChange.InvokeAsync((line.Id, line.Quantity + delta, line.IsRecipe));
+
+    private async Task RemoveFromRecapAsync(RecapLine line)
+        => await OnQtyChange.InvokeAsync((line.Id, 0m, line.IsRecipe));
 
     private static string FmtMoney(decimal v) => v.ToString("0.00 €", _fr);
     private static string FmtQty(decimal v) => v.ToString("0.##", _fr);
@@ -259,5 +288,6 @@
         string Name,
         decimal Quantity,
         int PackageCount,
+        decimal? UnitPrice,
         decimal Cost);
 }
