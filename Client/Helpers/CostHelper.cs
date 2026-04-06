@@ -46,7 +46,7 @@ public static class CostHelper
     public static decimal ComputeItemCost(MealItemResponse item, decimal? bestUnitPrice = null)
     {
         if (item.RecipeId.HasValue)
-            return (item.RecipeEstimatedCost ?? 0m) * item.Quantity;
+            return (item.RecipeEstimatedCost ?? 0m) / Math.Max(item.RecipeBaseServings, 1) * item.Quantity;
 
         var price = bestUnitPrice ?? item.UnitPrice;
         if (price is null) return 0m;

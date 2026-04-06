@@ -491,6 +491,36 @@ public class DailyMenuServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetMonthlySummaryAsync_ComputesRecipeCostByServings()
+    {
+        // Recipe: BaseServings=4, ingredient (ContentQuantity=1, UnitPrice=2.00) → ComputeRecipeCost=2.00
+        // 1 portion consumed → 2.00 / 4 * 1 = 0.50
+        var customer = await SeedCustomerAsync();
+        var item = await SeedItemAsync("Pasta", contentQuantity: 1, unitPrice: 2.00m);
+
+        var recipe = new Recipe
+        {
+            Name = "Pasta dish",
+            BaseServings = 4,
+            RecipeIngredients = [new RecipeIngredient { ItemId = item.Id, Quantity = 1, Unit = MeasurementUnit.Piece, Order = 1 }]
+        };
+        _db.Recipes.Add(recipe);
+        await _db.SaveChangesAsync();
+
+        var dm = await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 5));
+        var meal = new Meal { MealType = MealType.Lunch, DailyMenuId = dm.Id };
+        _db.Meals.Add(meal);
+        await _db.SaveChangesAsync();
+        _db.MealItems.Add(new MealItem { MealId = meal.Id, RecipeId = recipe.Id, Quantity = 1, Unit = MeasurementUnit.Piece });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.GetMonthlySummaryAsync(customer.Id);
+
+        result.Should().HaveCount(1);
+        result[0].MonthlyCost.Should().Be(0.50m); // 2.00 / 4 * 1
+    }
+
+    [Fact]
     public async Task GetMonthlySummaryAsync_AppliesCeilPerLine_NotPerGroup()
     {
         // Same item on 2 days, qty=2 each, ContentQuantity=6, UnitPrice=3.00

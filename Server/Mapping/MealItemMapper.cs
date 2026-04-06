@@ -14,6 +14,7 @@ public static class MealItemMapper
         RecipeId = mi.RecipeId,
         RecipeName = mi.Recipe?.Name,
         RecipeEstimatedCost = mi.Recipe != null ? RecipeService.ComputeRecipeCost(mi.Recipe) : null,
+        RecipeBaseServings = mi.Recipe?.BaseServings ?? 1,
         RecipeIngredientItemIds = mi.Recipe?.RecipeIngredients.Select(ri => ri.ItemId).ToList() ?? [],
         Quantity = mi.Quantity,
         Notes = mi.Notes,

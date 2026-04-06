@@ -126,49 +126,33 @@ public class DailyMenuService : IDailyMenuService
             await _db.SaveChangesAsync();
         }
 
-        // Recreate in target month
+        // Recreate in target month — build full graph, save once
         int targetDaysInMonth = DateTime.DaysInMonth(request.TargetYear, request.TargetMonth);
 
-        foreach (var sourceMenu in sourceDailyMenus)
-        {
-            int day = sourceMenu.Date.Day;
-            if (day > targetDaysInMonth) continue;
-
-            var targetDate = new DateOnly(request.TargetYear, request.TargetMonth, day);
-            var newMenu = new DailyMenu
+        var newMenus = sourceDailyMenus
+            .Where(sm => sm.Date.Day <= targetDaysInMonth)
+            .Select(sm => new DailyMenu
             {
-                Date = targetDate,
-                CustomerId = request.CustomerId
-            };
-            _db.DailyMenus.Add(newMenu);
-            await _db.SaveChangesAsync();
-
-            foreach (var sourceMeal in sourceMenu.Meals)
-            {
-                var newMeal = new Meal
+                Date = new DateOnly(request.TargetYear, request.TargetMonth, sm.Date.Day),
+                CustomerId = request.CustomerId,
+                Meals = sm.Meals.Select(sourceMeal => new Meal
                 {
                     MealType = sourceMeal.MealType,
-                    DailyMenuId = newMenu.Id
-                };
-                _db.Meals.Add(newMeal);
-                await _db.SaveChangesAsync();
-
-                foreach (var sourceItem in sourceMeal.MealItems)
-                {
-                    _db.MealItems.Add(new MealItem
+                    MealItems = sourceMeal.MealItems.Select(sourceItem => new MealItem
                     {
-                        MealId = newMeal.Id,
                         ItemId = sourceItem.ItemId,
                         RecipeId = sourceItem.RecipeId,
                         Quantity = sourceItem.Quantity,
                         Notes = sourceItem.Notes,
                         Order = sourceItem.Order,
                         Unit = sourceItem.Unit
-                    });
-                }
-                await _db.SaveChangesAsync();
-            }
-        }
+                    }).ToList()
+                }).ToList()
+            })
+            .ToList();
+
+        _db.DailyMenus.AddRange(newMenus);
+        await _db.SaveChangesAsync();
 
         return true;
     }
@@ -222,7 +206,7 @@ public class DailyMenuService : IDailyMenuService
                 return (int)Math.Ceiling(mi.Quantity / mi.Item.ContentQuantity) * unitPrice.Value;
             }
             if (mi.Recipe is not null)
-                return RecipeService.ComputeRecipeCost(mi.Recipe) * mi.Quantity;
+                return RecipeService.ComputeRecipeCost(mi.Recipe) / Math.Max(mi.Recipe.BaseServings, 1) * mi.Quantity;
             return 0m;
         });
     }

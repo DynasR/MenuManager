@@ -11,6 +11,7 @@ public class MealItemResponse
     public int? RecipeId { get; set; }
     public string? RecipeName { get; set; }
     public decimal? RecipeEstimatedCost { get; set; }
+    public int RecipeBaseServings { get; set; } = 1;
     public List<int> RecipeIngredientItemIds { get; set; } = [];
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }

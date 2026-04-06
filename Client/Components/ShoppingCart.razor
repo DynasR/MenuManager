@@ -119,6 +119,26 @@
     .sc-footer-tr  { font-size: 0.82rem; font-weight: 700; color: #1565C0; white-space: nowrap; }
     .sc-footer-cb  { font-size: 0.82rem; font-weight: 700; color: #6A1B9A; white-space: nowrap; }
     .sc-footer-total { font-size: 0.9rem; font-weight: 700; text-align: right; white-space: nowrap; }
+
+    .sc-recipes-header {
+        display: flex; align-items: center; gap: 6px;
+        padding: 8px 12px 2px;
+        font-size: 0.7rem; font-weight: 700;
+        letter-spacing: 0.04em; text-transform: uppercase;
+        color: #E65100;
+        border-top: 1px solid color-mix(in srgb, #E65100 25%, transparent);
+        margin-top: 4px;
+    }
+    .sc-recipes-badge {
+        color: #E65100;
+        background: color-mix(in srgb, #E65100 15%, transparent);
+        padding: 1px 5px; border-radius: 3px;
+        font-size: 0.65rem; font-weight: 800;
+    }
+    .sc-recipe-pt {
+        font-size: 0.67rem; font-weight: 700; padding: 0 3px; border-radius: 2px;
+        white-space: nowrap;
+    }
 </style>
 
 <div class="sc-wrap">
@@ -128,7 +148,7 @@
         <MudText Typo="Typo.h6" Style="font-size: 1rem; font-weight: 600; color: white; margin: 0;">Shopping Cart</MudText>
     </div>
 
-    @if (!_lines.Any())
+    @if (!_lines.Any() && !_recipeLines.Any())
     {
         <MudText Class="pa-4" Color="Color.Secondary">No items in the plan yet.</MudText>
     }
@@ -174,12 +194,40 @@
             }
         }
 
+        @if (_recipeLines.Any())
+        {
+            <div class="sc-recipes-header">
+                <span class="sc-recipes-badge">Recettes</span>
+                <span>Ingrédients recettes</span>
+            </div>
+            @foreach (var (line, idx) in _recipeLines.Select((l, i) => (l, i)))
+            {
+                var pct = _total > 0 ? line.Cost / _total * 100 : 0m;
+                <div class="sc-row @(idx % 2 == 1 ? "sc-row-alt" : "")">
+                    <div class="sc-cell-name">
+                        <span class="sc-name">@line.Name</span>
+                        <span class="sc-meta" style="display:flex; align-items:center; gap:3px;">
+                            @FmtQty(line.Portions, 1) pt.
+                            @if (line.TrCost > 0) { <span class="sc-recipe-pt" style="color:#1565C0; background:color-mix(in srgb,#1565C0 12%,transparent);">TR</span> }
+                            @if (line.CbCost > 0) { <span class="sc-recipe-pt" style="color:#6A1B9A; background:color-mix(in srgb,#6A1B9A 12%,transparent);">CB</span> }
+                        </span>
+                    </div>
+                    <span class="sc-cell-num">@FmtQty(line.Portions, 1)</span>
+                    <span class="sc-cell-num">@FmtMoney(line.CostPerPortion)</span>
+                    <div class="sc-cell-total">
+                        <span class="sc-total-amount">@FmtMoney(line.Cost)</span>
+                        <span class="sc-pct">@FmtQty(pct, 1)%</span>
+                    </div>
+                </div>
+            }
+        }
+
         <div style="height: 8px;"></div>
     }
 </div>
 
 <div class="sc-footer-wrap">
-    @if (_loaded && _lines.Any())
+    @if (_loaded && (_lines.Any() || _recipeLines.Any()))
     {
         <div class="sc-footer-row">
             <span style="display:flex; align-items:center; gap:4px; white-space:nowrap;">
@@ -203,6 +251,7 @@
     private bool _loaded;
     private List<CartLine> _lines = [];
     private IEnumerable<IGrouping<(PaymentType PaymentType, string SupplierName), CartLine>> _groups = [];
+    private List<RecipeCartLine> _recipeLines = [];
     private decimal _trTotal, _cbTotal, _total;
 
     protected override void OnInitialized()
@@ -262,8 +311,32 @@
             .OrderBy(g => g.Key.PaymentType)
             .ThenBy(g => g.Key.SupplierName);
 
-        _trTotal = _lines.Where(l => l.PaymentType == PaymentType.TR).Sum(l => l.Cost);
-        _cbTotal = _lines.Where(l => l.PaymentType == PaymentType.CB).Sum(l => l.Cost);
+        _recipeLines = Items
+            .Where(i => i.RecipeId.HasValue)
+            .GroupBy(i => i.RecipeId!)
+            .Select(g =>
+            {
+                var first = g.First();
+                var totalPortions = g.Sum(i => i.Quantity);
+                var costPerPortion = (first.RecipeEstimatedCost ?? 0m) / Math.Max(first.RecipeBaseServings, 1);
+                var totalCost = costPerPortion * totalPortions;
+                var paymentTypes = CostHelper.GetRecipePaymentTypes(first.RecipeIngredientItemIds, Cache);
+                var (tr, cb) = CostHelper.BucketByCost(totalCost, paymentTypes);
+                return new RecipeCartLine(
+                    first.RecipeName ?? first.ItemName,
+                    totalPortions,
+                    costPerPortion,
+                    totalCost,
+                    tr,
+                    cb);
+            })
+            .OrderBy(l => l.Name)
+            .ToList();
+
+        _trTotal = _lines.Where(l => l.PaymentType == PaymentType.TR).Sum(l => l.Cost)
+                 + _recipeLines.Sum(l => l.TrCost);
+        _cbTotal = _lines.Where(l => l.PaymentType == PaymentType.CB).Sum(l => l.Cost)
+                 + _recipeLines.Sum(l => l.CbCost);
         _total = _trTotal + _cbTotal;
     }
 
@@ -293,4 +366,12 @@
     {
         public int PackageCount => (int)Math.Ceiling(TotalQuantity / Math.Max(ContentQuantity, 0.001m));
     }
+
+    private sealed record RecipeCartLine(
+        string Name,
+        decimal Portions,
+        decimal CostPerPortion,
+        decimal Cost,
+        decimal TrCost,
+        decimal CbCost);
 }
