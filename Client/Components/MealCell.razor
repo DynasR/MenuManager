@@ -57,6 +57,7 @@
              @ondragstart="HandleFooterDragStart" @ondragend="HandleFooterDragEnd"
              @onclick="HandleFooterZoneClick" @onclick:stopPropagation="true"></div>
         <span class="meal-cell-slot-total @(_clearPrimed ? "total-primed" : "")"
+              style="position:absolute; left:50%; transform:translateX(-50%);"
               draggable="true"
               @ondragstart:preventDefault="true"
               @ondragstart:stopPropagation="true"
@@ -69,6 +70,27 @@
               @onmouseleave="@(() => { _clearPrimed = false; })">
             @(SlotTotal > 0 ? SlotTotal.ToString("C", _fr) : "")
         </span>
+        @if (SlotTotal > 0)
+        {
+            var trCb = SlotTrCb;
+            if (trCb.tr > 0 || trCb.cb > 0)
+            {
+                <span style="position:absolute; right:4px; display:flex; gap:2px; align-items:center; font-size:0.58rem; line-height:1; white-space:nowrap; pointer-events:none;">
+                    @if (trCb.tr > 0)
+                    {
+                        <span style="color:#1565C0; font-weight:600;">@trCb.tr.ToString("0.00", _fr)€</span>
+                    }
+                    @if (trCb.tr > 0 && trCb.cb > 0)
+                    {
+                        <span style="opacity:0.4;">|</span>
+                    }
+                    @if (trCb.cb > 0)
+                    {
+                        <span style="color:#6A1B9A; font-weight:600;">@trCb.cb.ToString("0.00", _fr)€</span>
+                    }
+                </span>
+            }
+        }
         <div class="footer-zone-side" draggable="true"
              @ondragstart="HandleFooterDragStart" @ondragend="HandleFooterDragEnd"
              @onclick="HandleFooterZoneClick" @onclick:stopPropagation="true"></div>
@@ -89,6 +111,32 @@
 
     private decimal ComputeItemCost(MealItemResponse item) =>
         CostHelper.ComputeItemCost(item, item.RecipeId.HasValue ? null : Cache.GetBestSupplier(item.ItemId)?.UnitPrice);
+
+    private (decimal tr, decimal cb) SlotTrCb
+    {
+        get
+        {
+            decimal tr = 0, cb = 0;
+            foreach (var item in Items)
+            {
+                var cost = ComputeItemCost(item);
+                if (item.RecipeId.HasValue)
+                {
+                    var pts = GetRecipePaymentTypes(item);
+                    if (pts.Count == 0) continue;
+                    if (pts.Count == 1) { if (pts[0] == PaymentType.TR) tr += cost; else cb += cost; }
+                    else { tr += cost / 2; cb += cost / 2; }
+                }
+                else
+                {
+                    var pt = Cache.GetBestSupplier(item.ItemId)?.PaymentType;
+                    if (pt == PaymentType.TR) tr += cost;
+                    else if (pt == PaymentType.CB) cb += cost;
+                }
+            }
+            return (tr, cb);
+        }
+    }
 
     private string FormatItemPrice(MealItemResponse item)
     {

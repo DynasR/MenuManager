@@ -69,6 +69,7 @@ else
             var hmt = mt;
             var hmtKey = ((int)hmt).ToString();
             var colTotal = GetColumnTotal(hmt);
+            var colTrCb = GetColumnTrCb(hmt);
             <div class="dayplan-grid-header"
                  data-colmealtype="@((int)hmt)"
                  @onmousedown="@(() => { _ = JS.InvokeVoidAsync("addColumnPrimed", hmtKey); })"
@@ -78,7 +79,26 @@ else
                 <MudText Typo="Typo.subtitle2">@hmt.ToFrenchLabel()</MudText>
                 @if (colTotal > 0)
                 {
-                    <span class="dayplan-cost-total">@colTotal.ToString("C", _frCulture)</span>
+                    <div style="position:relative; width:100%; display:flex; align-items:center; justify-content:center;">
+                        <span class="dayplan-cost-total">@colTotal.ToString("C", _frCulture)</span>
+                        @if (colTrCb.tr > 0 || colTrCb.cb > 0)
+                        {
+                            <span style="position:absolute; right:0; display:flex; gap:2px; align-items:center; font-size:0.58rem; line-height:1; white-space:nowrap; pointer-events:none;">
+                                @if (colTrCb.tr > 0)
+                                {
+                                    <span style="color:#1565C0; font-weight:600;">@colTrCb.tr.ToString("0.00", _frCulture)€</span>
+                                }
+                                @if (colTrCb.tr > 0 && colTrCb.cb > 0)
+                                {
+                                    <span style="opacity:0.4;">|</span>
+                                }
+                                @if (colTrCb.cb > 0)
+                                {
+                                    <span style="color:#6A1B9A; font-weight:600;">@colTrCb.cb.ToString("0.00", _frCulture)€</span>
+                                }
+                            </span>
+                        }
+                    </div>
                 }
             </div>
         }
@@ -87,8 +107,11 @@ else
                 <MudTooltip Text="Vider le mois">
                     <MudIconButton Icon="@Icons.Material.Filled.DeleteSweep" Color="Color.Error" Size="Size.Small" OnClick="ClearMonthAsync" />
                 </MudTooltip>
-                <MudTooltip Text="Remplissage aléatoire">
-                    <MudIconButton Icon="@Icons.Material.Filled.Casino" Color="Color.Secondary" Size="Size.Small" OnClick="RandomFillAsync" />
+                <MudTooltip Text="Remplissage aléatoire — items">
+                    <MudIconButton Icon="@Icons.Material.Filled.Casino" Color="Color.Secondary" Size="Size.Small" OnClick="RandomFillItemsAsync" />
+                </MudTooltip>
+                <MudTooltip Text="Remplissage aléatoire — recettes">
+                    <MudIconButton Icon="@Icons.Material.Filled.MenuBook" Color="Color.Secondary" Size="Size.Small" OnClick="RandomFillRecipesAsync" />
                 </MudTooltip>
             </div>
         </div>
@@ -103,6 +126,8 @@ else
             var cellCssClass = isHoliday ? "dayplan-grid-cell dayplan-holiday" : isWeekend ? "dayplan-grid-cell dayplan-weekend" : "dayplan-grid-cell";
             var holidayName = isHoliday ? GetHolidayName(date) : null;
             var rowDateStr = date.ToString("yyyy-MM-dd");
+            var rowTotal = GetRowTotal(date);
+            var rowTrCb = GetRowTrCb(date);
 
             <div class="dayplan-grid-date @dateCssClass"
                  data-rowdate="@rowDateStr"
@@ -110,22 +135,41 @@ else
                  @onmouseup="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
                  @onmouseleave="@(() => { _ = JS.InvokeVoidAsync("removeRowPrimed", rowDateStr); })"
                  @ondblclick="@(() => ClearRowAsync(date))">
-                @if (isHoliday)
-                {
-                    <MudTooltip Text="@holidayName" Placement="Placement.Right">
+                <div class="date-right-inner">
+                    @if (isHoliday)
+                    {
+                        <MudTooltip Text="@holidayName" Placement="Placement.Right">
+                            <div class="date-label">
+                                <span class="date-label-dow date-label-holiday">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
+                                <span class="date-label-num date-label-holiday">@date.ToString("dd", _frCulture)</span>
+                            </div>
+                        </MudTooltip>
+                    }
+                    else
+                    {
                         <div class="date-label">
-                            <span class="date-label-dow date-label-holiday">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
-                            <span class="date-label-num date-label-holiday">@date.ToString("dd", _frCulture)</span>
+                            <span class="date-label-dow @(isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
+                            <span class="date-label-num @(isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", _frCulture)</span>
                         </div>
-                    </MudTooltip>
-                }
-                else
-                {
-                    <div class="date-label">
-                        <span class="date-label-dow @(isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
-                        <span class="date-label-num @(isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", _frCulture)</span>
-                    </div>
-                }
+                    }
+                    @if (rowTrCb.tr > 0 || rowTrCb.cb > 0)
+                    {
+                        <span style="font-size:0.58rem; line-height:1; white-space:nowrap; display:flex; gap:2px; align-items:center;">
+                            @if (rowTrCb.tr > 0)
+                            {
+                                <span style="color:#1565C0; font-weight:600;">@rowTrCb.tr.ToString("0.00", _frCulture)€</span>
+                            }
+                            @if (rowTrCb.tr > 0 && rowTrCb.cb > 0)
+                            {
+                                <span style="opacity:0.4;">|</span>
+                            }
+                            @if (rowTrCb.cb > 0)
+                            {
+                                <span style="color:#6A1B9A; font-weight:600;">@rowTrCb.cb.ToString("0.00", _frCulture)€</span>
+                            }
+                        </span>
+                    }
+                </div>
             </div>
 
             @foreach (var mt in _mealTypes)
@@ -150,7 +194,6 @@ else
                               OnCellClearRequested="ClearCellAsync" />
                 </div>
             }
-            var rowTotal = GetRowTotal(date);
             <div class="dayplan-grid-date-right @dateCssClass"
                  data-rowdate="@rowDateStr"
                  @onmousedown="@(() => { _ = JS.InvokeVoidAsync("addRowPrimed", rowDateStr); })"
@@ -627,7 +670,8 @@ else
         var all = await DailyMenuSvc.GetByCustomerAsync(CustomerId);
         _dayMenuByDate = all
             .Where(dm => dm.Date.Year == Year && dm.Date.Month == Month)
-            .ToDictionary(dm => dm.Date);
+            .GroupBy(dm => dm.Date)
+            .ToDictionary(g => g.Key, g => g.First());
 
         _monthTotal = _dates.Sum(GetRowTotal);
         UpdateShoppingCart();
@@ -644,14 +688,12 @@ else
         {
             builder.OpenComponent<ShoppingCart>(0);
             builder.AddAttribute(1, nameof(ShoppingCart.Items), (IEnumerable<MealItemResponse>)_allMealItems);
-            builder.AddAttribute(2, nameof(ShoppingCart.Recipes), (IEnumerable<RecipeResponse>)_allRecipes);
             builder.CloseComponent();
         });
     }
 
     private async Task OpenAddDialog((DateOnly date, MealType mealType) args)
     {
-        RightPanel.Close();
         _selectedDate = args.date;
         _selectedMealType = args.mealType;
 
@@ -958,13 +1000,16 @@ else
         }
     }
 
-    private async Task RandomFillAsync()
+    private Task RandomFillItemsAsync() => RandomFillAsync(RandomFillMode.Items);
+    private Task RandomFillRecipesAsync() => RandomFillAsync(RandomFillMode.Recipes);
+
+    private async Task RandomFillAsync(RandomFillMode mode)
     {
         _saving = true;
         StateHasChanged();
         try
         {
-            var result = await MealSvc.RandomFillAsync(CustomerId, Year, Month);
+            var result = await MealSvc.RandomFillAsync(CustomerId, Year, Month, mode);
             if (result is null) { Snackbar.Add("Remplissage aléatoire échoué.", Severity.Error); return; }
             _dayMenuByDate = result.ToDictionary(dm => dm.Date);
             _monthTotal = _dates.Sum(GetRowTotal);
@@ -1001,11 +1046,65 @@ else
             ? dm.Meals.SelectMany(m => m.MealItems).Sum(ComputeItemCost)
             : 0;
 
+    private (decimal tr, decimal cb) GetRowTrCb(DateOnly date)
+    {
+        if (!_dayMenuByDate.TryGetValue(date, out var dm)) return (0, 0);
+        decimal tr = 0, cb = 0;
+        foreach (var item in dm.Meals.SelectMany(m => m.MealItems))
+        {
+            var cost = ComputeItemCost(item);
+            if (item.RecipeId.HasValue)
+                BucketRecipeCost(item, cost, ref tr, ref cb);
+            else
+            {
+                var pt = ItemSupplierCache.GetBestSupplier(item.ItemId)?.PaymentType;
+                if (pt == PaymentType.TR) tr += cost;
+                else if (pt == PaymentType.CB) cb += cost;
+            }
+        }
+        return (tr, cb);
+    }
+
     private decimal GetColumnTotal(MealType mealType) =>
         _dayMenuByDate.Values
             .SelectMany(dm => dm.Meals.Where(m => m.MealType == mealType))
             .SelectMany(m => m.MealItems)
             .Sum(ComputeItemCost);
+
+    private (decimal tr, decimal cb) GetColumnTrCb(MealType mealType)
+    {
+        decimal tr = 0, cb = 0;
+        foreach (var item in _dayMenuByDate.Values
+            .SelectMany(dm => dm.Meals.Where(m => m.MealType == mealType))
+            .SelectMany(m => m.MealItems))
+        {
+            var cost = ComputeItemCost(item);
+            if (item.RecipeId.HasValue)
+            {
+                BucketRecipeCost(item, cost, ref tr, ref cb);
+            }
+            else
+            {
+                var pt = ItemSupplierCache.GetBestSupplier(item.ItemId)?.PaymentType;
+                if (pt == PaymentType.TR) tr += cost;
+                else if (pt == PaymentType.CB) cb += cost;
+            }
+        }
+        return (tr, cb);
+    }
+
+    private void BucketRecipeCost(MealItemResponse item, decimal cost, ref decimal tr, ref decimal cb)
+    {
+        var pts = item.RecipeIngredientItemIds
+            .Select(id => ItemSupplierCache.GetBestSupplier(id)?.PaymentType)
+            .Where(pt => pt.HasValue)
+            .Select(pt => pt!.Value)
+            .Distinct()
+            .ToList();
+        if (pts.Count == 0) return;
+        if (pts.Count == 1) { if (pts[0] == PaymentType.TR) tr += cost; else cb += cost; }
+        else { tr += cost / 2; cb += cost / 2; } // mixed: split evenly
+    }
 
     private void NavigateToMonth(MonthNavItem month)
     {

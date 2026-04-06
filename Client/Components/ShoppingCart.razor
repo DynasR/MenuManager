@@ -1,238 +1,248 @@
 @using MenuManager.Shared.Enums
 @using MenuManager.Shared.DTOs
 @using MenuManager.Client.Helpers
-@inject ItemSupplierCache ItemSupplierCache
+@inject ItemSupplierCache Cache
 @inject RightPanelState RightPanel
 @implements IDisposable
 
-<div>
-    <div style="background: linear-gradient(135deg, #06091A 0%, #0C1228 60%, #050A1C 100%); color: white; padding: 12px 16px; display: flex; align-items: center; gap: 8px;">
+<style>
+    .sc-header {
+        background: linear-gradient(135deg, #06091A 0%, #0C1228 60%, #050A1C 100%);
+        color: white; padding: 12px 16px;
+        display: flex; align-items: center; gap: 8px;
+    }
+
+    /* 4-column grid shared by column labels, data rows, and footer */
+    .sc-col-labels, .sc-row, .sc-footer-row {
+        display: grid;
+        grid-template-columns: 1fr 52px 58px 62px;
+        gap: 4px;
+        padding-left: 12px;
+        padding-right: 12px;
+        box-sizing: border-box;
+        width: 100%;
+    }
+
+    .sc-col-labels {
+        padding-top: 6px;
+        padding-bottom: 2px;
+        font-size: 0.65rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--mud-palette-text-secondary);
+    }
+    .sc-col-labels > span:not(:first-child) { text-align: right; }
+
+    .sc-row {
+        padding-top: 5px;
+        padding-bottom: 5px;
+        align-items: start;
+        border-top: 1px solid color-mix(in srgb, var(--mud-palette-text-secondary) 12%, transparent);
+        transition: background 0.12s;
+    }
+    .sc-row:hover { background: color-mix(in srgb, var(--mud-palette-text-primary) 5%, transparent); }
+    .sc-row-alt { background: color-mix(in srgb, var(--mud-palette-text-primary) 2%, transparent); }
+    .sc-row-alt:hover { background: color-mix(in srgb, var(--mud-palette-text-primary) 6%, transparent); }
+
+    .sc-cell-name {
+        display: flex; flex-direction: column; gap: 1px;
+        min-width: 0; overflow: hidden;
+    }
+    .sc-name {
+        font-size: 0.82rem; font-weight: 600;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .sc-meta { font-size: 0.67rem; color: var(--mud-palette-text-secondary); white-space: nowrap; }
+
+    .sc-cell-num {
+        font-size: 0.78rem;
+        text-align: right;
+        white-space: nowrap;
+        padding-top: 2px;
+        color: var(--mud-palette-text-secondary);
+    }
+
+    .sc-cell-total {
+        display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+    }
+    .sc-total-amount { font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+    .sc-pct { font-size: 0.65rem; color: var(--mud-palette-text-secondary); }
+
+    .sc-group-header {
+        display: flex; align-items: center; gap: 6px;
+        padding: 6px 12px 2px;
+        font-size: 0.7rem; font-weight: 700;
+        letter-spacing: 0.04em; text-transform: uppercase;
+        color: var(--sc-accent, currentColor);
+    }
+    .sc-group-badge {
+        color: var(--sc-accent, currentColor);
+        background: color-mix(in srgb, var(--sc-accent, currentColor) 15%, transparent);
+        padding: 1px 5px; border-radius: 3px;
+        font-size: 0.65rem; font-weight: 800;
+    }
+    .sc-group-name {
+        font-weight: 600;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* Outer wrapper — fills the drawer's flex column */
+    .sc-wrap {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    /* Scrollable content area */
+    .sc-scroll {
+        flex: 1;
+        overflow-y: auto;
+        min-height: 0;
+        scrollbar-gutter: stable;
+    }
+
+    /* Pinned footer — always at bottom, same parent as sc-scroll */
+    .sc-footer-wrap {
+        flex-shrink: 0;
+        background: var(--mud-palette-background, #fff);
+        border-top: 2px solid color-mix(in srgb, var(--mud-palette-text-secondary) 20%, transparent);
+        scrollbar-gutter: stable;
+    }
+    .sc-footer-row {
+        padding-top: 8px;
+        padding-bottom: 8px;
+        align-items: baseline;
+    }
+    .sc-footer-tr  { font-size: 0.82rem; font-weight: 700; color: #1565C0; white-space: nowrap; }
+    .sc-footer-cb  { font-size: 0.82rem; font-weight: 700; color: #6A1B9A; white-space: nowrap; }
+    .sc-footer-total { font-size: 0.9rem; font-weight: 700; text-align: right; white-space: nowrap; }
+</style>
+
+<div class="sc-wrap">
+<div class="sc-scroll">
+    <div class="sc-header">
         <MudIcon Icon="@Icons.Material.Filled.ShoppingCart" Style="color: white;" />
         <MudText Typo="Typo.h6" Style="font-size: 1rem; font-weight: 600; color: white; margin: 0;">Shopping Cart</MudText>
     </div>
 
-    @if (!_itemLines.Any() && !_recipeLines.Any())
+    @if (!_lines.Any())
     {
         <MudText Class="pa-4" Color="Color.Secondary">No items in the plan yet.</MudText>
     }
+    else if (!_loaded)
+    {
+        <MudProgressLinear Indeterminate="true" Class="mt-2" />
+    }
     else
     {
-        @if (_itemLines.Any())
+        <div class="sc-col-labels">
+            <span>Article</span>
+            <span>Qté</span>
+            <span>/u</span>
+            <span>Total</span>
+        </div>
+
+        @foreach (var group in _groups)
         {
-            @if (_supplierDataLoaded)
+            var accentColor = group.Key.PaymentType == PaymentType.TR ? "#1565C0" : "#6A1B9A";
+            <div class="sc-group-header" style="--sc-accent: @accentColor;">
+                <span class="sc-group-badge">@group.Key.PaymentType</span>
+                <span class="sc-group-name">@group.Key.SupplierName</span>
+            </div>
+            @foreach (var (line, idx) in group.Select((l, i) => (l, i)))
             {
-                @foreach (var group in _groupedLines)
-                {
-                    <MudText Typo="Typo.overline" Class="px-4 pt-3 pb-0"
-                             Style="@(group.Key.PaymentType == PaymentType.TR ? "color: #1565C0;" : "color: #6A1B9A;")">
-                        @group.Key.PaymentType — @group.Key.CompanyName
-                    </MudText>
-                    <MudList T="EnrichedShoppingLine" Dense="true" Class="px-2">
-                        @foreach (var line in group)
-                        {
-                            var pricePer = ComputePricePerKgL(line.UnitPrice, line.ContentQuantity, line.ContentUnit);
-                            var pct = _bestTotal > 0 ? line.BestCost / _bestTotal * 100 : 0m;
-                            <MudListItem T="EnrichedShoppingLine">
-                                <div style="display: flex; flex-direction: column; width: 100%; gap: 2px;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
-                                        <MudText Typo="Typo.body2" Style="font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;">@line.Name</MudText>
-                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Style="margin: 0; height: 20px; flex-shrink: 0;">
-                                            @line.PackagesToBuy pkg
-                                        </MudChip>
-                                    </div>
-                                    <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 4px;">
-                                        <MudText Typo="Typo.caption" Color="Color.Secondary" Style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;">
-                                            @FmtQty(line.TotalQuantity) @FormatUnit(line.Unit)
-                                            · @FmtMoney(line.UnitPrice)/u
-                                            @if (pricePer != null) { <text>· @pricePer</text> }
-                                        </MudText>
-                                        <span style="flex-shrink: 0; display: flex; align-items: baseline; gap: 4px;">
-                                            <MudText Typo="Typo.body2" Style="font-weight: 600;">@FmtMoney(line.BestCost)</MudText>
-                                            <MudText Typo="Typo.caption" Color="Color.Secondary">@FmtQty(pct, 1)%</MudText>
-                                        </span>
-                                    </div>
-                                </div>
-                            </MudListItem>
-                            <MudDivider />
-                        }
-                    </MudList>
-                }
-            }
-            else
-            {
-                <MudText Typo="Typo.subtitle2" Class="px-4 pt-2 pb-1" Color="Color.Primary">Articles</MudText>
-                <MudList T="ShoppingLine" Dense="true" Class="px-2">
-                    @foreach (var line in _itemLines)
-                    {
-                        <MudListItem T="ShoppingLine">
-                            <div style="display: flex; flex-direction: column; width: 100%;">
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <MudText Typo="Typo.body2" Style="font-weight: 600;">@line.Name</MudText>
-                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
-                                        @line.PackagesToBuy pkg
-                                    </MudChip>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                        @FmtQty(line.TotalQuantity) @FormatUnit(line.Unit)
-                                    </MudText>
-                                    <MudText Typo="Typo.body2">
-                                        @(line.LineTotal.HasValue ? FmtMoney(line.LineTotal.Value) : "—")
-                                    </MudText>
-                                </div>
-                            </div>
-                        </MudListItem>
-                        <MudDivider />
-                    }
-                </MudList>
+                var pricePer = ComputePricePerKgL(line.UnitPrice, line.ContentQuantity, line.ContentUnit);
+                var pct = _total > 0 ? line.Cost / _total * 100 : 0m;
+                <div class="sc-row @(idx % 2 == 1 ? "sc-row-alt" : "")">
+                    <div class="sc-cell-name">
+                        <span class="sc-name">@line.Name</span>
+                        <span class="sc-meta">
+                            @line.PackagesToBuy pkg
+                            @if (pricePer != null) { <text>· @pricePer</text> }
+                        </span>
+                    </div>
+                    <span class="sc-cell-num">@FmtQty(line.TotalQuantity) @FormatUnit(line.Unit)</span>
+                    <span class="sc-cell-num">@FmtMoney(line.UnitPrice)</span>
+                    <div class="sc-cell-total">
+                        <span class="sc-total-amount">@FmtMoney(line.Cost)</span>
+                        <span class="sc-pct">@FmtQty(pct, 1)%</span>
+                    </div>
+                </div>
             }
         }
 
-        @if (_recipeLines.Any())
-        {
-            <MudText Typo="Typo.subtitle2" Class="px-4 pt-2 pb-1" Color="Color.Secondary">Recettes</MudText>
-            <MudList T="RecipeLine" Dense="true" Class="px-2">
-                @foreach (var line in _recipeLines)
-                {
-                    <MudListItem T="RecipeLine">
-                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                            <MudText Typo="Typo.body2" Style="font-weight: 600;">@line.Name</MudText>
-                            <div style="display: flex; align-items: center; gap: 8px;">
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">×@FmtQty(line.TotalQuantity)</MudText>
-                                <MudText Typo="Typo.body2">@FmtMoney(line.LineTotal)</MudText>
-                            </div>
-                        </div>
-                    </MudListItem>
-                    <MudDivider />
-                }
-            </MudList>
-        }
-
-        @if (!_supplierDataLoaded && _hasMissingPrices)
-        {
-            <MudText Typo="Typo.caption" Color="Color.Warning" Class="px-4 pb-2">
-                * Certains articles n'ont pas de prix et ne sont pas inclus dans le total.
-            </MudText>
-        }
-
-        <!-- Spacer so footer doesn't overlap last item -->
         <div style="height: 8px;"></div>
     }
 </div>
 
-<!-- Pinned footer -->
-<div style="position: sticky; bottom: 0; background: var(--mud-palette-background, #fff); border-top: 1px solid rgba(128,128,128,0.2); z-index: 2;">
-    @if (_supplierDataLoaded)
+<div class="sc-footer-wrap">
+    @if (_loaded && _lines.Any())
     {
-        <div class="px-4 py-2" style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; align-items: baseline; gap: 5px;">
-                <MudText Typo="Typo.caption" Style="color: #1565C0; font-weight: 700; letter-spacing: 0.05em;">TR</MudText>
-                <MudText Typo="Typo.body1" Style="color: #1565C0; font-weight: 700;">@FmtMoney(_trTotal)</MudText>
-            </div>
-            <div style="display: flex; align-items: baseline; gap: 5px;">
-                <MudText Typo="Typo.caption" Style="color: #6A1B9A; font-weight: 700; letter-spacing: 0.05em;">CB</MudText>
-                <MudText Typo="Typo.body1" Style="color: #6A1B9A; font-weight: 700;">@FmtMoney(_cbTotal)</MudText>
-            </div>
-            <div style="display: flex; align-items: baseline; gap: 5px;">
-                <MudText Typo="Typo.caption" Style="font-weight: 700; letter-spacing: 0.05em;">Total</MudText>
-                <MudText Typo="Typo.body1" Style="font-weight: 700;">@FmtMoney(_footerTotal)</MudText>
-            </div>
+        <div class="sc-footer-row">
+            <span style="display:flex; align-items:center; gap:4px; white-space:nowrap;">
+                @if (_trTotal > 0) { <span class="sc-footer-tr">@FmtMoney(_trTotal)</span> }
+                @if (_trTotal > 0 && _cbTotal > 0) { <span style="opacity:0.4;">|</span> }
+                @if (_cbTotal > 0) { <span class="sc-footer-cb">@FmtMoney(_cbTotal)</span> }
+            </span>
+            <span></span>
+            <span></span>
+            <span class="sc-footer-total">@FmtMoney(_total)</span>
         </div>
-        <MudDivider />
     }
+</div>
 </div>
 
 @code {
     [Parameter]
     public IEnumerable<MealItemResponse> Items { get; set; } = [];
 
-    [Parameter]
-    public IEnumerable<RecipeResponse> Recipes { get; set; } = [];
+    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
 
-    private static readonly System.Globalization.CultureInfo _frCulture = new("fr-FR");
-
-    private List<ShoppingLine> _itemLines = [];
-    private List<RecipeLine> _recipeLines = [];
-    private decimal _grandTotal;
-    private bool _hasMissingPrices;
-
-    private Dictionary<int, RecipeResponse> _recipeById = [];
-
-    // Enriched supplier data
-    private bool _supplierDataLoaded;
-    private HashSet<int> _loadedItemIds = [];
-    private List<EnrichedShoppingLine> _enrichedLines = [];
-    private IEnumerable<IGrouping<(PaymentType PaymentType, string CompanyName), EnrichedShoppingLine>> _groupedLines = [];
-    private decimal _bestTotal;   // grouped items sum, used for % bar only
-    private decimal _footerTotal; // per-item sum matching DayPlan._monthTotal
-    private decimal _trTotal;
-    private decimal _cbTotal;
+    private bool _loaded;
+    private List<CartLine> _lines = [];
+    private IEnumerable<IGrouping<(PaymentType PaymentType, string SupplierName), CartLine>> _groups = [];
+    private decimal _trTotal, _cbTotal, _total;
 
     protected override void OnInitialized()
-    {
-        RightPanel.OnChange += OnPanelChanged;
-    }
+        => RightPanel.OnChange += OnPanelChanged;
 
     protected override void OnParametersSet()
     {
-        var itemMealItems = Items.Where(i => !i.RecipeId.HasValue).ToList();
-        var recipeMealItems = Items.Where(i => i.RecipeId.HasValue).ToList();
-
-        _itemLines = ComputeItemLines(itemMealItems);
-        _recipeLines = ComputeRecipeLines(recipeMealItems);
-
-        var itemTotal = _itemLines.Where(l => l.LineTotal.HasValue).Sum(l => l.LineTotal!.Value);
-        var recipeTotal = _recipeLines.Sum(l => l.LineTotal);
-        _grandTotal = itemTotal + recipeTotal;
-        _hasMissingPrices = _itemLines.Any(l => !l.LineTotal.HasValue);
-
-        _recipeById = Recipes.ToDictionary(r => r.Id);
-
-        var currentItemIds = itemMealItems.Select(i => i.ItemId).Distinct().ToHashSet();
-        if (!currentItemIds.SetEquals(_loadedItemIds))
-        {
-            _supplierDataLoaded = false;
-            _loadedItemIds = currentItemIds;
-        }
-        else if (_supplierDataLoaded)
-        {
-            // IDs unchanged but quantities or recipes may have changed — refresh enriched totals.
-            ComputeEnrichedLines();
-        }
+        if (_loaded) ComputeLines();
     }
 
     private void OnPanelChanged()
     {
-        if (RightPanel.IsOpen && !_supplierDataLoaded && _loadedItemIds.Count > 0)
-            InvokeAsync(LoadSupplierDataAsync);
+        if (RightPanel.IsOpen && !_loaded)
+            InvokeAsync(LoadAsync);
     }
 
-    private async Task LoadSupplierDataAsync()
+    private async Task LoadAsync()
     {
-        await ItemSupplierCache.EnsureLoadedAsync();
-        ComputeEnrichedLines();
-        _supplierDataLoaded = true;
+        await Cache.EnsureLoadedAsync();
+        _loaded = true;
+        ComputeLines();
         await InvokeAsync(StateHasChanged);
     }
 
-    private void ComputeEnrichedLines()
+    private void ComputeLines()
     {
-        var itemMealItems = Items.Where(i => !i.RecipeId.HasValue).ToList();
-
-        _enrichedLines = itemMealItems
+        _lines = Items
+            .Where(i => !i.RecipeId.HasValue)
             .GroupBy(i => i.ItemId)
             .Select(g =>
             {
                 var first = g.First();
-                var totalQty = g.Sum(i => i.Quantity);
-
-                var best = ItemSupplierCache.GetBestSupplier(first.ItemId);
+                var best = Cache.GetBestSupplier(first.ItemId);
                 if (best is null) return null;
-
-                var packages = (int)Math.Ceiling(totalQty / (first.ContentQuantity > 0 ? first.ContentQuantity : 1m));
-                var cost = CostHelper.PackageCost(totalQty, first.ContentQuantity, best.UnitPrice);
-
-                return new EnrichedShoppingLine(
+                // Cost: sum per-slot exactly as MealCell does (ceil per slot, then sum)
+                var cost = g.Sum(i => CostHelper.ComputeItemCost(i, best.UnitPrice));
+                var totalQty = g.Sum(i => i.Quantity);
+                var packages = (int)g.Sum(i => Math.Ceiling(i.Quantity / Math.Max(first.ContentQuantity, 0.001m)));
+                return new CartLine(
                     first.ItemName,
                     totalQty,
                     first.Unit,
@@ -244,103 +254,29 @@
                     best.SupplierName,
                     best.PaymentType);
             })
-            .OfType<EnrichedShoppingLine>()
+            .OfType<CartLine>()
             .OrderBy(l => l.Name)
             .ToList();
 
-        _groupedLines = _enrichedLines
-            .GroupBy(l => (l.RetainedPaymentType, l.RetainedSupplierName))
-            .OrderBy(g => g.Key.RetainedPaymentType)
-            .ThenBy(g => g.Key.RetainedSupplierName);
+        _groups = _lines
+            .GroupBy(l => (l.PaymentType, l.SupplierName))
+            .OrderBy(g => g.Key.PaymentType)
+            .ThenBy(g => g.Key.SupplierName);
 
-        _bestTotal = _enrichedLines.Sum(l => l.BestCost); // grouped items only, for % bar
-
-        // TR / CB: per-item and per-recipe-ingredient computation.
-        // Each MealItem (item) and each recipe ingredient is costed individually and
-        // bucketed by the best supplier's PaymentType → TR + CB = Total in all cases.
-        _trTotal = 0m;
-        _cbTotal = 0m;
-
-        foreach (var item in itemMealItems)
-        {
-            var best = ItemSupplierCache.GetBestSupplier(item.ItemId);
-            if (best is null) continue;
-            var cost = CostHelper.ComputeItemCost(item, best.UnitPrice);
-            if (best.PaymentType == PaymentType.TR) _trTotal += cost;
-            else _cbTotal += cost;
-        }
-
-        // Recipes: aggregate total qty per recipe, then cost each ingredient individually.
-        foreach (var recipeGroup in Items.Where(i => i.RecipeId.HasValue).GroupBy(i => i.RecipeId!.Value))
-        {
-            if (!_recipeById.TryGetValue(recipeGroup.Key, out var recipe)) continue;
-            var totalRecipeQty = recipeGroup.Sum(i => i.Quantity);
-            foreach (var ri in recipe.Ingredients)
-            {
-                var best = ItemSupplierCache.GetBestSupplier(ri.ItemId);
-                if (best is null) continue;
-                var cost = CostHelper.PackageCost(ri.Quantity * totalRecipeQty, ri.ContentQuantity, best.UnitPrice);
-                if (best.PaymentType == PaymentType.TR) _trTotal += cost;
-                else _cbTotal += cost;
-            }
-        }
-
-        _footerTotal = _trTotal + _cbTotal;
+        _trTotal = _lines.Where(l => l.PaymentType == PaymentType.TR).Sum(l => l.Cost);
+        _cbTotal = _lines.Where(l => l.PaymentType == PaymentType.CB).Sum(l => l.Cost);
+        _total = _trTotal + _cbTotal;
     }
 
     public void Dispose()
-    {
-        RightPanel.OnChange -= OnPanelChanged;
-    }
+        => RightPanel.OnChange -= OnPanelChanged;
 
-    private static List<ShoppingLine> ComputeItemLines(IEnumerable<MealItemResponse> items)
-    {
-        return items
-            .GroupBy(i => i.ItemId)
-            .Select(g =>
-            {
-                var first = g.First();
-                var totalQty = g.Sum(i => i.Quantity);
-                var packages = (int)Math.Ceiling(totalQty / (first.ContentQuantity > 0 ? first.ContentQuantity : 1m));
-                decimal? lineTotal = first.UnitPrice.HasValue
-                    ? CostHelper.PackageCost(totalQty, first.ContentQuantity, first.UnitPrice.Value)
-                    : null;
-
-                return new ShoppingLine(
-                    first.ItemName,
-                    totalQty,
-                    first.Unit,
-                    first.ContentQuantity,
-                    packages,
-                    first.UnitPrice,
-                    lineTotal);
-            })
-            .OrderBy(l => l.Name)
-            .ToList();
-    }
-
-    private static List<RecipeLine> ComputeRecipeLines(IEnumerable<MealItemResponse> items)
-    {
-        return items
-            .Where(i => i.RecipeId.HasValue)
-            .GroupBy(i => i.RecipeId!.Value)
-            .Select(g =>
-            {
-                var first = g.First();
-                var totalQty = g.Sum(i => i.Quantity);
-                var lineTotal = (first.RecipeEstimatedCost ?? 0) * totalQty;
-                return new RecipeLine(first.RecipeName ?? "", totalQty, lineTotal);
-            })
-            .OrderBy(l => l.Name)
-            .ToList();
-    }
-
-    private static string FmtMoney(decimal v) => v.ToString("0.## €", _frCulture);
+    private static string FmtMoney(decimal v) => v.ToString("0.00 €", _fr);
 
     private static string FmtQty(decimal v, int maxDec = 2)
     {
         var fmt = "0." + new string('#', maxDec);
-        return v.ToString(fmt, _frCulture);
+        return v.ToString(fmt, _fr);
     }
 
     private static string? ComputePricePerKgL(decimal unitPrice, decimal contentQty, MeasurementUnit contentUnit)
@@ -366,21 +302,7 @@
         _ => unit.ToString()
     };
 
-    private sealed record ShoppingLine(
-        string Name,
-        decimal TotalQuantity,
-        MeasurementUnit Unit,
-        decimal ContentQuantity,
-        int PackagesToBuy,
-        decimal? UnitPrice,
-        decimal? LineTotal);
-
-    private sealed record RecipeLine(
-        string Name,
-        decimal TotalQuantity,
-        decimal LineTotal);
-
-    private sealed record EnrichedShoppingLine(
+    private sealed record CartLine(
         string Name,
         decimal TotalQuantity,
         MeasurementUnit Unit,
@@ -388,7 +310,7 @@
         MeasurementUnit ContentUnit,
         int PackagesToBuy,
         decimal UnitPrice,
-        decimal BestCost,
-        string RetainedSupplierName,
-        PaymentType RetainedPaymentType);
+        decimal Cost,
+        string SupplierName,
+        PaymentType PaymentType);
 }

@@ -71,6 +71,11 @@ public class AppDbContext : DbContext
             .WithMany(c => c.DailyMenus)
             .HasForeignKey(dm => dm.CustomerId);
 
+        // DailyMenu — unique per customer/date
+        modelBuilder.Entity<DailyMenu>()
+            .HasIndex(dm => new { dm.CustomerId, dm.Date })
+            .IsUnique();
+
         // Decimal precision
         modelBuilder.Entity<ItemSupplier>()
             .Property(isp => isp.UnitPrice)

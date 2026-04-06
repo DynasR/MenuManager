@@ -34,9 +34,12 @@ public class DeleteMealsBatchRequest
     public List<int> Ids { get; set; } = [];
 }
 
+public enum RandomFillMode { Items, Recipes }
+
 public class RandomFillRequest
 {
     public int CustomerId { get; set; }
     public int Year { get; set; }
     public int Month { get; set; }
+    public RandomFillMode Mode { get; set; } = RandomFillMode.Items;
 }

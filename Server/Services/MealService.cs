@@ -122,7 +122,12 @@ public class MealService : IMealService
             .Select(r => r.Id)
             .ToListAsync();
 
-        if (availableItems.Count == 0 && availableRecipes.Count == 0) return [];
+        var pool = (request.Mode == RandomFillMode.Recipes
+            ? availableRecipes.Select(r => (isRecipe: true, itemId: (int?)null, recipeId: (int?)r, unit: MeasurementUnit.Piece))
+            : availableItems.Select(i => (isRecipe: false, itemId: (int?)i.Id, recipeId: (int?)null, unit: i.PurchaseUnit))
+        ).ToList();
+
+        if (pool.Count == 0) return [];
 
         var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
         var monthStart = new DateOnly(request.Year, request.Month, 1);
@@ -174,11 +179,6 @@ public class MealService : IMealService
 
                 var meal = new Meal { MealType = mealType, DailyMenu = dailyMenu };
                 _db.Meals.Add(meal);
-
-                // Build a combined pool: each entry is either an item or a recipe
-                var itemPool = availableItems.Select(i => (isRecipe: false, itemId: (int?)i.Id, recipeId: (int?)null, unit: i.PurchaseUnit));
-                var recipePool = availableRecipes.Select(r => (isRecipe: true, itemId: (int?)null, recipeId: (int?)r, unit: MeasurementUnit.Piece));
-                var pool = itemPool.Concat(recipePool).ToList();
 
                 var picked = pool.OrderBy(_ => rng.Next()).Take(count).ToList();
                 int order = 1;

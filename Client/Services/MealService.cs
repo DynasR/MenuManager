@@ -36,10 +36,10 @@ public class MealService
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<List<DailyMenuResponse>?> RandomFillAsync(int customerId, int year, int month)
+    public async Task<List<DailyMenuResponse>?> RandomFillAsync(int customerId, int year, int month, RandomFillMode mode)
     {
         var response = await _http.PostAsJsonAsync("api/meals/random-fill",
-            new RandomFillRequest { CustomerId = customerId, Year = year, Month = month });
+            new RandomFillRequest { CustomerId = customerId, Year = year, Month = month, Mode = mode });
         return response.IsSuccessStatusCode
             ? await response.Content.ReadFromJsonAsync<List<DailyMenuResponse>>()
             : null;

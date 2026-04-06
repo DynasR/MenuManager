@@ -6,12 +6,11 @@ Mettre à jour CLAUDE.md avec les détails d'implémentation des chantiers de ce
 Mettre à jour context_CW.md : état projet, décisions haut niveau, backlog — en déplaçant les chantiers terminés du backlog vers l'état projet
 Supprimer toute information redondante entre les deux fichiers
 Formuler le message de commit après lecture du diff, pas avant
-Afficher les commandes à exécuter manuellement :
+Exécute les 3 commandes suivantes (avec confirmation de ma part obligatoire pour uniquement ces 3 commandes), avec message commit qui résume sur une ligne sans signature :
 
 git add -A
 git commit -m "<MESSAGE COMMIT>"
-
-message commit qui résume sur une ligne sans signature
+gut push
 
 CLAUDE.md : détails d'implémentation uniquement
 context_CW.md : rôles, état projet, décisions haut niveau, backlog
