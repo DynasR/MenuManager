@@ -39,7 +39,7 @@
                     }
                     else
                     {
-                        foreach (var pt in GetRecipePaymentTypes(capturedItem))
+                        foreach (var pt in CostHelper.GetRecipePaymentTypes(capturedItem.RecipeIngredientItemIds, Cache))
                         {
                             <span class="payment-badge payment-badge-@(pt == PaymentType.TR ? "tr" : "cb")">@pt</span>
                         }
@@ -68,7 +68,7 @@
               @ondblclick="HandleTotalDblClick"
               @ondblclick:stopPropagation="true"
               @onmouseleave="@(() => { _clearPrimed = false; })">
-            @(SlotTotal > 0 ? SlotTotal.ToString("C", _fr) : "")
+            @(SlotTotal > 0 ? SlotTotal.ToString("C", CostHelper.Fr) : "")
         </span>
         @if (SlotTotal > 0)
         {
@@ -78,7 +78,7 @@
                 <span style="position:absolute; right:4px; display:flex; gap:2px; align-items:center; font-size:0.58rem; line-height:1; white-space:nowrap; pointer-events:none;">
                     @if (trCb.tr > 0)
                     {
-                        <span style="color:#1565C0; font-weight:600;">@trCb.tr.ToString("0.00", _fr)€</span>
+                        <span style="color:#1565C0; font-weight:600;">@trCb.tr.ToString("0.00", CostHelper.Fr)€</span>
                     }
                     @if (trCb.tr > 0 && trCb.cb > 0)
                     {
@@ -86,7 +86,7 @@
                     }
                     @if (trCb.cb > 0)
                     {
-                        <span style="color:#6A1B9A; font-weight:600;">@trCb.cb.ToString("0.00", _fr)€</span>
+                        <span style="color:#6A1B9A; font-weight:600;">@trCb.cb.ToString("0.00", CostHelper.Fr)€</span>
                     }
                 </span>
             }
@@ -98,7 +98,6 @@
 </div>
 
 @code {
-    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
 
     [Parameter, EditorRequired] public DateOnly Date { get; set; }
     [Parameter, EditorRequired] public MealType MealType { get; set; }
@@ -122,10 +121,8 @@
                 var cost = ComputeItemCost(item);
                 if (item.RecipeId.HasValue)
                 {
-                    var pts = GetRecipePaymentTypes(item);
-                    if (pts.Count == 0) continue;
-                    if (pts.Count == 1) { if (pts[0] == PaymentType.TR) tr += cost; else cb += cost; }
-                    else { tr += cost / 2; cb += cost / 2; }
+                    var (btr, bcb) = CostHelper.BucketByCost(cost, CostHelper.GetRecipePaymentTypes(item.RecipeIngredientItemIds, Cache));
+                    tr += btr; cb += bcb;
                 }
                 else
                 {
@@ -141,7 +138,7 @@
     private string FormatItemPrice(MealItemResponse item)
     {
         var cost = ComputeItemCost(item);
-        return cost > 0 ? cost.ToString("C", _fr) : "";
+        return cost > 0 ? cost.ToString("C", CostHelper.Fr) : "";
     }
 
     [Parameter] public EventCallback<(int itemId, DateOnly fromDate, MealType fromMealType, DateOnly toDate, MealType toMealType, int newIndex, bool isCopy)> OnItemMoved { get; set; }
@@ -186,14 +183,6 @@
         return true;
     }
 
-    private IReadOnlyList<PaymentType> GetRecipePaymentTypes(MealItemResponse item) =>
-        item.RecipeIngredientItemIds
-            .Select(id => Cache.GetBestSupplier(id)?.PaymentType)
-            .Where(pt => pt.HasValue)
-            .Select(pt => pt!.Value)
-            .Distinct()
-            .Order()
-            .ToList();
 
     private Dictionary<int, PaymentType?> GetCurrentPaymentTypes()
     {

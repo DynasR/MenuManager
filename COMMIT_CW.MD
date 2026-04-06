@@ -4,6 +4,7 @@ Exécuter dans l'ordre :
 git diff HEAD — lire tout ce qui a changé, sans exception
 Mettre à jour CLAUDE.md avec les détails d'implémentation des chantiers de cette session
 Mettre à jour context_CW.md : état projet, décisions haut niveau, backlog — en déplaçant les chantiers terminés du backlog vers l'état projet
+Mettre à jour TODO.md : actions suivantes, c'est ici qu'on inscrit les prochanges tâches
 Supprimer toute information redondante entre les deux fichiers
 Formuler le message de commit après lecture du diff, pas avant
 Exécute les 3 commandes suivantes (avec confirmation de ma part obligatoire pour uniquement ces 3 commandes), avec message commit qui résume sur une ligne sans signature :

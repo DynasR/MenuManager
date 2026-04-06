@@ -154,7 +154,7 @@
             </div>
             @foreach (var (line, idx) in group.Select((l, i) => (l, i)))
             {
-                var pricePer = ComputePricePerKgL(line.UnitPrice, line.ContentQuantity, line.ContentUnit);
+                var pricePer = CostHelper.ComputePricePerKgL(line.UnitPrice, line.ContentQuantity, line.ContentUnit);
                 var pct = _total > 0 ? line.Cost / _total * 100 : 0m;
                 <div class="sc-row @(idx % 2 == 1 ? "sc-row-alt" : "")">
                     <div class="sc-cell-name">
@@ -199,7 +199,6 @@
     [Parameter]
     public IEnumerable<MealItemResponse> Items { get; set; } = [];
 
-    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
 
     private bool _loaded;
     private List<CartLine> _lines = [];
@@ -271,26 +270,14 @@
     public void Dispose()
         => RightPanel.OnChange -= OnPanelChanged;
 
-    private static string FmtMoney(decimal v) => v.ToString("0.00 €", _fr);
+    private static string FmtMoney(decimal v) => v.ToString("0.00 €", CostHelper.Fr);
 
     private static string FmtQty(decimal v, int maxDec = 2)
     {
         var fmt = "0." + new string('#', maxDec);
-        return v.ToString(fmt, _fr);
+        return v.ToString(fmt, CostHelper.Fr);
     }
 
-    private static string? ComputePricePerKgL(decimal unitPrice, decimal contentQty, MeasurementUnit contentUnit)
-    {
-        if (contentQty == 0) return null;
-        return contentUnit switch
-        {
-            MeasurementUnit.Gram       => FmtMoney(unitPrice / contentQty * 1000) + "/kg",
-            MeasurementUnit.Kilogram   => FmtMoney(unitPrice / contentQty) + "/kg",
-            MeasurementUnit.Milliliter => FmtMoney(unitPrice / contentQty * 1000) + "/L",
-            MeasurementUnit.Liter      => FmtMoney(unitPrice / contentQty) + "/L",
-            _ => null
-        };
-    }
 
     private sealed record CartLine(
         string Name,

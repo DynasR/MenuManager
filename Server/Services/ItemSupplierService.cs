@@ -10,7 +10,6 @@ public interface IItemSupplierService
     Task<List<ItemSupplierResponse>> GetAllAsync();
     Task<List<ItemSupplierResponse>> GetByItemAsync(int itemId);
     Task<ItemSupplierResponse?> GetByIdAsync(int itemId, int supplierId);
-    Task<List<ItemPricingResponse>> GetByItemsAsync(List<int> itemIds);
     Task<Dictionary<int, BestSupplierInfo>> GetBestByItemAsync();
     Task<CreateItemSupplierResult> CreateAsync(CreateItemSupplierRequest request);
     Task<ItemSupplierResponse?> UpdateAsync(int itemId, int supplierId, UpdateItemSupplierRequest request);
@@ -58,31 +57,6 @@ public class ItemSupplierService : IItemSupplierService
             .FirstOrDefaultAsync(isp => isp.ItemId == itemId && isp.SupplierId == supplierId);
 
         return row is null ? null : MapToResponse(row);
-    }
-
-    public async Task<List<ItemPricingResponse>> GetByItemsAsync(List<int> itemIds)
-    {
-        if (itemIds.Count == 0) return [];
-
-        var rows = await _db.ItemSuppliers
-            .AsNoTracking()
-            .Include(isp => isp.Item)
-            .Include(isp => isp.Supplier)
-            .Where(isp => itemIds.Contains(isp.ItemId) && isp.IsAvailable)
-            .ToListAsync();
-
-        return rows.Select(isp => new ItemPricingResponse
-        {
-            ItemId = isp.ItemId,
-            UnitPrice = isp.UnitPrice,
-            ContentQuantity = isp.Item.ContentQuantity,
-            Supplier = new SupplierPricingInfo
-            {
-                Id = isp.SupplierId,
-                CompanyName = isp.Supplier.CompanyName ?? isp.Supplier.Name,
-                PaymentType = isp.Supplier.PaymentType
-            }
-        }).ToList();
     }
 
     public async Task<Dictionary<int, BestSupplierInfo>> GetBestByItemAsync()

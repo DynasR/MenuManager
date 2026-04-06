@@ -36,10 +36,10 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | ItemSupplier | PK composite, pattern 404/409 ; dropdown `CompanyName ?? Name` ; colonnes FK non-éditables |
 | MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards 3 ans + 12 mois passés (toggle History). HasData coloring. **Dark mode** via `ThemeState`. **Coût moyen journalier** sur les cards. **Mode duplication** : dbl-clic → copy mode, clic cible → copie jour par jour (confirmation si données existantes), Echap/clic extérieur pour quitter. |
 | DayPlan/Index | Calendrier mensuel. **`AddItemDialog` diff-based** : colonnes triables (fournisseur, prix, qté), stepper toujours rendu (`visibility:hidden` quand 0). Random fill scindé : Casino (items) + MenuBook (recettes). Unique constraint `DailyMenu(CustomerId,Date)`. |
-| MealCell | `ShouldRender()` override. Badges TR/CB : items via cache direct, recettes via `GetRecipePaymentTypes`. CSS subgrid. **TR/CB mini-badges dans le footer du slot** (total centré, breakdown à droite). |
+| MealCell | `ShouldRender()` override. Badges TR/CB via `CostHelper.GetRecipePaymentTypes` + `BucketByCost`. CSS subgrid. **TR/CB mini-badges dans le footer du slot** (total centré, breakdown à droite). |
 | Recipe       | `/recipes` — MudDataGrid + HierarchyColumn, RecipeDialog, coût estimé par recette |
 | Layout       | 3 thèmes (Light/Dark/Custom). `ThemeState` + CycleTheme. Persisté localStorage. |
-| Shopping Cart | Refactorisé. `CartLine` unifié. CSS grid 4 col. Footer TR\|CB + total. Coût = ceil par slot. **Colonne qty = nb de colis** (`PackageCount`, computed). |
+| Shopping Cart | `CartLine` unifié. CSS grid 4 col. Footer TR\|CB + total. Coût = ceil par slot. **Colonne qty = nb de colis** (`PackageCount`, computed). **⚠️ Recettes exclues du panier** (voir Bugs connus). |
 
 ---
 
@@ -47,33 +47,49 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 
 Voir `CLAUDE.md` pour les détails. Résumé :
 - **Shared** pur (zéro EF), pas de repository, on-demand DailyMenu/Meal.
-- **Shopping Cart** (panneau droit global, `RightPanelState`).
+- **Shopping Cart** (panneau droit global, `RightPanelState`). Recettes **non incluses** — voir Bugs connus.
 - **Item : refacto unités** — `Unit+PackageSize` → `PurchaseUnit + ContentQuantity + ContentUnit`. Deux migrations : `RefactorItemUnits`, `AddUnitAndOrderToRecipeIngredient`.
-- **MonthlyCost** calculé serveur-side (`ceil(qty / ContentQuantity) * UnitPrice`), affiché sur les cards MenuPlan et par item/cellule dans MealCell.
-- **Recettes dans les slots** — `MealItem` peut référencer un `Item` ou une `Recipe` (champs `ItemId?` / `RecipeId?`). Coût recette = `RecipeEstimatedCost * Quantity`. Shopping Cart distingue les deux sections.
+- **MonthlyCost** calculé serveur-side dans `DailyMenuService.ComputeMonthlyCost`. Utilise `OrderBy(s => s.UnitPrice)` — prix correct (fix KI-1 appliqué).
+- **Recettes dans les slots** — `MealItem` peut référencer un `Item` ou une `Recipe` (champs `ItemId?` / `RecipeId?`). Coût recette côté client = `RecipeEstimatedCost * Quantity`. Shopping Cart exclut toujours les recettes (`.Where(i => !i.RecipeId.HasValue)`) — voir Bugs connus KI-2.
 - **PaymentType** — enum `TR | CB` ajouté sur `Supplier` et `Customer`. Deux migrations séparées. Seed : Carrefour=TR, Leclerc=CB, Dynas=TR, Marlène=CB.
-- **Shopping Cart enrichi** — `ItemSupplierCache` (service scoped) chargé une fois sur `OnInitializedAsync` de DayPlan (`GET /api/itemsuppliers/best-by-item`). Meilleur fournisseur par item en mémoire → partagé avec `MealCell` (badge TR/CB). Shopping Cart groupe par fournisseur retenu, **footer épinglé TR/CB/Total**. Endpoint `POST /api/itemsuppliers/by-items` conservé mais n'est plus utilisé par le panier.
+- **Shopping Cart enrichi** — `ItemSupplierCache` (service scoped) chargé une fois sur `EnsureLoadedAsync()` (`GET /api/itemsuppliers/best-by-item`). Meilleur fournisseur par item en mémoire → partagé avec `MealCell` (badge TR/CB). Shopping Cart groupe par fournisseur retenu, **footer épinglé TR/CB/Total**. Endpoint `POST /api/itemsuppliers/by-items` supprimé (KI-6 résolu).
 - **CHECK constraints PaymentType** — migration `AddPaymentTypeCheckConstraints` : `PaymentType IN (0, 1)` sur Suppliers et Customers.
 - **Copy/Move cellule** — cellule entière draggable (zones latérales footer). Ctrl tenu = copie. Plus de trash-zone : clear via dbl-clic sur le total.
 - **Bulk clear** — `DELETE /api/meals/batch` (body JSON, toujours 204). Vider-ligne, vider-colonne, vider-mois utilisent tous ce même endpoint. Pattern confirm-intent : prime (mousedown rouge) + dbl-clic exécute.
-- **Random fill** — `POST /api/meals/random-fill`. Pool = items disponibles + **toutes les recettes**. Skip les jours qui ont déjà des repas.
+- **Random fill** — `POST /api/meals/random-fill`. Pool = items disponibles (mode Items) OU toutes les recettes (mode Recipes). Skip les jours qui ont déjà des repas.
 - **Drag & drop immédiat** — plus de "Save All" / `_pendingMoves`. Tout appel API se fait au moment du drop. Overlay sombre pendant l'async.
 - **SortableJS copy** — Ctrl au lâcher d'un item cross-cell = copie (ghost visible à la source pendant le drag).
 - **Thème** — 3 thèmes (Light/Dark/Custom), `ThemeState` scoped service, persisté localStorage. `MenuPlan/Index` dark mode : inline styles dynamiques via `ThemeState.OnChange`.
-- **CostHelper** — `Client/Helpers/CostHelper.cs` : `PackageCost` + `ComputeItemCost` — formules canoniques partagées par `MealCell`, `DayPlan/Index`, `ShoppingCart`. Fin de la duplication.
-- **AddItemDialog** — le tiroir inline de DayPlan/Index a été remplacé par `AddItemDialog.razor` (MudDialog via `IDialogService`). Deux modes d'affichage : cards (gradients, infos fournisseur) et dense (MudDataGrid sortable). Préférence mémorisée en localStorage (`add-dialog-dense`). L'ouverture du dialog ne ferme plus le panneau droit (shopping cart reste visible).
-- **MealTypeHelper** — `Client/Helpers/MealTypeHelper.cs` : extension `ToFrenchLabel()` sur `MealType`. Utilisé dans les en-têtes colonnes DayPlan et le sous-titre de `AddItemDialog`.
-- **Fix UnitPrice mapping** — les services (`MealItemService`, `DailyMenuService`, `MealService`) utilisaient `OrderBy(s => s.SupplierId)` pour le prix unitaire affiché → corrigé en `OrderBy(s => s.UnitPrice)` (vraiment le moins cher).
-- **MealItemResponse.RecipeIngredientItemIds** — liste des `ItemId` des ingrédients d'une recette, propagée depuis le serveur. Permet aux badges TR/CB de la `MealCell` et au footer TR/CB du `ShoppingCart` de coûter les recettes par ingrédient.
-- **TR/CB breakdowns** — visibles partout : (1) slot footer de `MealCell` (total centré, TR|CB à droite), (2) cellule-date gauche dans DayPlan (par jour), (3) en-têtes colonnes MealType (par repas). Recette à ingrédients mixtes → coût 50/50. Helpers : `BucketRecipeCost`, `GetRowTrCb`, `GetColumnTrCb` dans DayPlan/Index ; `SlotTrCb` dans MealCell.
-- **Random fill scindé** — `RandomFillMode` enum (`Items` | `Recipes`) dans `Shared/DTOs/MealDtos.cs`. Deux boutons : Casino (items disponibles) et MenuBook (toutes les recettes). Pool construit **une fois** avant la boucle de jours.
-- **Unique constraint DailyMenu** — migration `AddUniqueDailyMenuDateConstraint` : index unique sur `(CustomerId, Date)`. `ToDictionary` corrigé côté client avec `GroupBy().First()` pour robustesse.
-- **ShoppingCart refactorisé** — `Recipes` param supprimé. `CartLine` unifié. Pas de fallback. CSS grid 4 colonnes. Footer 4-col. Coût = ceil/slot. **Colonne qty affiche `PackageCount`** (nb de colis = `ceil(TotalQty / ContentQuantity)`, propriété calculée sur `CartLine`).
-- **MealTypeFlags** — flags enum (`Shared/Enums/MealTypeFlags.cs`) : `None=0, Breakfast=1, Snack=2, Lunch=4, Dinner=8`. `Category.AllowedMealTypes` (EF, migration `AddMealTypesToCategory`). `CategoryResponse.AllowedMealTypes (int)` + `ItemResponse.CategoryAllowedMealTypes (int)`. SeedData : flags par catégorie (ex. Biscuits = Breakfast|Snack, Viandes = Lunch|Dinner).
-- **AddItemDialog diff-based** — Dialog reçoit `CurrentMealItems`, calcule un diff (add/update/delete), envoie à `ApplyDialogSaveAsync`. Colonnes denses triables (`SortBy` sur fournisseur, prix unitaire, qté via lambda cache). Stepper toujours rendu — `visibility:hidden` quand qty=0 (pas de layout shift). `LoadSlot()` extrait de `OnInitializedAsync` pour clarté. Panel `MealRecap` sidebar 460px : grille 5 col (`× | Nom | €/U | U | Total`), bouton `×` remove (envoie qty=0), header affiche MealType + date, footer TR/CB/Total comme DayPlan. Toggle `_showAll` filtre par `CategoryAllowedMealTypes`.
+- **CostHelper** — `Client/Helpers/CostHelper.cs` : étendu avec `Fr` (CultureInfo partagée), `ComputePricePerKgL` (centralisé, KI-5 résolu), `GetRecipePaymentTypes`, `BucketByCost`. Plus de `_fr` local dans les composants. `@using MenuManager.Client.Helpers` global dans `_Imports.razor`.
+- **AddItemDialog** — `MudDialog` via `IDialogService`. Deux modes : cards et dense (MudDataGrid sortable). Préférence mémorisée en localStorage (`add-dialog-dense`). L'ouverture du dialog ne ferme plus le panneau droit (shopping cart reste visible).
+- **MealTypeHelper** — `Client/Helpers/MealTypeHelper.cs` : extension `ToFrenchLabel()` sur `MealType`.
+- **Fix UnitPrice mapping** — tous les mappings (MealItemMapper, RecipeService, DailyMenuService) utilisent `OrderBy(s => s.UnitPrice)` (le moins cher). KI-1 résolu.
+- **MealItemMapper** (`Server/Mapping/MealItemMapper.cs`) — mapping `MealItem → MealItemResponse` centralisé, utilisé par `MealItemService`, `MealService`, `DailyMenuService` (élimine la triplication).
+- **MealItemResponse.RecipeIngredientItemIds** — liste des `ItemId` des ingrédients d'une recette, propagée depuis le serveur. Utilisée par les badges TR/CB de `MealCell` et les calculs TR/CB de DayPlan/MealRecap.
+- **TR/CB breakdowns** — visibles dans : slot footer de `MealCell`, cellule-date gauche (par jour), en-têtes colonnes MealType (par repas). Logique centralisée : `CostHelper.BucketByCost` + `CostHelper.GetRecipePaymentTypes` (plus de duplication dans DayPlan/MealCell/MealRecap).
+- **Random fill scindé** — `RandomFillMode` enum (`Items` | `Recipes`). Deux boutons : Casino (items) et MenuBook (recettes).
+- **Unique constraint DailyMenu** — migration `AddUniqueDailyMenuDateConstraint` : index unique sur `(CustomerId, Date)`.
+- **MealTypeFlags** — flags enum : `None=0, Breakfast=1, Snack=2, Lunch=4, Dinner=8`. `Category.AllowedMealTypes`. SeedData : flags par catégorie.
+- **AddItemDialog diff-based** — Dialog reçoit `CurrentMealItems`, calcule un diff (add/update/delete). `UpdateMealItemRequest` accepte `ItemId?` + `RecipeId?` — les recettes sont mises à jour via PUT (KI-3 résolu). `_filterByMealType` bool (était `_showAll` inversé).
 - **Tests** — SQLite in-memory uniquement.
-- **Duplication de mois** — `POST /api/dailymenus/duplicate` : supprime d'abord le mois cible (cascade), recopie jour par jour depuis la source en ignorant silencieusement les jours qui n'existent pas dans le mois cible (ex. 31 jan → fév). `MonthlySummaryResponse` enrichi de `DaysWithMeals` pour afficher le coût moyen journalier. Copie chaînable : on reste en copy mode après une copie pour pouvoir copier vers plusieurs cibles.
-- **MenuPlan/Index copy mode** — dbl-clic entre en mode copy (source amber), clic cible exécute la copie. Backdrop plein-écran + Escape (JS interop `addEscapeHandler`) pour sortir. Gestion click vs dblclick : timer 280ms annulable via `CancellationTokenSource`. Pas de modal de confirmation systématique — avertissement uniquement si la cible a des données (`DuplicateMonthDialog`).
+- **Duplication de mois** — `POST /api/dailymenus/duplicate` : supprime d'abord le mois cible (cascade), recopie jour par jour depuis la source. Copie chaînable. ⚠️ N×M appels `SaveChangesAsync` — voir Bugs connus KI-4.
+
+---
+
+## Bugs connus (backlog technique prioritaire)
+
+| # | Priorité | Description | Fix attendu |
+|---|----------|-------------|-------------|
+| KI-2 | ★★★ | Shopping Cart exclut les recettes (`.Where(i => !i.RecipeId.HasValue)`). Totaux TR/CB/total incomplets. Message "No items" possible même avec des recettes dans le plan. | Étendre `ComputeLines()` pour expanser les recettes via `RecipeIngredientItemIds` + cache. |
+| KI-4 | ★ | `DuplicateMonthAsync` : `SaveChangesAsync` dans les boucles imbriquées (~N×M saves). | Grouper les insertions, sauvegarder en 2 passes (DailyMenus, puis Meals+MealItems). |
+
+---
+
+## Duplications résiduelles
+
+Pour information du CW lors des briefs :
+
+- **Chaîne `ThenInclude`** (Item→ItemSuppliers + Recipe→RecipeIngredients→Item→ItemSuppliers) copiée dans `DailyMenuService.QueryWithIncludes`, `MealItemService`, `MealService.QueryWithIncludes`.
 
 ---
 
@@ -84,3 +100,4 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 3. **Options avec trade-offs** quand c'est ambigu — c'est lui qui décide.
 4. **Ne pas sur-détailler** — CC a CLAUDE.md.
 5. **Former, pas juste livrer** — expliquer le pourquoi.
+6. **Vérifier les Bugs connus** avant tout brief sur un composant affecté — ne pas demander à CC de coder par-dessus un bug connu sans l'adresser.

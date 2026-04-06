@@ -46,11 +46,4 @@ public class ItemSupplierService
         return response.IsSuccessStatusCode;
     }
 
-    public async Task<List<ItemPricingResponse>> GetByItemsAsync(List<int> itemIds)
-    {
-        var response = await _http.PostAsJsonAsync("api/itemsuppliers/by-items", new ByItemsRequest { ItemIds = itemIds });
-        return response.IsSuccessStatusCode
-            ? await response.Content.ReadFromJsonAsync<List<ItemPricingResponse>>() ?? []
-            : [];
-    }
 }

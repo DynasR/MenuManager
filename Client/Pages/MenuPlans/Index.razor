@@ -99,7 +99,7 @@ else
                                 @if (avgDailyCost.HasValue)
                                 {
                                     <MudText Typo="Typo.caption" Class="monthly-avg-cost">
-                                        Moy. @avgDailyCost.Value.ToString("N2", FrCulture) €/j
+                                        Moy. @avgDailyCost.Value.ToString("N2", CostHelper.Fr) €/j
                                     </MudText>
                                 }
                                 else
@@ -107,7 +107,7 @@ else
                                     <span />
                                 }
                                 <MudText Typo="Typo.body2" Class="monthly-cost">
-                                    @(cost > 0 ? cost.ToString("N2", FrCulture) + " €" : "—")
+                                    @(cost > 0 ? cost.ToString("N2", CostHelper.Fr) + " €" : "—")
                                 </MudText>
                             </MudCardActions>
                         </MudCard>
@@ -165,7 +165,6 @@ else
 @code {
     [Parameter] public int CustomerId { get; set; }
 
-    private static readonly System.Globalization.CultureInfo FrCulture = new("fr-FR");
 
     private SortedDictionary<int, List<MonthSlot>> _slotsByYear = [];
     private List<MonthlySummaryResponse> _summaries = [];
@@ -479,9 +478,9 @@ else
             var first = new DateOnly(year, month, 1);
             var last = first.AddMonths(1).AddDays(-1);
 
-            var title = first.ToString("MMMM yyyy", FrCulture).ToUpper();
-            var startDate = first.ToString("d MMMM", FrCulture);
-            var endDate = last.ToString("d MMMM", FrCulture);
+            var title = first.ToString("MMMM yyyy", CostHelper.Fr).ToUpper();
+            var startDate = first.ToString("d MMMM", CostHelper.Fr);
+            var endDate = last.ToString("d MMMM", CostHelper.Fr);
 
             var match = summaries.FirstOrDefault(s => s.Month == month && s.Year == year);
 

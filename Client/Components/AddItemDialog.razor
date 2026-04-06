@@ -8,7 +8,7 @@
         <div style="display:flex; align-items:flex-start; justify-content:space-between; width:100%; gap:16px; flex-wrap:wrap;">
             <div>
                 <MudText Typo="Typo.h6" Style="font-weight:700; line-height:1.2;">
-                    @SelectedDate.ToString("dddd d MMMM yyyy", _fr)
+                    @SelectedDate.ToString("dddd d MMMM yyyy", CostHelper.Fr)
                 </MudText>
                 <MudText Typo="Typo.subtitle2" Color="Color.Secondary">
                     @SelectedMealType.ToFrenchLabel()
@@ -25,10 +25,10 @@
                                StartIcon="@Icons.Material.Filled.MenuBook"
                                OnClick="@(() => { _tab = 1; _search = ""; })">Recettes</MudButton>
                 </MudButtonGroup>
-                <MudTooltip Text="@(_showAll ? "Filtrer par repas" : "Voir tout")">
-                    <MudIconButton Icon="@(_showAll ? Icons.Material.Outlined.FilterAlt : Icons.Material.Filled.FilterAlt)"
-                                   Color="@(_showAll ? Color.Default : Color.Primary)"
-                                   Size="Size.Small" OnClick="@(() => _showAll = !_showAll)" />
+                <MudTooltip Text="@(_filterByMealType ? "Voir tout" : "Filtrer par repas")">
+                    <MudIconButton Icon="@(_filterByMealType ? Icons.Material.Filled.FilterAlt : Icons.Material.Outlined.FilterAlt)"
+                                   Color="@(_filterByMealType ? Color.Primary : Color.Default)"
+                                   Size="Size.Small" OnClick="@(() => _filterByMealType = !_filterByMealType)" />
                 </MudTooltip>
                 <MudTooltip Text="@(_denseView ? "Vue cards" : "Vue liste")">
                     <MudIconButton Icon="@(_denseView ? Icons.Material.Filled.ViewModule : Icons.Material.Filled.ViewList)"
@@ -49,7 +49,7 @@
         {
             var filtered = AllItems
                 .Where(i => i.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
-                .Where(i => _showAll || PassesMealTypeFilter(i))
+                .Where(i => !_filterByMealType || PassesMealTypeFilter(i))
                 .ToList();
             @if (_denseView)
             {
@@ -91,7 +91,7 @@
                                     <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
                                                    Style="@(cq <= 0 ? "visibility:hidden;pointer-events:none;" : "")"
                                                    OnClick="@(() => DecrItemQty(ci.Id))" />
-                                    <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;visibility:@(cq > 0 ? "visible" : "hidden");">@cq.ToString("0.#", _fr)</span>
+                                    <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;visibility:@(cq > 0 ? "visible" : "hidden");">@cq.ToString("0.#", CostHelper.Fr)</span>
                                     <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
                                                    OnClick="@(() => IncrItemQty(ci.Id))" />
                                 </div>
@@ -121,7 +121,7 @@
                                     <MudText Typo="Typo.caption" Color="Color.Secondary">@item.CategoryName</MudText>
                                     @if (best != null)
                                     {
-                                        var pp = ComputePricePerKgL(best.UnitPrice, item.ContentQuantity, item.ContentUnit);
+                                        var pp = CostHelper.ComputePricePerKgL(best.UnitPrice, item.ContentQuantity, item.ContentUnit);
                                         <div style="display:flex; align-items:baseline; gap:6px; margin-top:2px; flex-wrap:wrap;">
                                             <MudText Typo="Typo.body2" Style="font-weight:700; color:var(--mud-palette-primary);">@FmtMoney(best.UnitPrice)</MudText>
                                             @if (pp != null) { <MudText Typo="Typo.caption" Color="Color.Secondary">@pp</MudText> }
@@ -137,7 +137,7 @@
                                         {
                                             <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
                                                            OnClick="@(() => DecrItemQty(ci.Id))" />
-                                            <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@GetItemQty(ci.Id).ToString("0.#", _fr)</span>
+                                            <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@GetItemQty(ci.Id).ToString("0.#", CostHelper.Fr)</span>
                                         }
                                         <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
                                                        OnClick="@(() => IncrItemQty(ci.Id))" />
@@ -187,7 +187,7 @@
                                     <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
                                                    Style="@(cq <= 0 ? "visibility:hidden;pointer-events:none;" : "")"
                                                    OnClick="@(() => DecrRecipeQty(cr.Id))" />
-                                    <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;visibility:@(cq > 0 ? "visible" : "hidden");">@cq.ToString("0.#", _fr)</span>
+                                    <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;visibility:@(cq > 0 ? "visible" : "hidden");">@cq.ToString("0.#", CostHelper.Fr)</span>
                                     <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
                                                    OnClick="@(() => IncrRecipeQty(cr.Id))" />
                                 </div>
@@ -241,7 +241,7 @@
                                         {
                                             <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
                                                            OnClick="@(() => DecrRecipeQty(cr.Id))" />
-                                            <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@GetRecipeQty(cr.Id).ToString("0.#", _fr)</span>
+                                            <span style="min-width:1.4rem;text-align:center;font-size:0.78rem;font-weight:600;">@GetRecipeQty(cr.Id).ToString("0.#", CostHelper.Fr)</span>
                                         }
                                         <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
                                                        OnClick="@(() => IncrRecipeQty(cr.Id))" />
@@ -288,7 +288,6 @@
 </style>
 
 @code {
-    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
 
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = null!;
@@ -302,7 +301,7 @@
 
     private int _tab;
     private bool _denseView = true;
-    private bool _showAll;
+    private bool _filterByMealType = true;
     private string _search = "";
     private bool _saving;
 
@@ -568,11 +567,11 @@
     private string GetPricePerKgL(ItemResponse item)
     {
         var best = Cache.GetBestSupplier(item.Id);
-        return best != null ? ComputePricePerKgL(best.UnitPrice, item.ContentQuantity, item.ContentUnit) ?? "—" : "—";
+        return best != null ? CostHelper.ComputePricePerKgL(best.UnitPrice, item.ContentQuantity, item.ContentUnit) ?? "—" : "—";
     }
 
-    private static string FmtMoney(decimal v) => v.ToString("0.00 €", _fr);
-    private static string FmtQty(decimal v) => v.ToString("0.##", _fr);
+    private static string FmtMoney(decimal v) => v.ToString("0.00 €", CostHelper.Fr);
+    private static string FmtQty(decimal v) => v.ToString("0.##", CostHelper.Fr);
 
     private static string FormatUnit(MeasurementUnit unit) => unit switch
     {
@@ -584,18 +583,6 @@
         _                          => unit.ToString()
     };
 
-    private static string? ComputePricePerKgL(decimal unitPrice, decimal contentQty, MeasurementUnit contentUnit)
-    {
-        if (contentQty == 0) return null;
-        return contentUnit switch
-        {
-            MeasurementUnit.Gram       => FmtMoney(unitPrice / contentQty * 1000) + "/kg",
-            MeasurementUnit.Kilogram   => FmtMoney(unitPrice / contentQty) + "/kg",
-            MeasurementUnit.Milliliter => FmtMoney(unitPrice / contentQty * 1000) + "/L",
-            MeasurementUnit.Liter      => FmtMoney(unitPrice / contentQty) + "/L",
-            _                          => null
-        };
-    }
 
     private static string GetGradientStyle(string? name)
     {

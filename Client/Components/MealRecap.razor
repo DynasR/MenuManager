@@ -156,7 +156,7 @@
     <div class="mr-header">
         <MudIcon Icon="@Icons.Material.Filled.Receipt" Style="font-size:1.1rem; color:white;" />
         <MudText Typo="Typo.body2" Style="font-weight:700; color:white; margin:0;">@MealType.ToFrenchLabel()</MudText>
-        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.55); margin:0;">— @CurrentDate.ToString("dd MMM", _fr)</MudText>
+        <MudText Typo="Typo.caption" Style="color:rgba(255,255,255,0.55); margin:0;">— @CurrentDate.ToString("dd MMM", CostHelper.Fr)</MudText>
     </div>
 
     <div class="mr-col-labels">
@@ -223,7 +223,6 @@
     [Parameter]
     public EventCallback<(int Id, decimal Qty, bool IsRecipe)> OnQtyChange { get; set; }
 
-    private static readonly System.Globalization.CultureInfo _fr = new("fr-FR");
 
     private List<RecapLine> _lines = [];
     private decimal _total, _trTotal, _cbTotal;
@@ -244,13 +243,8 @@
             if (item.RecipeId.HasValue)
             {
                 var cost = CostHelper.ComputeItemCost(item);
-                var types = item.RecipeIngredientItemIds
-                    .Select(id => Cache.GetBestSupplier(id)?.PaymentType)
-                    .Where(pt => pt.HasValue)
-                    .Select(pt => pt!.Value)
-                    .Distinct().ToList();
-                if (types.Count == 1) { if (types[0] == PaymentType.TR) tr += cost; else cb += cost; }
-                else { tr += cost / 2; cb += cost / 2; }
+                var (btr, bcb) = CostHelper.BucketByCost(cost, CostHelper.GetRecipePaymentTypes(item.RecipeIngredientItemIds, Cache));
+                tr += btr; cb += bcb;
                 lines.Add(new RecapLine(item.RecipeId.Value, true,
                     item.RecipeName ?? "Recette", item.Quantity, 0, null, cost));
             }
@@ -279,8 +273,8 @@
     private async Task RemoveFromRecapAsync(RecapLine line)
         => await OnQtyChange.InvokeAsync((line.Id, 0m, line.IsRecipe));
 
-    private static string FmtMoney(decimal v) => v.ToString("0.00 €", _fr);
-    private static string FmtQty(decimal v) => v.ToString("0.##", _fr);
+    private static string FmtMoney(decimal v) => v.ToString("0.00 €", CostHelper.Fr);
+    private static string FmtQty(decimal v) => v.ToString("0.##", CostHelper.Fr);
 
     private sealed record RecapLine(
         int Id,

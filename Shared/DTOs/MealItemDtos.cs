@@ -38,7 +38,8 @@ public class UpdateMealItemRequest
     public decimal Quantity { get; set; }
     public string? Notes { get; set; }
     public int MealId { get; set; }
-    public int ItemId { get; set; }
+    public int? ItemId { get; set; }
+    public int? RecipeId { get; set; }
     public MeasurementUnit Unit { get; set; }
 }
 

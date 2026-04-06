@@ -26,7 +26,7 @@
         <PropertyColumn Property="x => x.BaseServings" Title="Servings" />
         <TemplateColumn Title="Est. Cost" Sortable="false" Filterable="false">
             <CellTemplate>
-                @context.Item.EstimatedCost.ToString("C2", FrCulture)
+                @context.Item.EstimatedCost.ToString("C2", CostHelper.Fr)
             </CellTemplate>
         </TemplateColumn>
         <TemplateColumn Title="Actions" Sortable="false" Filterable="false">
@@ -95,8 +95,8 @@
                                     }
                                 </MudSelect>
                             </td>
-                            <td>@(ing.UnitPrice?.ToString("C2", FrCulture) ?? "—")</td>
-                            <td>@IngredientCost(ing).ToString("C2", FrCulture)</td>
+                            <td>@(ing.UnitPrice?.ToString("C2", CostHelper.Fr) ?? "—")</td>
+                            <td>@IngredientCost(ing).ToString("C2", CostHelper.Fr)</td>
                             <td>
                                 <MudIconButton Icon="@Icons.Material.Filled.Save" Size="Size.Small"
                                                Color="Color.Primary"
@@ -150,7 +150,6 @@
 </MudDataGrid>
 
 @code {
-    private static readonly CultureInfo FrCulture = new("fr-FR");
 
     private List<RecipeResponse> _recipes = [];
     private List<ItemResponse> _items = [];

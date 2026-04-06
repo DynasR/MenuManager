@@ -61,7 +61,7 @@ else
         <div class="dayplan-grid-header">
             @if (_monthTotal > 0)
             {
-                <span class="dayplan-cost-total">@_monthTotal.ToString("C", _frCulture)</span>
+                <span class="dayplan-cost-total">@_monthTotal.ToString("C", CostHelper.Fr)</span>
             }
         </div>
         @foreach (var mt in _mealTypes)
@@ -80,13 +80,13 @@ else
                 @if (colTotal > 0)
                 {
                     <div style="position:relative; width:100%; display:flex; align-items:center; justify-content:center;">
-                        <span class="dayplan-cost-total">@colTotal.ToString("C", _frCulture)</span>
+                        <span class="dayplan-cost-total">@colTotal.ToString("C", CostHelper.Fr)</span>
                         @if (colTrCb.tr > 0 || colTrCb.cb > 0)
                         {
                             <span style="position:absolute; right:0; display:flex; gap:2px; align-items:center; font-size:0.58rem; line-height:1; white-space:nowrap; pointer-events:none;">
                                 @if (colTrCb.tr > 0)
                                 {
-                                    <span style="color:#1565C0; font-weight:600;">@colTrCb.tr.ToString("0.00", _frCulture)€</span>
+                                    <span style="color:#1565C0; font-weight:600;">@colTrCb.tr.ToString("0.00", CostHelper.Fr)€</span>
                                 }
                                 @if (colTrCb.tr > 0 && colTrCb.cb > 0)
                                 {
@@ -94,7 +94,7 @@ else
                                 }
                                 @if (colTrCb.cb > 0)
                                 {
-                                    <span style="color:#6A1B9A; font-weight:600;">@colTrCb.cb.ToString("0.00", _frCulture)€</span>
+                                    <span style="color:#6A1B9A; font-weight:600;">@colTrCb.cb.ToString("0.00", CostHelper.Fr)€</span>
                                 }
                             </span>
                         }
@@ -140,16 +140,16 @@ else
                     {
                         <MudTooltip Text="@holidayName" Placement="Placement.Right">
                             <div class="date-label">
-                                <span class="date-label-dow date-label-holiday">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
-                                <span class="date-label-num date-label-holiday">@date.ToString("dd", _frCulture)</span>
+                                <span class="date-label-dow date-label-holiday">@date.ToString("ddd", CostHelper.Fr).TrimEnd('.').ToUpperInvariant()</span>
+                                <span class="date-label-num date-label-holiday">@date.ToString("dd", CostHelper.Fr)</span>
                             </div>
                         </MudTooltip>
                     }
                     else
                     {
                         <div class="date-label">
-                            <span class="date-label-dow @(isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
-                            <span class="date-label-num @(isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", _frCulture)</span>
+                            <span class="date-label-dow @(isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", CostHelper.Fr).TrimEnd('.').ToUpperInvariant()</span>
+                            <span class="date-label-num @(isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", CostHelper.Fr)</span>
                         </div>
                     }
                     @if (rowTrCb.tr > 0 || rowTrCb.cb > 0)
@@ -157,7 +157,7 @@ else
                         <span style="font-size:0.58rem; line-height:1; white-space:nowrap; display:flex; gap:2px; align-items:center;">
                             @if (rowTrCb.tr > 0)
                             {
-                                <span style="color:#1565C0; font-weight:600;">@rowTrCb.tr.ToString("0.00", _frCulture)€</span>
+                                <span style="color:#1565C0; font-weight:600;">@rowTrCb.tr.ToString("0.00", CostHelper.Fr)€</span>
                             }
                             @if (rowTrCb.tr > 0 && rowTrCb.cb > 0)
                             {
@@ -165,7 +165,7 @@ else
                             }
                             @if (rowTrCb.cb > 0)
                             {
-                                <span style="color:#6A1B9A; font-weight:600;">@rowTrCb.cb.ToString("0.00", _frCulture)€</span>
+                                <span style="color:#6A1B9A; font-weight:600;">@rowTrCb.cb.ToString("0.00", CostHelper.Fr)€</span>
                             }
                         </span>
                     }
@@ -202,12 +202,12 @@ else
                  @ondblclick="@(() => ClearRowAsync(date))">
                 <div class="date-right-inner">
                     <div class="date-label">
-                        <span class="date-label-dow @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", _frCulture).TrimEnd('.').ToUpperInvariant()</span>
-                        <span class="date-label-num @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", _frCulture)</span>
+                        <span class="date-label-dow @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("ddd", CostHelper.Fr).TrimEnd('.').ToUpperInvariant()</span>
+                        <span class="date-label-num @(isHoliday ? "date-label-holiday" : isWeekend ? "date-label-weekend" : "")">@date.ToString("dd", CostHelper.Fr)</span>
                     </div>
                     @if (rowTotal > 0)
                     {
-                        <span class="dayplan-cost-total">@rowTotal.ToString("C", _frCulture)</span>
+                        <span class="dayplan-cost-total">@rowTotal.ToString("C", CostHelper.Fr)</span>
                     }
                 </div>
             </div>
@@ -599,7 +599,6 @@ else
     public int Month { get; set; }
 
     private static readonly MealType[] _mealTypes = Enum.GetValues<MealType>();
-    private static readonly System.Globalization.CultureInfo _frCulture = new("fr-FR");
 
     private bool _saving;
     private (DateOnly date, MealType mealType)? _draggingCell;
@@ -727,22 +726,15 @@ else
         foreach (var (mealItemId, newQty) in diff.ToUpdate)
         {
             if (!byId.TryGetValue(mealItemId, out var mi)) continue;
-            if (mi.RecipeId.HasValue)
+            await MealItemSvc.UpdateAsync(mealItemId, new UpdateMealItemRequest
             {
-                await MealItemSvc.DeleteAsync(mealItemId);
-                await AddRecipeToSlotAsync(date, mealType, mi.RecipeId.Value, newQty);
-            }
-            else
-            {
-                await MealItemSvc.UpdateAsync(mealItemId, new UpdateMealItemRequest
-                {
-                    Quantity = newQty,
-                    Notes = mi.Notes,
-                    MealId = mi.MealId,
-                    ItemId = mi.ItemId,
-                    Unit = mi.Unit,
-                });
-            }
+                Quantity = newQty,
+                Notes = mi.Notes,
+                MealId = mi.MealId,
+                ItemId = mi.RecipeId.HasValue ? null : mi.ItemId,
+                RecipeId = mi.RecipeId,
+                Unit = mi.Unit,
+            });
         }
 
         foreach (var (itemId, qty) in diff.ToAddItems)
@@ -1054,8 +1046,8 @@ else
         {
             var d = current.AddMonths(i);
             var match = _monthlySummary.FirstOrDefault(s => s.Month == d.Month && s.Year == d.Year);
-            var label = d.ToString("MMMM yyyy", _frCulture);
-            var abbr = d.ToString("MMM", _frCulture).TrimEnd('.').ToUpper();
+            var label = d.ToString("MMMM yyyy", CostHelper.Fr);
+            var abbr = d.ToString("MMM", CostHelper.Fr).TrimEnd('.').ToUpper();
             _monthNav.Add(new MonthNavItem(d.Month, d.Year, label, abbr, match?.HasMeals ?? false));
         }
     }
@@ -1076,7 +1068,10 @@ else
         {
             var cost = ComputeItemCost(item);
             if (item.RecipeId.HasValue)
-                BucketRecipeCost(item, cost, ref tr, ref cb);
+            {
+                var (btr, bcb) = CostHelper.BucketByCost(cost, CostHelper.GetRecipePaymentTypes(item.RecipeIngredientItemIds, ItemSupplierCache));
+                tr += btr; cb += bcb;
+            }
             else
             {
                 var pt = ItemSupplierCache.GetBestSupplier(item.ItemId)?.PaymentType;
@@ -1103,7 +1098,8 @@ else
             var cost = ComputeItemCost(item);
             if (item.RecipeId.HasValue)
             {
-                BucketRecipeCost(item, cost, ref tr, ref cb);
+                var (btr, bcb) = CostHelper.BucketByCost(cost, CostHelper.GetRecipePaymentTypes(item.RecipeIngredientItemIds, ItemSupplierCache));
+                tr += btr; cb += bcb;
             }
             else
             {
@@ -1115,18 +1111,6 @@ else
         return (tr, cb);
     }
 
-    private void BucketRecipeCost(MealItemResponse item, decimal cost, ref decimal tr, ref decimal cb)
-    {
-        var pts = item.RecipeIngredientItemIds
-            .Select(id => ItemSupplierCache.GetBestSupplier(id)?.PaymentType)
-            .Where(pt => pt.HasValue)
-            .Select(pt => pt!.Value)
-            .Distinct()
-            .ToList();
-        if (pts.Count == 0) return;
-        if (pts.Count == 1) { if (pts[0] == PaymentType.TR) tr += cost; else cb += cost; }
-        else { tr += cost / 2; cb += cost / 2; } // mixed: split evenly
-    }
 
     private void NavigateToMonth(MonthNavItem month)
     {

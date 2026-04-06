@@ -375,7 +375,7 @@ public class RecipeServiceTests : IDisposable
         // Item: PurchaseUnit = Gram, ContentUnit = Gram, ContentQuantity = 500
         // Ingredient: Unit = Gram (= PurchaseUnit), Quantity = 3
         // UnitPrice = 2.00
-        // Expected: 3 * 2.00 = 6.00
+        // Expected: ceil(3 / 500) * 2.00 = 1 * 2.00 = 2.00
         var (recipe, item) = await SeedRecipeAndItem(
             purchaseUnit: MeasurementUnit.Gram,
             contentUnit: MeasurementUnit.Gram,
@@ -413,7 +413,7 @@ public class RecipeServiceTests : IDisposable
         var result = await _service.GetByIdAsync(recipe.Id);
 
         result.Should().NotBeNull();
-        result!.EstimatedCost.Should().Be(6.00m);
+        result!.EstimatedCost.Should().Be(2.00m);
     }
 
     [Fact]

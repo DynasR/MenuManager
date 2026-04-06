@@ -114,7 +114,7 @@ public class RecipeService : IRecipeService
                 ContentQuantity = ri.Item?.ContentQuantity ?? 1,
                 UnitPrice = ri.Item?.ItemSuppliers
                     .Where(s => s.IsAvailable)
-                    .OrderBy(s => s.SupplierId)
+                    .OrderBy(s => s.UnitPrice)
                     .Select(s => (decimal?)s.UnitPrice)
                     .FirstOrDefault()
             }).ToList()
@@ -129,7 +129,7 @@ public class RecipeService : IRecipeService
 
             var unitPrice = ri.Item.ItemSuppliers
                 .Where(s => s.IsAvailable)
-                .OrderBy(s => s.SupplierId)
+                .OrderBy(s => s.UnitPrice)
                 .Select(s => (decimal?)s.UnitPrice)
                 .FirstOrDefault();
 

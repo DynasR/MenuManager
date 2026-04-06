@@ -1,4 +1,5 @@
 using MenuManager.Server.Data;
+using MenuManager.Server.Mapping;
 using MenuManager.Shared.DTOs;
 using MenuManager.Shared.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -37,7 +38,7 @@ public class MealItemService : IMealItemService
             .AsNoTracking()
             .ToListAsync();
 
-        return items.Select(MapToResponse).ToList();
+        return items.Select(MealItemMapper.ToResponse).ToList();
     }
 
     public async Task<MealItemResponse?> GetByIdAsync(int id)
@@ -52,7 +53,7 @@ public class MealItemService : IMealItemService
             .AsNoTracking()
             .FirstOrDefaultAsync(mi => mi.Id == id);
 
-        return item is null ? null : MapToResponse(item);
+        return item is null ? null : MealItemMapper.ToResponse(item);
     }
 
     public async Task<MealItemResponse?> CreateAsync(CreateMealItemRequest request)
@@ -102,13 +103,23 @@ public class MealItemService : IMealItemService
         var mealExists = await _db.Meals.AnyAsync(m => m.Id == request.MealId);
         if (!mealExists) return null;
 
-        var itemExists = await _db.Items.AnyAsync(i => i.Id == request.ItemId);
-        if (!itemExists) return null;
+        if (request.ItemId.HasValue)
+        {
+            var itemExists = await _db.Items.AnyAsync(i => i.Id == request.ItemId.Value);
+            if (!itemExists) return null;
+        }
+
+        if (request.RecipeId.HasValue)
+        {
+            var recipeExists = await _db.Recipes.AnyAsync(r => r.Id == request.RecipeId.Value);
+            if (!recipeExists) return null;
+        }
 
         mealItem.Quantity = request.Quantity;
         mealItem.Notes = request.Notes;
         mealItem.MealId = request.MealId;
         mealItem.ItemId = request.ItemId;
+        mealItem.RecipeId = request.RecipeId;
         mealItem.Unit = request.Unit;
 
         await _db.SaveChangesAsync();
@@ -225,27 +236,4 @@ public class MealItemService : IMealItemService
         await _db.SaveChangesAsync();
     }
 
-    private static MealItemResponse MapToResponse(MealItem mi) => new()
-    {
-        Id = mi.Id,
-        ItemId = mi.ItemId ?? 0,
-        ItemName = mi.Item?.Name ?? "",
-        RecipeId = mi.RecipeId,
-        RecipeName = mi.Recipe?.Name,
-        RecipeEstimatedCost = mi.Recipe != null ? RecipeService.ComputeRecipeCost(mi.Recipe) : null,
-        RecipeIngredientItemIds = mi.Recipe?.RecipeIngredients.Select(ri => ri.ItemId).ToList() ?? [],
-        Quantity = mi.Quantity,
-        Notes = mi.Notes,
-        Order = mi.Order,
-        Unit = mi.Unit,
-        MealId = mi.MealId,
-        UnitPrice = mi.Item?.ItemSuppliers
-            .Where(s => s.IsAvailable)
-            .OrderBy(s => s.UnitPrice)
-            .Select(s => (decimal?)s.UnitPrice)
-            .FirstOrDefault(),
-        ContentQuantity = mi.Item?.ContentQuantity ?? 1,
-        PurchaseUnit = mi.Item?.PurchaseUnit ?? default,
-        ContentUnit = mi.Item?.ContentUnit ?? default
-    };
 }

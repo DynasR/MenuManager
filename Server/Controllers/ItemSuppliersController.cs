@@ -37,12 +37,6 @@ public class ItemSuppliersController : ControllerBase
         return Ok(await _service.GetBestByItemAsync());
     }
 
-    [HttpPost("by-items")]
-    public async Task<ActionResult<List<ItemPricingResponse>>> GetByItems(ByItemsRequest request)
-    {
-        return Ok(await _service.GetByItemsAsync(request.ItemIds));
-    }
-
     [HttpPost]
     public async Task<ActionResult<ItemSupplierResponse>> Create(CreateItemSupplierRequest request)
     {
