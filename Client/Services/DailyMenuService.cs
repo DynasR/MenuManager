@@ -34,4 +34,10 @@ public class DailyMenuService
 
     public async Task<List<MonthlySummaryResponse>> GetMonthlySummaryAsync(int customerId) =>
         await _http.GetFromJsonAsync<List<MonthlySummaryResponse>>($"api/dailymenus/{customerId}/monthly-summary") ?? [];
+
+    public async Task<bool> DuplicateMonthAsync(DuplicateMonthRequest request)
+    {
+        var response = await _http.PostAsJsonAsync("api/dailymenus/duplicate", request);
+        return response.IsSuccessStatusCode;
+    }
 }

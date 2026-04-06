@@ -34,7 +34,7 @@ Chaque slice : DTO / Validator / Service / Controller / Tests (SQLite in-memory)
 | Supplier     | Party + CompanyName, Siret, **PaymentType** (TR/CB)                              |
 | Customer     | Party + **PaymentType** (TR/CB) — CalendarMonth → `/menuplan/{id}`               |
 | ItemSupplier | PK composite, pattern 404/409 ; dropdown `CompanyName ?? Name` ; colonnes FK non-éditables |
-| MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards 3 ans. HasData coloring. **Dark mode** via `ThemeState` (inline styles dynamiques). |
+| MenuPlan/Index | Route `/menuplan/{CustomerId}`. Cards 3 ans + 12 mois passés (toggle History). HasData coloring. **Dark mode** via `ThemeState`. **Coût moyen journalier** sur les cards. **Mode duplication** : dbl-clic → copy mode, clic cible → copie jour par jour (confirmation si données existantes), Echap/clic extérieur pour quitter. |
 | DayPlan/Index | Calendrier mensuel. **`AddItemDialog` diff-based** : colonnes triables (fournisseur, prix, qté), stepper toujours rendu (`visibility:hidden` quand 0). Random fill scindé : Casino (items) + MenuBook (recettes). Unique constraint `DailyMenu(CustomerId,Date)`. |
 | MealCell | `ShouldRender()` override. Badges TR/CB : items via cache direct, recettes via `GetRecipePaymentTypes`. CSS subgrid. **TR/CB mini-badges dans le footer du slot** (total centré, breakdown à droite). |
 | Recipe       | `/recipes` — MudDataGrid + HierarchyColumn, RecipeDialog, coût estimé par recette |
@@ -72,30 +72,8 @@ Voir `CLAUDE.md` pour les détails. Résumé :
 - **MealTypeFlags** — flags enum (`Shared/Enums/MealTypeFlags.cs`) : `None=0, Breakfast=1, Snack=2, Lunch=4, Dinner=8`. `Category.AllowedMealTypes` (EF, migration `AddMealTypesToCategory`). `CategoryResponse.AllowedMealTypes (int)` + `ItemResponse.CategoryAllowedMealTypes (int)`. SeedData : flags par catégorie (ex. Biscuits = Breakfast|Snack, Viandes = Lunch|Dinner).
 - **AddItemDialog diff-based** — Dialog reçoit `CurrentMealItems`, calcule un diff (add/update/delete), envoie à `ApplyDialogSaveAsync`. Colonnes denses triables (`SortBy` sur fournisseur, prix unitaire, qté via lambda cache). Stepper toujours rendu — `visibility:hidden` quand qty=0 (pas de layout shift). `LoadSlot()` extrait de `OnInitializedAsync` pour clarté. Panel `MealRecap` sidebar 460px : grille 5 col (`× | Nom | €/U | U | Total`), bouton `×` remove (envoie qty=0), header affiche MealType + date, footer TR/CB/Total comme DayPlan. Toggle `_showAll` filtre par `CategoryAllowedMealTypes`.
 - **Tests** — SQLite in-memory uniquement.
-
----
-
-## Prochains chantiers (backlog CW)
-
-### MenuPlan/Index — duplication de planning (analyse de faisabilité demandée)
-UX cible (style ModX) :
-- Dbl-clic sur une carte = sélection source (highlight identique aux MealCards de DayPlan)
-- Clic sur une autre carte = sélection secondaire (légère)
-- Clic sur une carte cible = copie jour par jour — warning si mois source et mois cible n'ont pas le même nombre de jours correspondants
-- Si la cible a déjà des données : confirmation de remplacement
-- Clic hors cartes = quitter le mode duplication
-
-### MenuPlan/Index
-- Option voir les mois passés
-- Cards : clic sur toute la carte pour voir le planning (pas seulement le bouton)
-- Améliorer style des détails : coût par MealType, coût moyen, coût médian, style cohérent avec les totaux DayPlan
-
-### DayPlan/Index
-- Total par semaine
-- Dialogue de confirmation pour les actions destructives (vider ligne/colonne/mois)
-
-### Gestion Catégories
-- Tree view
+- **Duplication de mois** — `POST /api/dailymenus/duplicate` : supprime d'abord le mois cible (cascade), recopie jour par jour depuis la source en ignorant silencieusement les jours qui n'existent pas dans le mois cible (ex. 31 jan → fév). `MonthlySummaryResponse` enrichi de `DaysWithMeals` pour afficher le coût moyen journalier. Copie chaînable : on reste en copy mode après une copie pour pouvoir copier vers plusieurs cibles.
+- **MenuPlan/Index copy mode** — dbl-clic entre en mode copy (source amber), clic cible exécute la copie. Backdrop plein-écran + Escape (JS interop `addEscapeHandler`) pour sortir. Gestion click vs dblclick : timer 280ms annulable via `CancellationTokenSource`. Pas de modal de confirmation systématique — avertissement uniquement si la cible a des données (`DuplicateMonthDialog`).
 
 ---
 

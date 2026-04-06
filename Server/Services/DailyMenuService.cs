@@ -14,6 +14,7 @@ public interface IDailyMenuService
     Task<DailyMenuResponse?> UpdateAsync(int id, UpdateDailyMenuRequest request);
     Task<bool> DeleteAsync(int id);
     Task<List<MonthlySummaryResponse>> GetMonthlySummaryAsync(int customerId);
+    Task<bool> DuplicateMonthAsync(DuplicateMonthRequest request);
 }
 
 public class DailyMenuService : IDailyMenuService
@@ -97,6 +98,80 @@ public class DailyMenuService : IDailyMenuService
         return true;
     }
 
+    public async Task<bool> DuplicateMonthAsync(DuplicateMonthRequest request)
+    {
+        var customerExists = await _db.Customers.AnyAsync(c => c.Id == request.CustomerId);
+        if (!customerExists) return false;
+
+        // Load source month
+        var sourceDailyMenus = await _db.DailyMenus
+            .Where(dm => dm.CustomerId == request.CustomerId
+                      && dm.Date.Year == request.SourceYear
+                      && dm.Date.Month == request.SourceMonth)
+            .Include(dm => dm.Meals)
+                .ThenInclude(m => m.MealItems)
+            .ToListAsync();
+
+        // Delete target month (cascade removes Meals and MealItems)
+        var targetDailyMenus = await _db.DailyMenus
+            .Where(dm => dm.CustomerId == request.CustomerId
+                      && dm.Date.Year == request.TargetYear
+                      && dm.Date.Month == request.TargetMonth)
+            .ToListAsync();
+
+        if (targetDailyMenus.Count > 0)
+        {
+            _db.DailyMenus.RemoveRange(targetDailyMenus);
+            await _db.SaveChangesAsync();
+        }
+
+        // Recreate in target month
+        int targetDaysInMonth = DateTime.DaysInMonth(request.TargetYear, request.TargetMonth);
+
+        foreach (var sourceMenu in sourceDailyMenus)
+        {
+            int day = sourceMenu.Date.Day;
+            if (day > targetDaysInMonth) continue;
+
+            var targetDate = new DateOnly(request.TargetYear, request.TargetMonth, day);
+            var newMenu = new DailyMenu
+            {
+                Date = targetDate,
+                CustomerId = request.CustomerId
+            };
+            _db.DailyMenus.Add(newMenu);
+            await _db.SaveChangesAsync();
+
+            foreach (var sourceMeal in sourceMenu.Meals)
+            {
+                var newMeal = new Meal
+                {
+                    MealType = sourceMeal.MealType,
+                    DailyMenuId = newMenu.Id
+                };
+                _db.Meals.Add(newMeal);
+                await _db.SaveChangesAsync();
+
+                foreach (var sourceItem in sourceMeal.MealItems)
+                {
+                    _db.MealItems.Add(new MealItem
+                    {
+                        MealId = newMeal.Id,
+                        ItemId = sourceItem.ItemId,
+                        RecipeId = sourceItem.RecipeId,
+                        Quantity = sourceItem.Quantity,
+                        Notes = sourceItem.Notes,
+                        Order = sourceItem.Order,
+                        Unit = sourceItem.Unit
+                    });
+                }
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        return true;
+    }
+
     public async Task<List<MonthlySummaryResponse>> GetMonthlySummaryAsync(int customerId)
     {
         var dailyMenus = await _db.DailyMenus
@@ -122,7 +197,8 @@ public class DailyMenuService : IDailyMenuService
                 Year = g.Key.Year,
                 Month = g.Key.Month,
                 HasMeals = g.Any(dm => dm.Meals.Any(m => m.MealItems.Count > 0)),
-                MonthlyCost = ComputeMonthlyCost(g.SelectMany(dm => dm.Meals).SelectMany(m => m.MealItems))
+                MonthlyCost = ComputeMonthlyCost(g.SelectMany(dm => dm.Meals).SelectMany(m => m.MealItems)),
+                DaysWithMeals = g.Count(dm => dm.Meals.Any(m => m.MealItems.Count > 0))
             })
             .ToList();
     }

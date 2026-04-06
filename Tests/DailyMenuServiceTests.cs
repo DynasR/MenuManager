@@ -358,6 +358,138 @@ public class DailyMenuServiceTests : IDisposable
         result[0].MonthlyCost.Should().Be(6.00m);
     }
 
+    // ── DuplicateMonthAsync ──────────────────────────────────────────────────
+
+    [Fact]
+    public async Task DuplicateMonthAsync_ReturnsFalse_WhenCustomerNotFound()
+    {
+        var result = await _service.DuplicateMonthAsync(new DuplicateMonthRequest
+        {
+            CustomerId = 999,
+            SourceYear = 2026, SourceMonth = 1,
+            TargetYear = 2026, TargetMonth = 2
+        });
+
+        result.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task DuplicateMonthAsync_CopiesMealItemsToTargetMonth()
+    {
+        var customer = await SeedCustomerAsync();
+        var item = await SeedItemAsync();
+
+        // Source: Jan 15 with Lunch containing 1 meal item
+        var dm = await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 15));
+        var meal = new Meal { MealType = MealType.Lunch, DailyMenuId = dm.Id };
+        _db.Meals.Add(meal);
+        await _db.SaveChangesAsync();
+        _db.MealItems.Add(new MealItem { MealId = meal.Id, ItemId = item.Id, Quantity = 2, Order = 1 });
+        await _db.SaveChangesAsync();
+
+        var result = await _service.DuplicateMonthAsync(new DuplicateMonthRequest
+        {
+            CustomerId = customer.Id,
+            SourceYear = 2026, SourceMonth = 1,
+            TargetYear = 2026, TargetMonth = 2
+        });
+
+        result.Should().BeTrue();
+
+        var targetMenus = await _db.DailyMenus
+            .Include(d => d.Meals).ThenInclude(m => m.MealItems)
+            .Where(d => d.CustomerId == customer.Id && d.Date.Year == 2026 && d.Date.Month == 2)
+            .ToListAsync();
+
+        targetMenus.Should().HaveCount(1);
+        targetMenus[0].Date.Day.Should().Be(15);
+        targetMenus[0].Meals.Should().HaveCount(1);
+        var copiedMeal = targetMenus[0].Meals.First();
+        copiedMeal.MealType.Should().Be(MealType.Lunch);
+        copiedMeal.MealItems.Should().HaveCount(1);
+        var copiedItem = copiedMeal.MealItems.First();
+        copiedItem.ItemId.Should().Be(item.Id);
+        copiedItem.Quantity.Should().Be(2);
+        copiedItem.Order.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task DuplicateMonthAsync_ClearsTargetMonth_BeforeCopying()
+    {
+        var customer = await SeedCustomerAsync();
+
+        // Source: Jan 10
+        await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 10));
+
+        // Target: Feb 5 with existing data
+        var existingTarget = await SeedDailyMenuAsync(customer, new DateOnly(2026, 2, 5));
+        var existingMeal = new Meal { MealType = MealType.Breakfast, DailyMenuId = existingTarget.Id };
+        _db.Meals.Add(existingMeal);
+        await _db.SaveChangesAsync();
+
+        var result = await _service.DuplicateMonthAsync(new DuplicateMonthRequest
+        {
+            CustomerId = customer.Id,
+            SourceYear = 2026, SourceMonth = 1,
+            TargetYear = 2026, TargetMonth = 2
+        });
+
+        result.Should().BeTrue();
+
+        // Feb 5 should be gone (only Feb 10 from source)
+        var targetMenus = await _db.DailyMenus
+            .Where(d => d.CustomerId == customer.Id && d.Date.Year == 2026 && d.Date.Month == 2)
+            .ToListAsync();
+
+        targetMenus.Should().HaveCount(1);
+        targetMenus[0].Date.Day.Should().Be(10);
+    }
+
+    [Fact]
+    public async Task DuplicateMonthAsync_SkipsDays_WhenTargetMonthIsShorter()
+    {
+        var customer = await SeedCustomerAsync();
+
+        // Source: Jan 31 (day 31 doesn't exist in Feb)
+        await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 31));
+        // Also Jan 15 (exists in Feb)
+        await SeedDailyMenuAsync(customer, new DateOnly(2026, 1, 15));
+
+        var result = await _service.DuplicateMonthAsync(new DuplicateMonthRequest
+        {
+            CustomerId = customer.Id,
+            SourceYear = 2026, SourceMonth = 1,
+            TargetYear = 2026, TargetMonth = 2
+        });
+
+        result.Should().BeTrue();
+
+        var targetMenus = await _db.DailyMenus
+            .Where(d => d.CustomerId == customer.Id && d.Date.Year == 2026 && d.Date.Month == 2)
+            .ToListAsync();
+
+        // Only Feb 15 created; Feb 31 skipped
+        targetMenus.Should().HaveCount(1);
+        targetMenus[0].Date.Day.Should().Be(15);
+    }
+
+    [Fact]
+    public async Task DuplicateMonthAsync_ReturnsTrue_WhenSourceIsEmpty()
+    {
+        var customer = await SeedCustomerAsync();
+
+        // No source data — should succeed and produce an empty target
+        var result = await _service.DuplicateMonthAsync(new DuplicateMonthRequest
+        {
+            CustomerId = customer.Id,
+            SourceYear = 2026, SourceMonth = 1,
+            TargetYear = 2026, TargetMonth = 2
+        });
+
+        result.Should().BeTrue();
+        _db.DailyMenus.Where(d => d.CustomerId == customer.Id).Should().BeEmpty();
+    }
+
     [Fact]
     public async Task GetMonthlySummaryAsync_AppliesCeilPerLine_NotPerGroup()
     {

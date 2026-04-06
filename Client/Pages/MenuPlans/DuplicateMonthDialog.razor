@@ -1,0 +1,44 @@
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Dupliquer @SourceTitle</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText Class="mb-3">Vers quel mois souhaitez-vous copier ce planning ?</MudText>
+        <MudSelect T="TargetOption?" @bind-Value="_selected" Label="Mois cible" AnchorOrigin="Origin.BottomLeft">
+            @foreach (var opt in Options)
+            {
+                <MudSelectItem Value="@((TargetOption?)opt)">@opt.Title</MudSelectItem>
+            }
+        </MudSelect>
+        @if (_selected?.HasData == true)
+        {
+            <MudAlert Severity="Severity.Warning" Class="mt-3">
+                Ce mois a déjà des données — il sera vidé avant la copie.
+            </MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Annuler</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   Disabled="@(_selected == null)"
+                   OnClick="Submit">Dupliquer</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public string SourceTitle { get; set; } = "";
+    [Parameter] public List<TargetOption> Options { get; set; } = [];
+    [Parameter] public TargetOption? PreSelected { get; set; }
+
+    private TargetOption? _selected;
+
+    protected override void OnInitialized() => _selected = PreSelected;
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(_selected!));
+
+    public sealed record TargetOption(int Year, int Month, string Title, bool HasData);
+}

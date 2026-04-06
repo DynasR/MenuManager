@@ -58,4 +58,11 @@ public class DailyMenusController : ControllerBase
     {
         return Ok(await _service.GetMonthlySummaryAsync(customerId));
     }
+
+    [HttpPost("duplicate")]
+    public async Task<IActionResult> Duplicate(DuplicateMonthRequest request)
+    {
+        var success = await _service.DuplicateMonthAsync(request);
+        return success ? NoContent() : NotFound();
+    }
 }

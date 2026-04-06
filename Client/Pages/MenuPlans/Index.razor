@@ -1,14 +1,40 @@
 @page "/menuplan/{CustomerId:int}"
 @inject DailyMenuService DailyMenuSvc
 @inject CustomerService CustomerSvc
+@inject MealService MealSvc
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
 @inject ThemeState ThemeState
 @implements IDisposable
 
 <PageTitle>Menu Plans</PageTitle>
 
-<MudText Typo="Typo.h4" Class="mb-4">Menu Plans — @_customerName</MudText>
+<MudMessageBox @ref="_confirmClearBox" Title="@_confirmClearTitle" Message="Toutes les données de ce mois seront supprimées.">
+    <YesButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error">Vider</MudButton>
+    </YesButton>
+    <CancelButton>
+        <MudButton>Annuler</MudButton>
+    </CancelButton>
+</MudMessageBox>
+
+@* Full-screen backdrop to cancel copy mode on outside click *@
+@if (_copySourceMonth != null)
+{
+    <div style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:5;"
+         @onclick="ExitCopyModeAsync" />
+}
+
+<div style="display:flex; align-items:center; gap:8px; margin-bottom:1rem;">
+    <MudText Typo="Typo.h4">Menu Plans — @_customerName</MudText>
+    <MudTooltip Text="@(_showPast ? "Masquer les mois passés" : "Voir les 12 mois passés")">
+        <MudIconButton Icon="@Icons.Material.Filled.History"
+                       Color="@(_showPast ? Color.Primary : Color.Default)"
+                       @onclick="TogglePast" />
+    </MudTooltip>
+</div>
 
 @if (_loading)
 {
@@ -23,44 +49,69 @@ else
         <MudGrid Spacing="3" Class="mb-6">
             @foreach (var slot in yearGroup.Value)
             {
+                var capturedSlot = slot;
+                var isSource = _copySourceMonth != null && slot.Year == _copySourceMonth.Year && slot.Month == _copySourceMonth.Month;
+                var isHovered = _hoverTarget == (slot.Year, slot.Month);
+                var inCopyMode = _copySourceMonth != null;
                 <MudItem xs="12" sm="6" md="4" lg="3">
-                    <MudCard Elevation="2" Style="height: 100%;">
-                        <MudCardHeader>
-                            <CardHeaderContent>
-                                <MudText Typo="Typo.h6">@slot.Title</MudText>
-                                <MudText Typo="Typo.caption" Color="Color.Secondary">
-                                    @slot.StartDate — @slot.EndDate
-                                </MudText>
-                            </CardHeaderContent>
-                        </MudCardHeader>
-                        @{
-                            var isCurrentMonth = slot.Month == DateTime.Now.Month && slot.Year == DateTime.Now.Year;
-                            var hasData = slot.Summary?.HasMeals ?? false;
-                            var btnColor = isCurrentMonth ? Color.Success : hasData ? Color.Primary : Color.Default;
-                            var btnVariant = isCurrentMonth || hasData ? Variant.Filled : Variant.Outlined;
-                            var darkStyle = ThemeState.IsDarkMode
-                                ? isCurrentMonth
-                                    ? "background:#0B2116 !important; color:#7EC89A !important; border:1px solid #173D28 !important;"
-                                    : hasData
-                                        ? "background:#071525 !important; color:#5B9EC9 !important; border:1px solid #102844 !important;"
-                                        : "border-color:rgba(255,255,255,0.18) !important; color:rgba(255,255,255,0.38) !important;"
-                                : null;
-                        }
-                        <MudCardActions Style="display: flex; justify-content: space-between; align-items: center;">
-                            <MudButton Variant="@btnVariant" Color="@btnColor" Size="Size.Small"
-                                       Style="@darkStyle"
-                                       StartIcon="@Icons.Material.Filled.CalendarMonth"
-                                       OnClick="@(() => Nav.NavigateTo($"dayplans?customerId={CustomerId}&year={slot.Year}&month={slot.Month}"))">
-                                Voir le planning
-                            </MudButton>
-                            @{
-                                var cost = slot.Summary?.MonthlyCost ?? 0;
+                    <div style="position:relative; @(inCopyMode ? "z-index:6;" : "")"
+                         @onmouseenter="@(() => HandleHoverEnter(capturedSlot))"
+                         @onmouseleave="@(() => HandleHoverLeave(capturedSlot))">
+                        <MudCard Elevation="@(isSource ? 8 : 2)"
+                                 Class="@GetCardCssClass(capturedSlot)"
+                                 Style="@GetCardStyle(capturedSlot)"
+                                 @onclick="@(() => HandleCardClickAsync(capturedSlot))"
+                                 @ondblclick="@(() => HandleCardDblClickAsync(capturedSlot))">
+                            @if (inCopyMode && isHovered && !isSource)
+                            {
+                                <div style="position:absolute;top:8px;right:8px;pointer-events:none;z-index:1;">
+                                    <MudIcon Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small"
+                                             Style="@(ThemeState.IsDarkMode ? "color:#42A5F5;" : "color:#1976D2;")" />
+                                </div>
                             }
-                            <MudText Typo="Typo.body2" Class="monthly-cost">
-                                @(cost > 0 ? cost.ToString("N2", FrCulture) + " €" : "—")
-                            </MudText>
-                        </MudCardActions>
-                    </MudCard>
+                            @if (inCopyMode && isSource)
+                            {
+                                <div style="position:absolute;top:4px;right:4px;z-index:1;"
+                                     @onclick:stopPropagation>
+                                    <MudTooltip Text="Vider ce mois">
+                                        <MudIconButton Icon="@Icons.Material.Filled.DeleteForever"
+                                                       Size="Size.Small"
+                                                       Style="@(ThemeState.IsDarkMode ? "color:#EF9A9A;" : "color:#C62828;")"
+                                                       OnClick="ClearSourceMonthAsync" />
+                                    </MudTooltip>
+                                </div>
+                            }
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">@slot.Title</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @slot.StartDate — @slot.EndDate
+                                    </MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardActions Style="justify-content:space-between; align-items:center;">
+                                @{
+                                    var hasData = slot.Summary?.HasMeals ?? false;
+                                    var cost = slot.Summary?.MonthlyCost ?? 0;
+                                    var daysWithMeals = slot.Summary?.DaysWithMeals ?? 0;
+                                    var avgDailyCost = hasData && daysWithMeals > 0 ? cost / daysWithMeals : (decimal?)null;
+                                }
+                                @if (avgDailyCost.HasValue)
+                                {
+                                    <MudText Typo="Typo.caption" Class="monthly-avg-cost">
+                                        Moy. @avgDailyCost.Value.ToString("N2", FrCulture) €/j
+                                    </MudText>
+                                }
+                                else
+                                {
+                                    <span />
+                                }
+                                <MudText Typo="Typo.body2" Class="monthly-cost">
+                                    @(cost > 0 ? cost.ToString("N2", FrCulture) + " €" : "—")
+                                </MudText>
+                            </MudCardActions>
+                        </MudCard>
+                    </div>
                 </MudItem>
             }
         </MudGrid>
@@ -73,6 +124,42 @@ else
         color: var(--mud-palette-text-secondary);
         font-size: 0.85rem;
     }
+
+    .monthly-avg-cost {
+        font-family: monospace;
+        color: var(--mud-palette-text-secondary);
+        font-size: 0.75rem;
+        opacity: 0.8;
+    }
+
+    .menuplan-card {
+        transition: box-shadow 0.15s ease, transform 0.1s ease;
+        overflow: visible;
+    }
+    .menuplan-card:hover {
+        box-shadow: var(--mud-elevation-6) !important;
+        transform: translateY(-2px);
+    }
+
+    @@keyframes copy-target-pulse {
+        0%, 100% { border-left-color: rgba(25, 118, 210, 0.35); }
+        50%       { border-left-color: rgba(25, 118, 210, 0.85); }
+    }
+    @@keyframes copy-target-pulse-dark {
+        0%, 100% { border-left-color: rgba(66, 165, 245, 0.35); }
+        50%       { border-left-color: rgba(66, 165, 245, 0.85); }
+    }
+
+    .menuplan-card-copy-target {
+        animation: copy-target-pulse 1.8s ease-in-out infinite;
+        transition: box-shadow 0.15s ease, transform 0.1s ease, opacity 0.15s ease !important;
+    }
+
+    .menuplan-card-copy-hovered {
+        animation: none !important;
+        transform: translateY(-3px) scale(1.02) !important;
+        box-shadow: 0 8px 24px rgba(25, 118, 210, 0.45) !important;
+    }
 </style>
 
 @code {
@@ -81,18 +168,32 @@ else
     private static readonly System.Globalization.CultureInfo FrCulture = new("fr-FR");
 
     private SortedDictionary<int, List<MonthSlot>> _slotsByYear = [];
+    private List<MonthlySummaryResponse> _summaries = [];
     private string _customerName = "";
     private bool _loading = true;
+    private bool _showPast = false;
+
+    // Copy mode state
+    private MonthSlot? _copySourceMonth;
+    private MudMessageBox? _confirmClearBox;
+    private string _confirmClearTitle = "";
+    private (int Year, int Month)? _hoverTarget;
+    private CancellationTokenSource? _clickCts;
+    private DotNetObjectReference<Index>? _dotNetRef;
 
     protected override async Task OnInitializedAsync()
     {
+        _dotNetRef = DotNetObjectReference.Create(this);
         ThemeState.OnChange += StateHasChanged;
         await LoadAsync();
     }
 
     public void Dispose()
     {
+        _clickCts?.Cancel();
+        _dotNetRef?.Dispose();
         ThemeState.OnChange -= StateHasChanged;
+        _ = JS.InvokeVoidAsync("removeEscapeHandler");
     }
 
     private async Task LoadAsync()
@@ -106,20 +207,265 @@ else
         var customer = customerTask.Result;
         _customerName = customer?.Name ?? $"Client #{CustomerId}";
 
-        _slotsByYear = BuildSlotsByYear(summaryTask.Result);
+        _summaries = summaryTask.Result;
+        _slotsByYear = BuildSlotsByYear(_summaries, _showPast);
 
         _loading = false;
     }
 
-    private static SortedDictionary<int, List<MonthSlot>> BuildSlotsByYear(List<MonthlySummaryResponse> summaries)
+    private void TogglePast()
+    {
+        _showPast = !_showPast;
+        _slotsByYear = BuildSlotsByYear(_summaries, _showPast);
+    }
+
+    // ── Copy mode ─────────────────────────────────────────────────────────────
+
+    private void HandleHoverEnter(MonthSlot slot)
+    {
+        if (_copySourceMonth == null) return;
+        _hoverTarget = (slot.Year, slot.Month);
+    }
+
+    private void HandleHoverLeave(MonthSlot slot)
+    {
+        if (_hoverTarget == (slot.Year, slot.Month))
+            _hoverTarget = null;
+    }
+
+    private async Task EnterCopyModeAsync(MonthSlot source)
+    {
+        _copySourceMonth = source;
+        _hoverTarget = null;
+        await JS.InvokeVoidAsync("addEscapeHandler", _dotNetRef);
+    }
+
+    [JSInvokable]
+    public void ExitCopyModeJs()
+    {
+        _copySourceMonth = null;
+        _hoverTarget = null;
+        StateHasChanged();
+    }
+
+    private void RefreshCopySource()
+    {
+        if (_copySourceMonth == null) return;
+        var updated = _slotsByYear.Values.SelectMany(v => v)
+            .FirstOrDefault(s => s.Year == _copySourceMonth.Year && s.Month == _copySourceMonth.Month);
+        if (updated != null) _copySourceMonth = updated;
+    }
+
+    private async Task ExitCopyModeAsync()
+    {
+        _copySourceMonth = null;
+        _hoverTarget = null;
+        await JS.InvokeVoidAsync("removeEscapeHandler");
+    }
+
+    private async Task HandleTargetSelectedAsync(MonthSlot target)
+    {
+        var source = _copySourceMonth!;
+
+        if (target.Summary?.HasMeals ?? false)
+        {
+            var preSelected = new DuplicateMonthDialog.TargetOption(target.Year, target.Month, target.Title, true);
+            var parameters = new DialogParameters<DuplicateMonthDialog>
+            {
+                { x => x.SourceTitle, source.Title },
+                { x => x.Options, [preSelected] },
+                { x => x.PreSelected, preSelected }
+            };
+            var dialog = await DialogService.ShowAsync<DuplicateMonthDialog>("", parameters,
+                new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+            var result = await dialog.Result;
+            if (result is { Canceled: true })
+                return; // stay in copy mode
+        }
+
+        await ExecuteDuplicateAsync(source, target);
+    }
+
+    private async Task ExecuteDuplicateAsync(MonthSlot source, MonthSlot target)
+    {
+        var success = await DailyMenuSvc.DuplicateMonthAsync(new DuplicateMonthRequest
+        {
+            CustomerId = CustomerId,
+            SourceYear = source.Year, SourceMonth = source.Month,
+            TargetYear = target.Year, TargetMonth = target.Month
+        });
+
+        if (success)
+        {
+            Snackbar.Add($"{source.Title} → {target.Title} copié.", Severity.Success);
+            await LoadAsync();
+            // Refresh source slot so its Summary reflects the latest summaries
+            RefreshCopySource();
+        }
+        else
+        {
+            Snackbar.Add("Erreur lors de la duplication.", Severity.Error);
+        }
+    }
+
+    // ── Click handlers ────────────────────────────────────────────────────────
+
+    private async Task HandleCardClickAsync(MonthSlot slot)
+    {
+        if (_copySourceMonth != null)
+        {
+            // Source card clicked → ignore
+            if (slot.Year == _copySourceMonth.Year && slot.Month == _copySourceMonth.Month)
+                return;
+
+            await HandleTargetSelectedAsync(slot);
+            return;
+        }
+
+        // Normal mode: timer to distinguish from double-click
+        _clickCts?.Cancel();
+        _clickCts = new CancellationTokenSource();
+        var cts = _clickCts;
+        try
+        {
+            await Task.Delay(280, cts.Token);
+            Nav.NavigateTo($"dayplans?customerId={CustomerId}&year={slot.Year}&month={slot.Month}");
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    private async Task HandleCardDblClickAsync(MonthSlot slot)
+    {
+        _clickCts?.Cancel();
+
+        if (_copySourceMonth != null)
+        {
+            // Re-select source while already in copy mode (only if new source has data)
+            if (!(slot.Summary?.HasMeals ?? false))
+            {
+                return;
+            }
+            _copySourceMonth = slot;
+            _hoverTarget = null;
+            return;
+        }
+
+        if (!(slot.Summary?.HasMeals ?? false))
+        {
+            return;
+        }
+
+        await EnterCopyModeAsync(slot);
+    }
+
+    private async Task ClearSourceMonthAsync()
+    {
+        var source = _copySourceMonth!;
+        _confirmClearTitle = $"Vider {source.Title}";
+        StateHasChanged();
+        await Task.Yield();
+        var confirmed = await _confirmClearBox!.ShowAsync();
+
+        if (confirmed != true) return;
+
+        var menus = await DailyMenuSvc.GetByCustomerAsync(CustomerId);
+        var mealIds = menus
+            .Where(dm => dm.Date.Year == source.Year && dm.Date.Month == source.Month)
+            .SelectMany(dm => dm.Meals)
+            .Select(m => m.Id)
+            .ToList();
+
+        if (mealIds.Count > 0)
+            await MealSvc.DeleteBatchAsync(mealIds);
+
+        Snackbar.Add($"{source.Title} vidé.", Severity.Success);
+        await ExitCopyModeAsync();
+        await LoadAsync();
+    }
+
+    // ── Card styles ───────────────────────────────────────────────────────────
+
+    private string GetCardCssClass(MonthSlot slot)
+    {
+        if (_copySourceMonth == null) return "menuplan-card";
+        bool isSource = slot.Year == _copySourceMonth.Year && slot.Month == _copySourceMonth.Month;
+        if (isSource) return "menuplan-card";
+        bool isHovered = _hoverTarget == (slot.Year, slot.Month);
+        return isHovered ? "menuplan-card menuplan-card-copy-hovered" : "menuplan-card menuplan-card-copy-target";
+    }
+
+    private string GetCardStyle(MonthSlot slot)
+    {
+        bool dark = ThemeState.IsDarkMode;
+        bool isCurrentMonth = slot.Month == DateTime.Now.Month && slot.Year == DateTime.Now.Year;
+        bool hasData = slot.Summary?.HasMeals ?? false;
+
+        if (_copySourceMonth != null)
+        {
+            bool isSource = slot.Year == _copySourceMonth.Year && slot.Month == _copySourceMonth.Month;
+            bool isHovered = _hoverTarget == (slot.Year, slot.Month);
+
+            if (isSource)
+            {
+                return dark
+                    ? "height:100%; border:2px solid #F9A825; background:#1C1500; cursor:default; position:relative;"
+                    : "height:100%; border:2px solid #F57F17; background:color-mix(in srgb,#F57F17 12%,transparent); cursor:default; position:relative;";
+            }
+
+            if (isHovered)
+            {
+                return dark
+                    ? "height:100%; border-left:4px solid #42A5F5; background:#0A1929; cursor:copy; position:relative;"
+                    : "height:100%; border-left:4px solid #1976D2; background:color-mix(in srgb,#1976D2 14%,transparent); cursor:copy; position:relative;";
+            }
+
+            // Potential target (dim, pulsing via CSS class)
+            return dark
+                ? "height:100%; background:#060E18; cursor:copy; opacity:0.7; position:relative;"
+                : "height:100%; cursor:copy; opacity:0.7; position:relative;";
+        }
+
+        // Normal mode (existing logic)
+        return isCurrentMonth
+            ? (dark
+                ? "height:100%; border-left:4px solid #7EC89A; background:#0B2116; cursor:pointer;"
+                : "height:100%; border-left:4px solid var(--mud-palette-success); background:color-mix(in srgb, var(--mud-palette-success) 8%, transparent); cursor:pointer;")
+            : hasData
+                ? (dark
+                    ? "height:100%; border-left:4px solid #5B9EC9; background:#071525; cursor:pointer;"
+                    : "height:100%; border-left:4px solid var(--mud-palette-primary); background:color-mix(in srgb, var(--mud-palette-primary) 8%, transparent); cursor:pointer;")
+                : (dark
+                    ? "height:100%; border-left:4px solid rgba(255,255,255,0.18); cursor:pointer;"
+                    : "height:100%; border-left:4px solid var(--mud-palette-lines-inputs); cursor:pointer;");
+    }
+
+    // ── Slot building ─────────────────────────────────────────────────────────
+
+    private static SortedDictionary<int, List<MonthSlot>> BuildSlotsByYear(List<MonthlySummaryResponse> summaries, bool showPast)
     {
         var now = DateTime.Now;
-        var currentYear = now.Year;
         var result = new SortedDictionary<int, List<MonthSlot>>();
 
-        result[currentYear] = BuildSlotsForRange(summaries, currentYear, now.Month, 12);
-        result[currentYear + 1] = BuildSlotsForRange(summaries, currentYear + 1, 1, 12);
-        result[currentYear + 2] = BuildSlotsForRange(summaries, currentYear + 2, 1, 12);
+        if (showPast)
+        {
+            var pastStart = now.AddMonths(-12);
+            if (pastStart.Year < now.Year)
+            {
+                result[pastStart.Year] = BuildSlotsForRange(summaries, pastStart.Year, pastStart.Month, 12);
+                result[now.Year] = BuildSlotsForRange(summaries, now.Year, 1, 12);
+            }
+            else
+            {
+                result[now.Year] = BuildSlotsForRange(summaries, now.Year, pastStart.Month, 12);
+            }
+        }
+        else
+        {
+            result[now.Year] = BuildSlotsForRange(summaries, now.Year, now.Month, 12);
+        }
+
+        result[now.Year + 1] = BuildSlotsForRange(summaries, now.Year + 1, 1, 12);
+        result[now.Year + 2] = BuildSlotsForRange(summaries, now.Year + 2, 1, 12);
 
         return result;
     }

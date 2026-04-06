@@ -276,4 +276,25 @@
 
         registry.delete(element);
     };
+
+    // --- MenuPlan copy mode: Escape key handler ---
+
+    var _escapeHandler = null;
+
+    window.addEscapeHandler = function (dotnetRef) {
+        window.removeEscapeHandler();
+        _escapeHandler = function (e) {
+            if (e.key === 'Escape') {
+                dotnetRef.invokeMethodAsync('ExitCopyModeJs');
+            }
+        };
+        document.addEventListener('keydown', _escapeHandler);
+    };
+
+    window.removeEscapeHandler = function () {
+        if (_escapeHandler) {
+            document.removeEventListener('keydown', _escapeHandler);
+            _escapeHandler = null;
+        }
+    };
 })();

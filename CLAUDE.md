@@ -152,8 +152,8 @@ Stacked grids (pending + main): `table-layout: fixed; width: 100%` on both, iden
 ### Backend (all complete: DTO / Validator / Service / Controller / Tests)
 Category, Item, Supplier, Customer, ItemSupplier, DailyMenu, Meal, MealItem, Recipe
 
-**New endpoint**: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>(Year, Month, HasMeals, MonthlyCost)`
-MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice` across all MealItems of the month, computed in C# after EF load.
+**New endpoint**: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>(Year, Month, HasMeals, MonthlyCost, DaysWithMeals)`
+MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice` across all MealItems of the month, computed in C# after EF load. `DaysWithMeals` = count of DailyMenu rows in the month that have at least one MealItem.
 
 **RecipeService**: All queries include `ItemSuppliers` via deep `ThenInclude` chain. `ComputeRecipeCost(Recipe r)` is a public static method (reused by `MealItemService`). Recipe response includes `EstimatedCost`. Ingredients ordered by `Order`.
 
@@ -165,6 +165,8 @@ MonthlyCost = sum of `ceil(qty / ContentQuantity) * cheapest available UnitPrice
 **New endpoint**: `POST /api/itemsuppliers/by-items` — body: `ByItemsRequest { List<int> ItemIds }` → `List<ItemPricingResponse>`. Returns all **available** `ItemSupplier` rows for the requested item IDs, with `ContentQuantity` and `Supplier` info (`Id`, `CompanyName`, `PaymentType`).
 
 **New endpoint**: `GET /api/itemsuppliers/best-by-item` → `Dictionary<int, BestSupplierInfo>`. Returns the cheapest available supplier per item (globally, not filtered by item list). `BestSupplierInfo` DTO (`Shared/DTOs/ItemSupplierDtos.cs`): `ItemId`, `PaymentType`, `UnitPrice`, `SupplierName`. Used by `ItemSupplierCache` on DayPlan load.
+
+**New endpoint**: `POST /api/dailymenus/duplicate` — body: `DuplicateMonthRequest { CustomerId, SourceYear, SourceMonth, TargetYear, TargetMonth }` → 204 (success) or 404 (customer not found). Server logic: delete all target-month `DailyMenu` rows first (cascade removes Meals+MealItems), then recreate day-by-day from source; days with `day > targetDaysInMonth` are silently skipped. Validator: `DuplicateMonthRequestValidator` (`Shared/Validators/`) — all fields > 0, months 1–12, source ≠ target. Client method: `DailyMenuService.DuplicateMonthAsync(DuplicateMonthRequest) → Task<bool>`.
 
 ### Frontend (Client)
 
@@ -201,12 +203,26 @@ Route: `/recipes`.
 Route: `/menuplan/{CustomerId:int}` — always scoped to a customer.
 Navigation entry point: `Customer/Index` — CalendarMonth icon button per row.
 
-- 3 years of cards grouped by year: current month → Dec, then full N+1 and N+2.
-- Unified "Voir le planning" button — navigates directly to `dayplans?customerId=X&year=Y&month=M` (no server-side creation).
-- **HasData coloring**: current month = `Color.Success` green, has data = `Color.Primary` filled blue, empty = outlined.
-- **Dark mode**: `MenuPlan/Index` subscribes to `ThemeState.OnChange` (`IDisposable`). When `ThemeState.IsDarkMode`, buttons get inline dark styles — current: dark green bg `#0B2116` / text `#7EC89A`; hasData: dark blue bg `#071525` / text `#5B9EC9`; empty: dim outlined.
-- **MonthlyCost**: computed server-side (`ceil(qty / PackageSize) * cheapest available UnitPrice`), displayed on each card (EUR, FR locale).
-- Data source: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>` (`Year`, `Month`, `HasMeals`, `MonthlyCost`). Client service: `DailyMenuService.GetMonthlySummaryAsync`.
+- Default: 3 years of cards grouped by year — current month → Dec, then full N+1 and N+2.
+- **Show past months toggle** (History icon button): when on, adds the 12 preceding months (split by year if they straddle a year boundary). `_showPast` bool, `TogglePast()` re-runs `BuildSlotsByYear`.
+- **Card click = navigate** to `dayplans?customerId=X&year=Y&month=M` — 280ms `Task.Delay` on click so dbl-click can cancel it via `CancellationTokenSource`.
+- **HasData coloring** (inline styles via `GetCardStyle(slot)`): current month = green border `#7EC89A` (dark) / `success`; has data = blue border `#5B9EC9` (dark) / `primary`; empty = dim border. CSS class `.menuplan-card` adds hover lift + shadow.
+- **Average daily cost**: `Moy. X.XX €/j` displayed in CardActions when `DaysWithMeals > 0` (`cost / daysWithMeals`). Monospace `.monthly-avg-cost` caption.
+- **MonthlyCost**: server-side `ceil(qty / ContentQuantity) * cheapest UnitPrice`, displayed on each card.
+- Data source: `GET /api/dailymenus/{customerId}/monthly-summary` → `List<MonthlySummaryResponse>`. Client: `DailyMenuService.GetMonthlySummaryAsync`. `_summaries` cached to avoid reload on `TogglePast`.
+
+### Copy mode (duplicate month)
+
+- **Enter copy mode**: dbl-click on a card that `HasMeals` → `EnterCopyModeAsync(slot)` → `_copySourceMonth = slot`. Source card rendered with amber border + dark overlay background. A full-screen invisible backdrop `<div>` (z-index:5) is injected to catch outside-clicks → `ExitCopyModeAsync`.
+- **JS Escape handler**: `addEscapeHandler(dotNetRef)` / `removeEscapeHandler()` in `sortable-interop.js`. Calls `[JSInvokable] ExitCopyModeJs()` on Escape.
+- **In copy mode — click source card**: ignored (no-op).
+- **In copy mode — click target card**: `HandleTargetSelectedAsync(target)`. If target `HasMeals`, opens `DuplicateMonthDialog` (MudDialog, `MudSelect` of options, warns about overwrite). On confirm → `ExecuteDuplicateAsync` → `POST /api/dailymenus/duplicate` → reload + `RefreshCopySource()` (stays in copy mode to allow chained copies).
+- **In copy mode — dbl-click another card** with data: re-selects it as source.
+- **Delete source month button**: shown inside source card (top-right, `@onclick:stopPropagation`). `ClearSourceMonthAsync()` uses `MudMessageBox` for confirmation, then `MealSvc.DeleteBatchAsync`. Exits copy mode after clear.
+- **Hover effects**: `_hoverTarget` tracks currently hovered card. Target cards pulsate (CSS animation `copy-target-pulse`) when not hovered; scale+shadow on hover. Copy icon (`ContentCopy`) shown top-right of hovered target.
+- **`GetCardCssClass(slot)`** returns `menuplan-card`, `menuplan-card menuplan-card-copy-hovered`, or `menuplan-card menuplan-card-copy-target`.
+- **`GetCardStyle(slot)`** returns full inline style string covering normal mode + copy-mode source/target/hovered states.
+- `DuplicateMonthDialog.razor` (`Client/Pages/MenuPlans/`): `SourceTitle`, `Options (List<TargetOption>)`, `PreSelected`. `TargetOption` sealed record `(Year, Month, Title, HasData)`. Shows overwrite warning when selected option `HasData`.
 
 ---
 
@@ -298,6 +314,7 @@ A `_saving` bool shows a full-screen dark overlay (`dayplan-overlay`) during any
 - SortableJS `onStart` tracks `_sortableDragItem` + shows `.sortable-copy-ghost` at source. `onEnd` reads Ctrl at drop time → `isCopy`; on copy, moves element back to source before Blazor reconciles.
 - `addRowPrimed(date)` / `removeRowPrimed(date)` — overlay-based: computes bounding box of all `[data-rowdate="date"]` elements, injects a single `.primed-axis-overlay` div into `.dayplan-grid`; remove clears it. No CSS class toggling on individual cells.
 - `addColumnPrimed(mealType)` / `removeColumnPrimed(mealType)` — same overlay mechanism over `[data-colmealtype="X"]` elements. Only one `_primedOverlay` exists at a time — activating one axis automatically replaces any previous overlay.
+- `addEscapeHandler(dotNetRef)` / `removeEscapeHandler()` — registers/removes a `keydown` listener on `document`; on Escape, calls `dotNetRef.invokeMethodAsync('ExitCopyModeJs')`. Used by `MenuPlan/Index` copy mode.
 
 ### Bulk clear / random fill operations (DayPlan/Index)
 
